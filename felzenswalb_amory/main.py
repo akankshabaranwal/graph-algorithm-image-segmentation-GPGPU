@@ -1,5 +1,6 @@
 from imageio import imread
 from scipy.ndimage import gaussian_filter
+from felzenswalb import felzenswalb
 
 def visualise(orig, compare):
     from scipy import misc
@@ -13,38 +14,35 @@ def visualise(orig, compare):
     ax2.imshow(compare)
     plt.show()
 
-def get_rgb(image, n_rows, n_cols):
-    r = []
-    g = []
-    b = []
 
-    for i in range(0, n_rows):
-        row_r = []
-        row_g = []
-        row_b = []
-
-        for j in range(0, n_cols):
-            row_r.append(rgb_matrix[i][j][0])
-            row_g.append(rgb_matrix[i][j][1])
-            row_b.append(rgb_matrix[i][j][2])
-        r.append(row_r)
-        g.append(row_g)
-        b.append(row_b)
+def get_rgb(rgb_matrix):
+    r = rgb_matrix[:, :, 0]
+    g = rgb_matrix[:, :, 1]
+    b = rgb_matrix[:, :, 2]
 
     return (r, g, b)
 
+# TODO: min component size
 if __name__ == '__main__':
     img_path = 'beach.gif'
-    sigma = 0.8
+    sigma = 0.5
+    k = 500
 
-    orig_rgb_matrix = imread('beach.gif')
+    # Read image and remove alpha channel
+    orig_rgb_matrix = imread('beach.gif')[:, :, :3]
 
     # Apply gaussian kernel for smoothing
     rgb_matrix = gaussian_filter(orig_rgb_matrix, sigma=sigma)
     n_rows = rgb_matrix.shape[0]
     n_cols = rgb_matrix.shape[1]
+    r, g, b = get_rgb(rgb_matrix)
 
-    r, g, b = get_rgb(rgb_matrix, n_rows, n_cols)
-    visualise(orig_rgb_matrix, rgb_matrix)
+    #visualise(orig_rgb_matrix, rgb_matrix)
+    components = felzenswalb(b, k)
+    for i in range(0, n_rows):
+        for j in range(0, n_cols):
+            r[i][j] = components.find(i*n_cols+j)
+
+    visualise(orig_rgb_matrix, r)
 
 
