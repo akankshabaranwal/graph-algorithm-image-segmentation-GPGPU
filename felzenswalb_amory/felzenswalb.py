@@ -1,80 +1,32 @@
 from disjoint_set import DisjointSet
-from graph import Graph
 import numpy as np
+from scipy.ndimage import gaussian_filter
+np.seterr(all='raise')
+import math
 
-def create_image_graph(image):
-    n_rows = image.shape[0]
-    n_cols = image.shape[1]
+def felzenswalb(input_image, sigma, k, min_cmp_size):
 
-    # Create graph
-    g = Graph()
-    for i in range(0, n_rows - 1):
-        for j in range(0, n_cols - 1):
-            cur_node = i * n_cols + j
-            cur_node_intensity = int(image[i][j])
+    # Apply gaussian kernel for smoothing
+    smoothed_image = gaussian_filter(input_image, sigma=sigma)
 
-            right_node = i * n_cols + j + 1
-            right_node_intensity = int(image[i][j+1])
+    return segment(smoothed_image, k, min_cmp_size)
 
-            bottom_node = (i + 1) * n_cols + j
-            bottom_node_intensity = int(image[i+1][j])
 
-            diag_down_node = (i + 1) * n_cols + j + 1
-            diag_down_node_intensity = int(image[i+1][j + 1])
+def segment(image, k, min_cmp_size):
 
-            g.addEdge(cur_node, right_node, abs(cur_node_intensity - right_node_intensity))
-            g.addEdge(cur_node, bottom_node, abs(cur_node_intensity - bottom_node_intensity))
-            g.addEdge(cur_node, diag_down_node, abs(cur_node_intensity - diag_down_node_intensity))
+    edges = create_graph(image)
+    edges = sorted(edges, key=lambda el: el[2])
+    m = len(edges)
 
-    for i in range(1, n_rows):  # Add diagonal up right edges
-        for j in range(0, n_cols - 1):
-            cur_node = i * n_cols + j
-            cur_node_intensity = int(image[i][j])
-
-            diag_up_node = (i - 1) * n_cols + j + 1
-            diag_up_node_intensity = int(image[i - 1][j + 1])
-
-            g.addEdge(cur_node, diag_up_node, abs(cur_node_intensity - diag_up_node_intensity))
-
-    for i in range(0, n_rows - 1):  # Add right column edges
-        j = n_cols - 1
-
-        cur_node = i * n_cols + j
-        cur_node_intensity = int(image[i][j])
-
-        bottom_node = (i + 1) * n_cols + j
-        bottom_node_intensity = int(image[i + 1][j])
-
-        g.addEdge(cur_node, bottom_node, abs(cur_node_intensity - bottom_node_intensity))
-
-    for j in range(0, n_cols - 1):  # Add bottom row edges
-        i = n_rows - 1
-
-        cur_node = i * n_cols + j
-        cur_node_intensity = int(image[i][j])
-
-        right_node = i * n_cols + j + 1
-        right_node_intensity = int(image[i][j + 1])
-
-        g.addEdge(cur_node, right_node, abs(cur_node_intensity - right_node_intensity))
-
-    return g
-
-def felzenswalb(image, k):
-    ds = DisjointSet()
+    components = DisjointSet()
     internal_diff = dict()
-    # internal_diff.get("key", 0)
     cmp_size = dict()
-    # cmp_size.get("key", 1)
 
-    g = create_image_graph(image)
-    g.sortEdges()
+    for q in range(m):
+        src, dst, w = edges[q]
+        src_cmp = components.find(src)
+        dst_cmp = components.find(dst)
 
-    m = len(g.graph)
-    for q in range(0, m):
-        src, dst, w = g.graph[q]
-        src_cmp = ds.find(src)
-        dst_cmp = ds.find(dst)
         if src_cmp != dst_cmp:
             src_int_diff = internal_diff.get(src_cmp, 0)
             src_cmp_size = cmp_size.get(src_cmp, 1)
@@ -83,11 +35,11 @@ def felzenswalb(image, k):
             dst_int_diff = internal_diff.get(dst_cmp, 0)
             dst_cmp_size = cmp_size.get(dst_cmp, 1)
             dst_diff = dst_int_diff + (k / dst_cmp_size)
+
             if w <= min(src_diff, dst_diff):
-                # Merge components
-                ds.union(src_cmp, dst_cmp)
-                merged_cmp = ds.find(src)
-                internal_diff[merged_cmp] = max(src_int_diff, dst_int_diff)
+                components.union(src_cmp, dst_cmp)
+                merged_cmp = components.find(src)
+                internal_diff[merged_cmp] = w
                 cmp_size[merged_cmp] = src_cmp_size + dst_cmp_size
 
                 rmv_cmp = src_cmp if merged_cmp == dst_cmp else dst_cmp
@@ -95,4 +47,57 @@ def felzenswalb(image, k):
                     del internal_diff[rmv_cmp]
                     del cmp_size[rmv_cmp]
 
-    return ds
+    # Join small components
+    for q in range(m):
+        src, dst, w = edges[q]
+        src_cmp = components.find(src)
+        dst_cmp = components.find(dst)
+
+        if src_cmp != dst_cmp:
+            src_cmp_size = cmp_size.get(src_cmp, 1)
+            dst_cmp_size = cmp_size.get(dst_cmp, 1)
+            if src_cmp_size < min_cmp_size or dst_cmp_size < min_cmp_size:
+                components.union(src_cmp, dst_cmp)
+                merged_cmp = components.find(src)
+                cmp_size[merged_cmp] = src_cmp_size + dst_cmp_size
+
+    return components
+
+
+def dissimilarity(image, row1, col1, row2, col2):
+    is_grayscale = len(image.shape) == 2
+
+    if is_grayscale:
+        return abs(image[row1][col1] - image[row2][col2])
+    else:
+        return math.sqrt(
+            np.sum(
+                pow(image[row1][col1] - image[row2][col2], 2)
+            )
+        )
+
+
+def create_graph(image):
+    n_rows = image.shape[0]
+    n_cols = image.shape[1]
+
+    edges = []
+
+    for i in range(n_rows):
+        for j in range(n_cols):
+            cur_node = i * n_cols + j
+            right_node = i * n_cols + j + 1
+            bottom_node = (i+1) * n_cols + j
+            bottom_right_node = (i+1) * n_cols + j + 1
+
+            if j < n_cols - 1:
+                edges.append((cur_node, right_node, dissimilarity(image, i, j, i, j+1)))
+
+            if i < n_rows - 1:
+                edges.append((cur_node, bottom_node, dissimilarity(image, i, j, i+1, j)))
+
+            if j < n_cols - 1 and i < n_rows - 1:
+                edges.append((cur_node, bottom_right_node, dissimilarity(image, i, j, i+1, j+1)))
+                edges.append((bottom_node, right_node, dissimilarity(image, i+1, j, i, j+1)))
+
+    return edges

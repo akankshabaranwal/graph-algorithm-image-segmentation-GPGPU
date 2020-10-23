@@ -1,48 +1,57 @@
 from imageio import imread
-from scipy.ndimage import gaussian_filter
 from felzenswalb import felzenswalb
+import matplotlib.pyplot as plt
+import numpy as np
+import random
+from scipy import ndimage
 
-def visualise(orig, compare):
-    from scipy import misc
-    import matplotlib.pyplot as plt
+
+def visualise(orig, compare, grayscale=False):
     fig = plt.figure()
     ax1 = fig.add_subplot(121)  # left side
     ax2 = fig.add_subplot(122)  # right side
 
+    if grayscale:
+        plt.gray()
 
     ax1.imshow(orig)
     ax2.imshow(compare)
     plt.show()
 
 
-def get_rgb(rgb_matrix):
-    r = rgb_matrix[:, :, 0]
-    g = rgb_matrix[:, :, 1]
-    b = rgb_matrix[:, :, 2]
+def remove_alpha(image):
+    if len(image.shape) == 3 and image.shape[2] == 4:  # RGBA
+        image = image[:, :, :3]
 
-    return (r, g, b)
+    return image
 
-# TODO: min component size
+def random_rgb():
+    rgb = np.zeros(3, dtype=int)
+    rgb[0] = random.randint(0, 255)
+    rgb[1] = random.randint(0, 255)
+    rgb[2] = random.randint(0, 255)
+    return rgb
+
 if __name__ == '__main__':
     img_path = 'beach.gif'
     sigma = 0.5
     k = 500
+    min = 50
 
-    # Read image and remove alpha channel
-    orig_rgb_matrix = imread('beach.gif')[:, :, :3]
+    # Read image and remove alpha channel, somehow not accurate enough if work with ints instead of floats!
+    image = remove_alpha(imread(img_path)).astype(float)
+    n_rows = image.shape[0]
+    n_cols = image.shape[1]
 
-    # Apply gaussian kernel for smoothing
-    rgb_matrix = gaussian_filter(orig_rgb_matrix, sigma=sigma)
-    n_rows = rgb_matrix.shape[0]
-    n_cols = rgb_matrix.shape[1]
-    r, g, b = get_rgb(rgb_matrix)
+    components = felzenswalb(image, sigma, k, min)
 
-    #visualise(orig_rgb_matrix, rgb_matrix)
-    components = felzenswalb(b, k)
-    for i in range(0, n_rows):
-        for j in range(0, n_cols):
-            r[i][j] = components.find(i*n_cols+j)
+    colors = np.zeros(shape=(n_rows * n_cols, 3))
+    for i in range(n_rows * n_cols):
+        colors[i, :] = random_rgb()
 
-    visualise(orig_rgb_matrix, r)
+    output = np.zeros(shape=(n_rows, n_cols, 3), dtype=int)
+    for i in range(n_rows):
+        for j in range(n_cols):
+            output[i][j] = colors[components.find(i*n_cols + j),:]
 
-
+    visualise(image.astype(int), output)
