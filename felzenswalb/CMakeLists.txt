@@ -8,6 +8,8 @@ add_executable(felz
 	main.cpp
 	gaussian_filter.cpp
 	gaussian_filter.h
+	segment_image.cpp
+	segment_image.h
 
 	stb_image/stb_image.h
 	stb_image/stb_image_write.h
