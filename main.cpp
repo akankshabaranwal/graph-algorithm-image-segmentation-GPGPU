@@ -7,7 +7,7 @@
 #include "stb_image/stb_image_write.h"
 
 #include "gaussian_filter.h"
-#include "segmentImage.h"
+#include "segment_image.h"
 
 // Get R, G and B channels from image, ignoring A component.
 void load_image(const char* path, int &width, int& height, int& channels, unsigned char **img) {
@@ -108,11 +108,10 @@ int main() {
     convolve2d(gray, blurred, width, height, filter, 5, 5);
     double* normal = normalize(blurred, width, height);
     unsigned char* image = convert(normal, width, height);
-
     //Gaussian filtering has been done at this point
 
-    //Call felzenswalb to find components
-    double* components = felzenswalb(image, sigma, k, min);
+    // Image segmentation code
+    ImageSegment(image, k, min, width, height, channels);
 
     // Write image to a file
     //stbi_write_png(out_path, width, height, 1, out, width);
