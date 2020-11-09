@@ -1,7 +1,7 @@
 #ifndef SEGMENT_IMAGE_H
 #define SEGMENT_IMAGE_H
 
-class Edge{
+struct Edge{
 public:
     int u;
     int v;

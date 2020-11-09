@@ -111,11 +111,10 @@ int main() {
     //Gaussian filtering has been done at this point
 
     // Image segmentation code
-    ImageSegment(image, k, min, width, height, channels);
-
+    ImageSegment(image, k, min, width, height, channels); //Segmenting the grayscale image
     // Write image to a file
-    //stbi_write_png(out_path, width, height, 1, out, width);
-    //stbi_image_free(img);
+    stbi_write_png(out_path, width, height, 1, image, width);
+    stbi_image_free(image);
 
     // To-do: Cleanup using delete[] on alloc'ed images/matrices
 
