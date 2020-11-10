@@ -1,58 +1,53 @@
 #include "segment_image.h"
 #include <cmath>
-#include <iostream>
-
-using namespace std;
 
 int num_edge = 0;
 int num_vertices = 0;
 
-double dissimilarity(unsigned char *image, int width, int row1, int col1, int row2, int col2, int channels) {
+double dissimilarity(Mat image, int row1, int col1, int row2, int col2) {
     double dis = 0;
-    for (int dim = 0; dim < channels; dim++) {
-        dis = dis + pow((image[(row1 * width) + col1] - image[(row2 * width) + col2]), 2);
-    }
+    Point3_<uchar>* u = image.ptr<Point3_<uchar> >(row1,col1);
+    Point3_<uchar>* v = image.ptr<Point3_<uchar> >(row2,col2);
+    dis = pow((u->x - v->x), 2) + pow((u->y - v->y), 2) + pow((u->z - v->z), 2);
     return sqrt(dis);
 }
 
 // Creating the graph
-void create_graph(Edge edges[], unsigned char *image, int width, int height, int channels) {
-    //TODO: Update this appropriately. This is the upper bound on the number of edges.
-    num_vertices = width * height; //Initially each vertex is a pixel
+void create_graph(Edge edges[], Mat InputImage) {
+    //Initially each vertex is a pixel
     int cur_node, right_node, bottom_node, bottom_right_node;
     double wt;
-    for (int i = 0; i < height; i++) {
-        for (int j = 0; j < width; j++) {
-            cur_node = i * width + j;
-            right_node = i * width + j + 1;
-            bottom_node = (i + 1) * width + j;
-            bottom_right_node = (i + 1) * width + j + 1;
-            if (j < (width - 1)) {
+    for (int i = 0; i < InputImage.rows; i++) {
+        for (int j = 0; j < InputImage.cols; j++) {
+            cur_node = i * InputImage.cols + j;
+            right_node = i * InputImage.cols + j + 1;
+            bottom_node = (i + 1) * InputImage.cols + j;
+            bottom_right_node = (i + 1) * InputImage.cols + j + 1;
+            if (j < (InputImage.cols - 1)) {
                 edges[num_edge].u = cur_node;
                 edges[num_edge].v = right_node;
-                edges[num_edge].wt = dissimilarity(image, width, i, j, i, j + 1, channels);
+                edges[num_edge].wt = dissimilarity(InputImage, i, j, i, j + 1);
                 num_edge++;
             }
-            if (i < (height - 1)) {
+            if (i < (InputImage.rows - 1)) {
                 edges[num_edge].u = cur_node;
                 edges[num_edge].v = bottom_node;
-                edges[num_edge].wt = dissimilarity(image, width, i, j, i + 1, j, channels);
+                edges[num_edge].wt = dissimilarity(InputImage, i, j, i + 1, j);
                 num_edge++;
             }
-            if ((j < (width - 1)) && (i < (height - 1))) {
+            if ((j < (InputImage.rows - 1)) && (i < (InputImage.cols - 1))) {
                 edges[num_edge].u = cur_node;
                 edges[num_edge].v = bottom_right_node;
-                edges[num_edge].wt = dissimilarity(image, width, i, j, i + 1, j + 1, channels);
+                edges[num_edge].wt = dissimilarity(InputImage, i, j, i + 1, j + 1);
                 num_edge++;
                 edges[num_edge].u = bottom_node;
                 edges[num_edge].v = right_node;
-                edges[num_edge].wt = dissimilarity(image, width, i + 1, j, i, j + 1, channels);
+                edges[num_edge].wt = dissimilarity(InputImage, i + 1, j, i, j + 1);
                 num_edge++;
             }
         }
     }
 }
-
 
 // Graph segmentation functions
 // A utility function to find set of an element i (uses path compression technique)
@@ -94,12 +89,15 @@ void Union(struct subset subsets[], int x, int y, double wt,
 //Generously borrowed from https://www.geeksforgeeks.org/boruvkas-algorithm-greedy-algo-9/
 // Pseudo code of segmentation from https://dergipark.org.tr/en/pub/ijamec/issue/25619/271038
 
-void ImageSegment(unsigned char *image, double k, int min_cmp_size, int width, int height, int channels) {
-    int size_graph = width * height * 4;
-    //TODO: Update this appropriately. This is the upper bound on the number of edges.
+void SegmentImage(Mat InputImage, double k, int min_cmp_size) {
+    int rows = InputImage.rows;
+    int cols = InputImage.cols;
+    int size_graph = rows * cols * 4;
     Edge edges[size_graph];
-    num_vertices = width * height; //Initially each vertex is a pixel
-    create_graph(edges, image, width, height, channels);
+    Mat SegmentedImage;
+    SegmentedImage = InputImage.clone();
+    num_vertices = rows * cols; //Initially each vertex is a pixel
+    create_graph(edges, InputImage);
 
     struct subset *subsets = new subset[num_vertices];
     int *cheapest = new int[num_vertices];
@@ -113,12 +111,12 @@ void ImageSegment(unsigned char *image, double k, int min_cmp_size, int width, i
         subsets[v].sz = 1; // At the start each subset has just one element.
         cheapest[v] = -1;
     }
-    int numTrees = num_vertices;
+
     for (int i = 0; i < num_edge; i++) {
         cout << "Printing edge information: " << edges[i].u << ' ' << edges[i].v << ' ' << edges[i].wt << endl;
     }
+
     while(DidReduce>0){
-    //while (numTrees > 1) {
         DidReduce = 0;
         // While condition checking if we can find any more components or no. Everytime initialize cheapest array
         for (int v = 0; v < num_vertices; ++v) {
@@ -153,7 +151,6 @@ void ImageSegment(unsigned char *image, double k, int min_cmp_size, int width, i
                 // Do a union of set1 and set2 and decrease number of trees
                 if((edges[cheapest[i]].wt < subsets[set1].thresh) && (edges[cheapest[i]].wt < subsets[set2].thresh)) {
                 Union(subsets, set1, set2, edges[cheapest[i]].wt, k);
-                numTrees--;
                 DidReduce++;
                 }
             }
@@ -173,13 +170,36 @@ void ImageSegment(unsigned char *image, double k, int min_cmp_size, int width, i
         }
     }
 
-    int pixel;
-    for (int y = 0; y < height; y++)
+    Point3_<uchar>* Srcpixel; //= InputImage.ptr<Point3_<uchar> >(0,0);
+    Point3_<uchar>* Destpixel; //= SegmentedImage.ptr<Point3_<uchar> >(0,0);
+
+    int DestPixel;
+    int SrcPixel;
+    int SrcRow, SrcCol;
+
+    for (int i=0;i<rows; i++)
     {
-        for (int x = 0; x < width; x++)
+        for(int j=0; j<cols; j++)
         {
-            pixel = (y * width) + x;
-            image[pixel] = image[find(subsets,pixel)];
+            DestPixel = (i*cols) + j;
+
+            SrcPixel = find(subsets, DestPixel);
+            SrcRow = int(SrcPixel/cols);
+            SrcCol = SrcPixel - (cols*SrcRow);
+
+            Srcpixel = InputImage.ptr<Point3_<uchar> >(SrcRow,SrcCol);
+            Destpixel = SegmentedImage.ptr<Point3_<uchar> >(i,j);
+
+            Destpixel->x = Srcpixel->x;
+            Destpixel->y = Srcpixel->y;
+            Destpixel->z = Srcpixel->z;
         }
+    }
+
+    imshow("Segmented Image", SegmentedImage);
+    int Key = waitKey(0); // Wait for a keystroke in the window
+    if(Key == 's')
+    {
+        imwrite("data/SegmentedImage.png", SegmentedImage);
     }
 }
