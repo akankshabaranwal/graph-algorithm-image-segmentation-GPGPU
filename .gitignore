@@ -209,3 +209,6 @@ Icon
 Network Trash Folder
 Temporary Items
 .apdisk
+
+# CMake build folder in instructions
+out/
