@@ -1,0 +1,110 @@
+ASSUMPTIONS: num_components == min_edges.length
+
+
+find_min(num_components, min_edges, vertices, edges)[num_threads ~ num_components]:
+    tid = blockDim*blockId+threadId // component_id
+    if (tid >= num_components) return
+    min.w, min.src_id, min.dest_id = 0
+    // Scan all vertices and find the min
+    // Probably this could be a dynamic kernel where num_threads ~ vertices.length?
+    for (i=0, i < vertices.length, i++) { // for all vertices
+        vertice = vertices[i]
+        if (vertice.component == tid) {
+            for (j=0, j < edges[i].length, j++) { // for all edges
+                edge = edges[i][j]
+                if (edge.Id != 0) {
+                    if (edge.weight < min) {
+                        min.w = edge.weight
+                        min.src_id = vertice.id
+                        min.dest_id = edge.id
+                    }
+                }
+            }
+        }
+    }
+    min_edges[tid] = min
+
+Complexity: O(vertices.length) Can this be better?
+
+--------------------------------------------------------------------------------
+remove_mutual_merges(min_edges, num_components)[num_threads ~ num_components]:
+    tid = blockDim*blockId+threadId
+    if (tid >= num_components) return
+
+    edge = min_edges[tid]
+    src = edge.src_id
+    dest = edge.dest_id
+    barrier()
+    for (i=0, i<num_components, i++) {
+        if (i == tid) skip
+        curr_edge = min_edges[i]
+        curr_src = curr_edge.src_id
+        curr_dest = curr_edge.dest_id
+        if (src == curr_dest && dest == curr_src) {
+            if (i < tid) return
+            curr_edge.dest_id = dest
+        }
+    }
+
+--------------------------------------------------------------------------------
+merge_comp(min_edges, vertices, edges, k, num_components)[num_threads ~ num_components]:
+    tid = blockDim*blockId+threadId
+    if (tid >= num_components) return
+    edge = min_edges[tid]
+    src = vertices[edge.src_id]
+    dest = vertices[edge.dest_id]
+    barrier() // ?
+    src_diff = src.int_diff + (k / src.size)
+    dest_diff = dest.int_diff + (k / dest.size)
+    // Need to remove cycles!
+    if (edge.w <= min(src_diff, dest_diff)) {
+        update_n_components()
+        new_int_diff = max(src.int_diff, dest.int_diff, edge.w)
+        new_size = src.size + dest.size
+        new_component = src.component
+        // Union components by rewriting comp_id
+        // Probably this could be a dynamic kernel? (2 kernels?)
+        for (i=0; i < vertices.length; i++) { // for all vertices
+            vertice = vertices[i]
+            // Update vertices in new component
+            is_vertice_in_new_comp = vertice.component == dest.component || vertice.component == src.component
+            if (is_vertice_in_new_comp) {
+                vertice.size = new_size
+                vertice.int_diff = new_int_diff
+                vertice.component = new_component
+            }
+            // Update edges in new component
+            for (j=0, j < edges[i].length, j++) {
+                edge = edges[i]
+                if (edge.component == dest.component) {
+                    // Remove edges internal to a component
+                    if (is_vertice_new_comp) edge.id = 0
+                    else edge.component = new_component
+                }
+            }
+        }
+    }
+
+Complexity: O(5vertices.length) Can this be better?
+
+--------------------------------------------------------------------------------
+
+segment_bvk(vertices, edges, k) []:
+    n_components = vertices.length
+    while (n_components != prev_n_components) {
+        prev_n_components = n_components
+        min_edges = new[n_components]
+        if (n_components < 1024) {
+            threads = n_components
+            blocks = 1
+        }
+        else {
+            threads = 1024
+            blocks = n_components / 1024 + 1
+        }
+        find_min(n_components, min_edges, vertices, edges)[blocks, threads]
+        remove_cycles(min_edges)[]
+        merge_comp(min_edges, vertices, edges, k)[blocks, threads]
+    }
+
+Complexity: O(W(O(find_min) + O(remove_cycles) + O(merge_comp)))
