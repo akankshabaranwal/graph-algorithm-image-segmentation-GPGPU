@@ -69,6 +69,21 @@ void find_min_edges(uint4 vertices[], uint3 edges[], uint3 min_edges[], uint num
 __global__
 void remove_cycles(uint3 min_edges[], uint num_components) {
     uint tid = blockDim.x * blockIdx.x + threadIdx.x;
+    if (tid >= num_components) return;
+
+    uint3 edge = min_edges[tid];
+    uint src = edge.y;
+    uint dest = edge.z;
+    __syncthreads();
+
+    for (int i = 0; i < num_components; i++) {
+        if (i == tid) continue;
+        uint3 curr_edge = min_edges[i];
+        if (src == curr_edge.z && dest == curr_edge.y) {
+            if (i < tid) return;
+            curr_edge.z = dest;
+        }
+    }
 
 }
 
