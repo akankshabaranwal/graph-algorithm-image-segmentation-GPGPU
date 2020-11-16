@@ -21,11 +21,10 @@ int main(int argc, char **argv)
     imshow("Source Image", image);
     imshow("After Blur (CUDA)", output);
 
-    cv::waitKey();
-
     char *segmented_img = compute_segments(dev_output.cudaPtr(), image.cols, image.rows);
 
     imshow("Segmented", cv::Mat(image.rows, image.cols, CV_8UC3, segmented_img));
+    cv::waitKey();
 
     return 0;
 }
