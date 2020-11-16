@@ -1,7 +1,6 @@
 cmake_minimum_required(VERSION 3.17)
 
 project(felzenswalb LANGUAGES CXX CUDA)
-set(CMAKE_VERBOSE_MAKEFILE ON)
 
 include(cmake/OpenCV.cmake)
 
@@ -12,7 +11,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED  TRUE)
 
 add_executable(felz
         "${CMAKE_SOURCE_DIR}/src/Main.cpp"
-        "${CMAKE_SOURCE_DIR}/src/Kernel.cu"
+        "${CMAKE_SOURCE_DIR}/src/mst.cu"
         )
 
 set_property(TARGET felz PROPERTY CUDA_ARCHITECTURES 61)

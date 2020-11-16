@@ -3,18 +3,17 @@
 #include <opencv2/cudafilters.hpp>
 #include <opencv2/highgui.hpp>
 
-using namespace cv;
-using namespace cv::cuda;
+#include "mst.h"
 
 int main(int argc, char **argv)
 {
-    Mat image, output;
-    GpuMat dev_image, dev_output;
+    cv::Mat image, output;
+    cv::cuda::GpuMat dev_image, dev_output;
 
-    image = imread("data/beach.png", IMREAD_COLOR);
+    image = imread("data/beach.png", cv::IMREAD_COLOR);
     dev_image.upload(image);
 
-    Ptr<Filter> filter = createGaussianFilter(CV_8UC3, CV_8UC3, Size(5, 5), 1.0);
+    cv::Ptr<cv::cuda::Filter> filter = cv::cuda::createGaussianFilter(CV_8UC3, CV_8UC3, cv::Size(5, 5), 1.0);
     filter->apply(dev_image, dev_output);
 
     dev_output.download(output);
@@ -22,7 +21,11 @@ int main(int argc, char **argv)
     imshow("Source Image", image);
     imshow("After Blur (CUDA)", output);
 
-    waitKey();
+    cv::waitKey();
+
+    char *segmented_img = compute_segments(dev_output.cudaPtr(), image.cols, image.rows);
+
+    imshow("Segmented", cv::Mat(image.rows, image.cols, CV_8UC3, segmented_img));
 
     return 0;
 }
