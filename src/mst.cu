@@ -34,18 +34,37 @@ void remove_cycles(uint2 min_edges[], uint num_components) {
 
 // Kernel to merge components
 __global__
-void merge(uint4 vertices[], uint3 edges[], uint2 min_edges[], uint k, uint num_components) {
+void merge(uint4 vertices[], uint3 edges[], uint2 min_edges[], uint *num_components) {
     uint tid = blockDim.x * blockIdx.x + threadIdx.x;
 
 }
 
 // Kernel to orchestrate
 __global__
-void segment(uint4 vertices[], uint3 edges[], uint2 min_edges[], uint k) {
-
+void segment(uint4 vertices[], uint3 edges[], uint2 min_edges[], uint n_components) {
+    uint prev_n_components = 0;
+    while (n_components != prev_n_components) {
+        prev_n_components = n_components;
+        uint threads = 1024;
+        uint blocks = 1;
+        if (n_components < 1024) {
+            threads = n_components;
+        } else {
+            blocks = n_components / 1024 + 1;
+        }
+        find_min_edges<<<threads, blocks>>>(vertices, edges, min_edges, n_components);
+        cudaDeviceSynchronize();
+        __syncthreads();
+        remove_cycles<<<threads, blocks>>>(min_edges, n_components);
+        cudaDeviceSynchronize();
+        __syncthreads();
+        merge<<<threads, blocks>>>(vertices, edges, min_edges, &n_components);
+        cudaDeviceSynchronize();
+        __syncthreads();
+    }
 }
 
-char *compute_segments(void *input, uint x, uint y, uint k) {
+char *compute_segments(void *input, uint x, uint y) {
     uint4 *vertices;
     uint3 *edges;
     uint2 *min_edges;

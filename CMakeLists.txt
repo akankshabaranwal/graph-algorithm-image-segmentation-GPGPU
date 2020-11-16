@@ -9,15 +9,20 @@ set(CMAKE_CUDA_STANDARD 14)
 set(CMAKE_CUDA_STANDARD_REQUIRED TRUE)
 set(CMAKE_CXX_STANDARD_REQUIRED  TRUE)
 
-add_executable(felz
-        "${CMAKE_SOURCE_DIR}/src/Main.cpp"
+add_library(felz-gpu
         "${CMAKE_SOURCE_DIR}/src/mst.cu"
         )
+set_property(TARGET felz-gpu PROPERTY CUDA_ARCHITECTURES 61)
+set_property(TARGET felz-gpu PROPERTY CUDA_SEPARABLE_COMPILATION ON)
+target_link_libraries(felz-gpu PRIVATE cudadevrt)
 
+add_executable(felz
+        "${CMAKE_SOURCE_DIR}/src/Main.cpp"
+        )
 set_property(TARGET felz PROPERTY CUDA_ARCHITECTURES 61)
-
 target_include_directories(felz PRIVATE ${OpenCV_INCLUDE_DIRS})
 target_link_libraries(felz PRIVATE ${OpenCV_LIBS})
+target_link_libraries(felz PRIVATE felz-gpu)
 
 if(WIN32)
     set_property(TARGET felz PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
