@@ -11,7 +11,7 @@
 /*
  * Matrix structure:
  *      - vertices array of type uint4, where
- *          * x = id
+ *          * x = id (starting at 1, so that 1 can represent null node)
  *          * y = component id
  *          * z = component size
  *          * w = component internal difference
@@ -42,15 +42,16 @@ void decode(uint4 vertices[], char *image) {
 // Kernel to find min edge
 __global__
 void find_min_edges(uint4 vertices[], uint3 edges[], uint3 min_edges[], uint num_components, uint vertices_length) {
-    uint tid = blockDim.x * blockIdx.x + threadIdx.x;
-    if (tid >= num_components) return;
+    uint component_id = blockDim.x * blockIdx.x + threadIdx.x;
+    if (component_id >= num_components) return;
+
     uint3 min;
     min.x = UINT_MAX;
     // Scan all vertices and find the min with component == tid
     for (int i = 0; i < vertices_length; i++) {
         uint4 vertice = vertices[i];
-        if (vertice.y == tid) {
-            for (int j = tid * NUM_NEIGHBOURS; j < tid * NUM_NEIGHBOURS + NUM_NEIGHBOURS; j++) {
+        if (vertice.y == component_id) {
+            for (int j = component_id * NUM_NEIGHBOURS; j < component_id * NUM_NEIGHBOURS + NUM_NEIGHBOURS; j++) {
                 uint3 edge = edges[j];
                 if (edge.x != 0) {
                     if (edge.y < min.x) {
@@ -62,26 +63,52 @@ void find_min_edges(uint4 vertices[], uint3 edges[], uint3 min_edges[], uint num
             }
         }
     }
-    min_edges[tid] = min;
+    min_edges[component_id] = min;
 }
 
 // Kernel to remove cycles
 __global__
 void remove_cycles(uint3 min_edges[], uint num_components) {
-    uint tid = blockDim.x * blockIdx.x + threadIdx.x;
-    if (tid >= num_components) return;
+    uint component_id_x = blockDim.x * blockIdx.x + threadIdx.x;
+    if (component_id_x >= num_components) return;
 
-    uint3 edge = min_edges[tid];
+    uint component_id_y = blockDim.y * blockIdx.y + threadIdx.y;
+    if (component_id_y >= num_components) return;
+
+    if (component_id_x == component_id_y) return;
+
+    uint3 edge = min_edges[component_id_x];
     uint src = edge.y;
     uint dest = edge.z;
     __syncthreads();
 
-    for (int i = 0; i < num_components; i++) {
-        if (i == tid) continue;
-        uint3 curr_edge = min_edges[i];
-        if (src == curr_edge.z && dest == curr_edge.y) {
-            if (i < tid) return;
-            curr_edge.z = dest;
+    uint3 curr_edge = min_edges[component_id_y];
+    if (src == curr_edge.z && dest == curr_edge.y && component_id_x > component_id_y) {
+        curr_edge.z = dest;
+    }
+}
+
+// Kernel to update vertices with new components
+__global__
+void update_matrix(uint4 vertices[], uint3 edges[], uint vertices_length, uint new_component, uint new_size, uint new_int_diff, uint dest_id, uint src_id) {
+    uint vertice_id = blockDim.y * blockIdx.y + threadIdx.y;
+    if (vertice_id >= vertices_length) return;
+
+    uint4 vertice = vertices[vertice_id];
+    bool is_vertice_new_comp = vertice.y == dest_id || vertice.y == src_id;
+    if (is_vertice_new_comp) {
+        vertice.y = new_component;
+        vertice.z = new_size;
+        vertice.w = new_int_diff;
+    }
+
+    for (int j = vertice_id * NUM_NEIGHBOURS; j < vertice_id * NUM_NEIGHBOURS + NUM_NEIGHBOURS; j++) {
+        uint3 neighbour_edge = edges[j];
+        if (neighbour_edge.x != 0) {
+            if (neighbour_edge.y == dest_id) {
+                if (is_vertice_new_comp) neighbour_edge.x = 0; // Remove internal edges
+                else neighbour_edge.z = new_component;
+            }
         }
     }
 
@@ -89,10 +116,11 @@ void remove_cycles(uint3 min_edges[], uint num_components) {
 
 // Kernel to merge components
 __global__
-void merge(uint4 vertices[], uint3 edges[], uint3 min_edges[], uint *num_components, uint vertices_length) {
-    uint tid = blockDim.x * blockIdx.x + threadIdx.x;
-    if (tid >= *num_components) return;
-    uint3 min_edge = min_edges[tid];
+void merge(uint4 vertices[], uint3 edges[], uint3 min_edges[], uint *num_components, uint update_threads, uint update_blocks, uint vertices_length) {
+    uint component_id = blockDim.x * blockIdx.x + threadIdx.x;
+    if (component_id >= *num_components) return;
+
+    uint3 min_edge = min_edges[component_id];
     uint4 src = vertices[min_edge.y];
     uint4 dest = vertices[min_edge.z];
     __syncthreads();
@@ -104,25 +132,7 @@ void merge(uint4 vertices[], uint3 edges[], uint3 min_edges[], uint *num_compone
         uint new_size = src.z + dest.z;
         uint new_component = src.x;
 
-        for (int i = 0; i < vertices_length; i++) {
-            uint4 vertice = vertices[i];
-            bool is_vertice_new_comp = vertice.y == dest.y || vertice.y == src.y;
-            if (is_vertice_new_comp) {
-                vertice.y = new_component;
-                vertice.z = new_size;
-                vertice.w = new_int_diff;
-            }
-
-            for (int j = tid * NUM_NEIGHBOURS; j < tid * NUM_NEIGHBOURS + NUM_NEIGHBOURS; j++) {
-                uint3 neighbour_edge = edges[j];
-                if (neighbour_edge.x != 0) {
-                    if (neighbour_edge.y == dest.y) {
-                        if (is_vertice_new_comp) neighbour_edge.x = 0; // Remove internal edges
-                        else neighbour_edge.z = new_component;
-                    }
-                }
-            }
-        }
+        update_matrix<<<update_blocks, update_blocks>>>(vertices, edges, vertices_length, new_component, new_size, new_int_diff, dest.y, src.y);
     }
 }
 
@@ -132,21 +142,39 @@ void segment(uint4 vertices[], uint3 edges[], uint3 min_edges[], uint *n_compone
     uint prev_n_components = 0;
     uint n_vertices = *n_components;
     uint curr_n_comp = *n_components;
+    dim3 threads;
+    dim3 blocks;
+    if (n_vertices < 1024) {
+        threads.y = n_vertices;
+        blocks.y = 1;
+    } else {
+        threads.y = 1024;
+        blocks.y = n_vertices / 1024 + 1;
+    }
+
     while (curr_n_comp != prev_n_components) {
-        uint threads = 1024;
-        uint blocks = 1;
-        if (*n_components < 1024) {
-            threads = curr_n_comp;
+        if (curr_n_comp < 1024) {
+            threads.x = curr_n_comp;
+            blocks.x = 1;
         } else {
-            blocks = curr_n_comp / 1024 + 1;
+            threads.x = 1024;
+            blocks.x = curr_n_comp / 1024 + 1;
         }
-        find_min_edges<<<blocks, threads>>>(vertices, edges, min_edges, curr_n_comp, n_vertices);
+
+        dim3 cycle_blocks;
+        cycle_blocks.x = blocks.x;
+        cycle_blocks.y = blocks.x;
+        dim3 cycle_threads;
+        cycle_threads.x = threads.x;
+        cycle_threads.y = threads.x;
+
+        find_min_edges<<<blocks.x, threads.x>>>(vertices, edges, min_edges, curr_n_comp, n_vertices);
         cudaDeviceSynchronize();
         __syncthreads();
-        remove_cycles<<<blocks, threads>>>(min_edges, curr_n_comp);
+        remove_cycles<<<cycle_blocks, cycle_threads>>>(min_edges, curr_n_comp);
         cudaDeviceSynchronize();
         __syncthreads();
-        merge<<<blocks, threads>>>(vertices, edges, min_edges, n_components, n_vertices);
+        merge<<<blocks.x, threads.x>>>(vertices, edges, min_edges, n_components, threads.y, blocks.y, n_vertices);
         cudaDeviceSynchronize();
         __syncthreads();
 
