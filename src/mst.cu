@@ -2,6 +2,9 @@
 // Created by gyorgy on 16/11/2020.
 //
 
+#include <stdio.h>
+#include <iostream>
+
 #include "mst.h"
 
 #define CHANNEL_SIZE 3
@@ -69,6 +72,7 @@ void find_min_edges(uint4 vertices[], uint3 edges[], uint3 min_edges[], uint num
 // Kernel to remove cycles
 __global__
 void remove_cycles(uint3 min_edges[], uint num_components) {
+    return;
     uint component_id_x = blockDim.x * blockIdx.x + threadIdx.x;
     if (component_id_x >= num_components) return;
 
@@ -132,7 +136,8 @@ void merge(uint4 vertices[], uint3 edges[], uint3 min_edges[], uint *num_compone
         uint new_size = src.z + dest.z;
         uint new_component = src.x;
 
-        update_matrix<<<update_blocks, update_blocks>>>(vertices, edges, vertices_length, new_component, new_size, new_int_diff, dest.y, src.y);
+        update_matrix<<<update_blocks, update_threads>>>(vertices, edges, vertices_length, new_component, new_size, new_int_diff, dest.y, src.y);
+        return;
     }
 }
 
@@ -144,6 +149,8 @@ void segment(uint4 vertices[], uint3 edges[], uint3 min_edges[], uint *n_compone
     uint curr_n_comp = *n_components;
     dim3 threads;
     dim3 blocks;
+    dim3 cycle_blocks;
+    dim3 cycle_threads;
     if (n_vertices < 1024) {
         threads.y = n_vertices;
         blocks.y = 1;
@@ -161,26 +168,36 @@ void segment(uint4 vertices[], uint3 edges[], uint3 min_edges[], uint *n_compone
             blocks.x = curr_n_comp / 1024 + 1;
         }
 
-        dim3 cycle_blocks;
-        cycle_blocks.x = blocks.x;
-        cycle_blocks.y = blocks.x;
-        dim3 cycle_threads;
-        cycle_threads.x = threads.x;
-        cycle_threads.y = threads.x;
+        if (curr_n_comp < 32) {
+            cycle_threads.x = curr_n_comp;
+            cycle_threads.y = cycle_threads.x;
+
+            cycle_blocks.x = 1;
+            cycle_blocks.y = 1;
+        } else {
+            cycle_threads.x = 32;
+            cycle_blocks.x = curr_n_comp / 32 + 1;
+
+            cycle_threads.y = cycle_threads.x;
+            cycle_blocks.y = cycle_blocks.x;
+        }
 
         find_min_edges<<<blocks.x, threads.x>>>(vertices, edges, min_edges, curr_n_comp, n_vertices);
         cudaDeviceSynchronize();
-        __syncthreads();
         remove_cycles<<<cycle_blocks, cycle_threads>>>(min_edges, curr_n_comp);
         cudaDeviceSynchronize();
-        __syncthreads();
         merge<<<blocks.x, threads.x>>>(vertices, edges, min_edges, n_components, threads.y, blocks.y, n_vertices);
         cudaDeviceSynchronize();
-        __syncthreads();
 
         prev_n_components = curr_n_comp;
         curr_n_comp = *n_components;
+        return;
     }
+}
+
+void checkErrors(const char *identifier) {
+    cudaError_t err = cudaGetLastError();
+    if (err != cudaSuccess) std::cout << "CUDA error: " << cudaGetErrorString(err) << " " << identifier << std::endl;
 }
 
 char *compute_segments(void *input, uint x, uint y) {
@@ -191,33 +208,43 @@ char *compute_segments(void *input, uint x, uint y) {
     uint *num_vertices_dev;
 
     cudaMalloc(&vertices, num_vertices*sizeof(uint4));
+    checkErrors("Malloc vertices");
     cudaMalloc(&edges, num_vertices*sizeof(uint3));
+    checkErrors("Malloc edges");
     cudaMalloc(&min_edges, num_vertices*sizeof(uint3)); // max(min_edges) == vertices.length
+    checkErrors("Malloc min_edges");
     cudaMalloc(&num_vertices_dev, sizeof(uint));
+    checkErrors("Malloc num vertices");
 
     cudaMemcpy(num_vertices_dev, &num_vertices, sizeof(uint), cudaMemcpyHostToDevice);
+    checkErrors("Memcpy num_vertices");
 
     // Write to the matrix from image
     encode<<<1, 1>>>((char*)input, vertices, edges);
+    checkErrors("encode()");
 
     // Segment matrix
     segment<<<1, 1>>>(vertices, edges, min_edges, num_vertices_dev);
+    cudaDeviceSynchronize();
+    checkErrors("segment()");
 
     // Write image back from segmented matrix
     decode<<<1, 1>>>(vertices, (char*)input);
+    checkErrors("decode()");
 
     // Clean up matrix
     cudaFree(vertices);
+    checkErrors("Free vertices");
     cudaFree(edges);
+    checkErrors("Free edges");
     cudaFree(min_edges);
+    checkErrors("Free min_edges");
 
     //Copy image data back from GPU
     char *output = (char*) malloc(x*y*CHANNEL_SIZE*sizeof(char));
 
     cudaMemcpy(output, input, x*y*CHANNEL_SIZE*sizeof(char), cudaMemcpyDeviceToHost);
-
-    // Clean up image
-    cudaFree(input);
+    checkErrors("Memcpy output");
 
     return output;
 }
