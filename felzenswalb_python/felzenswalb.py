@@ -24,25 +24,19 @@ def felzenswalb(input_image, sigma, k, min_cmp_size):
 
 
 def segment_fastmst_hierarchies(V, E, W):
-    # Mapping from edge id to orig edge id (for later recursive iterations when edges changed)
-    # gives edge ID in original input E for an edge ID in a current recursive iteration
-    orig_edge = [i for i in range(0, len(E))]
-
-    MST = [0 for i in range(len(E))]  # bitmap edges E present in MST, 1 if edge in MST, else 0
-
     hierarchy = []
 
     # 15. Call the MST_Algorithm on the newly created graph until a single vertex remains
     # Could also save things to create hierarchy
     while (len(V)) > 1:
-        V, E, W, orig_edge, MST, supervertex_ids = MST_recursive(V, E, W, orig_edge, MST)
+        V, E, W, supervertex_ids = MST_recursive(V, E, W)
         hierarchy.append(supervertex_ids)
         print("it")
 
     return hierarchy
 
 
-def MST_recursive(V, E, W, orig_edge, MST):
+def MST_recursive(V, E, W):
     # A. Find minimum weighted edge
     # - - - - - - - - - - - - - - -
 
@@ -87,13 +81,6 @@ def MST_recursive(V, E, W, orig_edge, MST):
                 S[vertex] = vertex
             else:
                 S[successor] = successor
-
-    # 6. Mark remaining edges from NWE as part of output in MST. # TODO: maybe not needed for felzenszwalb?
-    for vertex, successor in enumerate(S):  # in parallel on all vertices
-        if vertex != successor:  # All edges except from representative part of MST
-            vertex_min_edge_idx = NWE[vertex]
-            orig_edge_id = orig_edge[vertex_min_edge_idx]
-            MST[orig_edge_id] = 1
 
     # C. Merging vertices and assigning IDs to supervertices
     # - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -194,8 +181,8 @@ def MST_recursive(V, E, W, orig_edge, MST):
         supervertexid_u = UVW[i][0]
         supervertexid_v = UVW[i][1]
 
-        if supervertexid_u != math.inf and supervertexid_v != math.inf:  # TODO: bug, below and needed to be changed to or
-            if prev_supervertexid_u != supervertexid_u or prev_supervertexid_v != supervertexid_v:  # If not sorted need to use or
+        if supervertexid_u != math.inf and supervertexid_v != math.inf:
+            if prev_supervertexid_u != supervertexid_u or prev_supervertexid_v != supervertexid_v:
                 F3[i] = 1
         else:
             new_edge_size = min(new_edge_size, i)  # I guess we need sort for this to work, also needed for next step
@@ -213,7 +200,6 @@ def MST_recursive(V, E, W, orig_edge, MST):
     # New edge list etc.
     new_E = [0 for i in range(new_edge_size)]
     new_W = [0 for i in range(new_edge_size)]
-    new_orig_edge = [0 for i in range(new_edge_size)]
 
     expanded_u = [0 for i in range(new_edge_size)]  # Used for creating new vertex list
 
@@ -229,10 +215,6 @@ def MST_recursive(V, E, W, orig_edge, MST):
                 new_W[new_location] = edge_weight
                 expanded_u[new_location] = supervertex_id_u
 
-                # Store original edge id of each edge so can mark MST edges at right position in next iterations
-                orig_edge_pos = sorted_indices[i]
-                new_orig_edge[new_location] = orig_edge[orig_edge_pos]
-
                 new_E_size = max(new_location + 1, new_E_size)
                 new_V_size = max(supervertex_id_v + 1, new_V_size)
 
@@ -242,7 +224,6 @@ def MST_recursive(V, E, W, orig_edge, MST):
         new_E = new_E[:-remove_tail]
         new_W = new_W[:-remove_tail]
         expanded_u = expanded_u[:-remove_tail]
-        new_orig_edge = new_orig_edge[:-remove_tail]
 
     # Can again use new kernel size here for actual edge list size
 
@@ -262,60 +243,7 @@ def MST_recursive(V, E, W, orig_edge, MST):
             id_u = expanded_u[i]
             new_V[id_u] = i
 
-    return new_V, new_E, new_W, new_orig_edge, MST, supervertex_ids
-
-
-def segment(image, k, min_cmp_size):
-
-    edges = create_graph(image)
-    edges = sorted(edges, key=lambda el: el[2])
-    m = len(edges)
-
-    components = DisjointSet()
-    internal_diff = dict()
-    cmp_size = dict()
-
-    for q in range(m):
-        src, dst, w = edges[q]
-        src_cmp = components.find(src)
-        dst_cmp = components.find(dst)
-
-        if src_cmp != dst_cmp:
-            src_int_diff = internal_diff.get(src_cmp, 0)
-            src_cmp_size = cmp_size.get(src_cmp, 1)
-            src_diff = src_int_diff + (k / src_cmp_size)
-
-            dst_int_diff = internal_diff.get(dst_cmp, 0)
-            dst_cmp_size = cmp_size.get(dst_cmp, 1)
-            dst_diff = dst_int_diff + (k / dst_cmp_size)
-
-            if w <= min(src_diff, dst_diff):
-                components.union(src_cmp, dst_cmp)
-                merged_cmp = components.find(src)
-                internal_diff[merged_cmp] = w
-                cmp_size[merged_cmp] = src_cmp_size + dst_cmp_size
-
-                rmv_cmp = src_cmp if merged_cmp == dst_cmp else dst_cmp
-                if rmv_cmp in internal_diff:
-                    del internal_diff[rmv_cmp]
-                    del cmp_size[rmv_cmp]
-
-    # Join small components
-    for q in range(m):
-        src, dst, w = edges[q]
-        src_cmp = components.find(src)
-        dst_cmp = components.find(dst)
-
-        if src_cmp != dst_cmp:
-            src_cmp_size = cmp_size.get(src_cmp, 1)
-            dst_cmp_size = cmp_size.get(dst_cmp, 1)
-            if src_cmp_size < min_cmp_size or dst_cmp_size < min_cmp_size:
-                components.union(src_cmp, dst_cmp)
-                merged_cmp = components.find(src)
-                cmp_size[merged_cmp] = src_cmp_size + dst_cmp_size
-
-    return components
-
+    return new_V, new_E, new_W, supervertex_ids
 
 def dissimilarity(image, row1, col1, row2, col2):
     return math.sqrt(
