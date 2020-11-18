@@ -3,11 +3,6 @@ import math
 import networkx as nx
 from operator import itemgetter
 
-import numpy as np
-import math
-import networkx as nx
-from operator import itemgetter
-
 # Remarks
 # - Is X created and used for storage savings? Since max edge weight 442 = 9 bits have 23 bits left for vertices. This
 #   could give problems if have more than 8.388.608 vertices. Also restricts us to integer calculation instead of floats
@@ -69,7 +64,7 @@ def MST_recursive(V, E, W, orig_edge, MST):
             else:
                 S[successor] = successor
 
-    # 6. Mark remaining edges from NWE as part of output in MST.
+    # 6. Mark remaining edges from NWE as part of output in MST. # TODO: maybe not needed for felzenszwalb?
     for vertex, successor in enumerate(S):  # in parallel on all vertices
         if vertex != successor:  # All edges except from representative part of MST
             vertex_min_edge_idx = NWE[vertex]
@@ -175,7 +170,7 @@ def MST_recursive(V, E, W, orig_edge, MST):
         supervertexid_u = UVW[i][0]
         supervertexid_v = UVW[i][1]
 
-        if supervertexid_u != math.inf and supervertexid_v != math.inf:
+        if supervertexid_u != math.inf and supervertexid_v != math.inf: # TODO: bug, below and needed to be changed to or
             if prev_supervertexid_u != supervertexid_u or prev_supervertexid_v != supervertexid_v: # If not sorted need to use or
                 F3[i] = 1
         else:
@@ -325,6 +320,5 @@ if __name__ == '__main__':
 
     MST_test(V, E, W)
     #MST_visualise(V, E, W)
-
 
 

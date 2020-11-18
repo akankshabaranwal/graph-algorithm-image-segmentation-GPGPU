@@ -41,16 +41,23 @@ if __name__ == '__main__':
     n_rows = image.shape[0]
     n_cols = image.shape[1]
 
-    components = felzenswalb(image, sigma, k, min)
+    segmentation_hierarchy = felzenswalb(image, sigma, k, min)
 
     colors = np.zeros(shape=(n_rows * n_cols, 3))
     for i in range(n_rows * n_cols):
         colors[i, :] = random_rgb()
 
     output = np.zeros(shape=(n_rows, n_cols, 3), dtype=int)
-    for i in range(n_rows):
-        for j in range(n_cols):
-            output[i][j] = colors[components.find(i*n_cols + j),:]
+    prev_level_component = [i * n_cols + j for i in range(n_rows) for j in range(n_cols)]
 
-    is_grayscale = len(image.shape) < 3
-    visualise(image.astype(int), output, grayscale=is_grayscale)
+    for level in range(len(segmentation_hierarchy)):
+        for i in range(n_rows):
+            for j in range(n_cols):
+                prev_component = prev_level_component[i*n_cols+j]
+                new_component = segmentation_hierarchy[level][prev_component]
+                output[i][j] = colors[new_component,:]
+                prev_level_component[i*n_cols+j] = new_component
+
+        is_grayscale = len(image.shape) < 3
+        visualise(image.astype(int), output, grayscale=is_grayscale)
+
