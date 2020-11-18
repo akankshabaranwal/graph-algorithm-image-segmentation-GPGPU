@@ -11,6 +11,7 @@ int main(int argc, char **argv)
     cv::cuda::GpuMat dev_image, dev_output;
 
     image = imread("data/beach.png", cv::IMREAD_COLOR);
+    std::cout << "Computing on: " << image.rows << "x" << image.cols << std::endl;
     dev_image.upload(image);
 
     cv::Ptr<cv::cuda::Filter> filter = cv::cuda::createGaussianFilter(CV_8UC3, CV_8UC3, cv::Size(5, 5), 1.0);
@@ -21,7 +22,7 @@ int main(int argc, char **argv)
     imshow("Source Image", image);
     imshow("After Blur (CUDA)", output);
 
-    char *segmented_img = compute_segments(dev_output.cudaPtr(), image.cols, image.rows);
+    char *segmented_img = compute_segments(dev_output.cudaPtr(), image.rows, image.cols);
 
     imshow("Segmented", cv::Mat(image.rows, image.cols, CV_8UC3, segmented_img));
     cv::waitKey();

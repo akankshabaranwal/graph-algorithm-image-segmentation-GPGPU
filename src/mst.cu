@@ -9,7 +9,7 @@
 
 #define CHANNEL_SIZE 3
 #define K 50
-#define NUM_NEIGHBOURS 4
+#define NUM_NEIGHBOURS 8
 
 /*
  * Matrix structure:
@@ -17,7 +17,7 @@
  *          * x = id (starting at 1, so that 1 can represent null node)
  *          * y = component id
  *          * z = component size
- *          * w = component internal difference
+ *          * w = component internal difference // This probably needs to be a float?
  *
  *      - edges 2D array of type uint3, where
  *          * x = destination id
@@ -33,7 +33,132 @@
 
 // Kernel to encode graph
 __global__
-void encode(char *image, uint4 vertices[], uint3 edges[]) {
+void encode(char *image, uint4 vertices[], uint3 edges[], uint x_len, uint y_len) {
+    uint x_pos = blockDim.x * blockIdx.x + threadIdx.x;
+    if (x_pos >= x_len) return;
+    uint y_pos = blockDim.y * blockIdx.y + threadIdx.y;
+    if (y_pos >= y_len) return;
+
+    uint this_id = (x_pos * y_len + y_pos);
+    //printf("This id: %d\n", this_id);
+    uint4 *this_vertice = &vertices[this_id];
+    this_vertice->x = this_id + 1;
+    this_vertice->y = this_id + 1;
+    this_vertice->z = 1;
+    this_vertice->w = 0;
+
+    uint this_start = this_id * CHANNEL_SIZE;
+    char this_r = image[this_start];
+    char this_g = image[this_start + 1];
+    char this_b = image[this_start + 2];
+
+    // Maybe could have 4 edges instead of 8?
+    uint3 *edge;
+    uint edge_id;
+    uint other_start;
+    char other_r;
+    char other_g;
+    char other_b;
+    bool is_first_col = y_pos <= 0;
+    bool is_last_col = y_pos >= y_len - 1;
+
+    if (x_pos > 0) {
+        uint prev_row = this_id - y_len;
+        if (!is_first_col) {
+            edge_id = prev_row - 1;
+            other_start = edge_id * CHANNEL_SIZE;
+            other_r = image[other_start];
+            other_g = image[other_start + 1];
+            other_b = image[other_start + 2];
+            edge = &edges[this_id * NUM_NEIGHBOURS];
+            edge->x = edge_id + 1;
+            edge->y = sqrtf((this_r-other_r) + (this_g-other_g) + (this_b-other_b));
+            edge->z = edge_id + 1;
+        }
+
+        edge_id = prev_row;
+        other_start = edge_id * CHANNEL_SIZE;
+        other_r = image[other_start];
+        other_g = image[other_start + 1];
+        other_b = image[other_start + 2];
+        edge = &edges[this_id * NUM_NEIGHBOURS + 1];
+        edge->x = edge_id + 1;
+        edge->y = sqrtf((this_r-other_r) + (this_g-other_g) + (this_b-other_b));
+        edge->z = edge_id + 1;
+
+        if (!is_last_col) {
+            edge_id = prev_row + 1;
+            other_start = edge_id * CHANNEL_SIZE;
+            other_r = image[other_start];
+            other_g = image[other_start + 1];
+            other_b = image[other_start + 2];
+            edge = &edges[this_id * NUM_NEIGHBOURS + 2];
+            edge->x = edge_id + 1;
+            edge->y = sqrtf((this_r-other_r) + (this_g-other_g) + (this_b-other_b));
+            edge->z = edge_id + 1;
+        }
+    }
+
+    if (x_pos < x_len - 1) {
+        uint next_row = this_id + y_len;
+        if (!is_first_col) {
+            edge_id = next_row - 1;
+            other_start = edge_id * CHANNEL_SIZE;
+            other_r = image[other_start];
+            other_g = image[other_start + 1];
+            other_b = image[other_start + 2];
+            edge = &edges[this_id * NUM_NEIGHBOURS + 3];
+            edge->x = edge_id + 1;
+            edge->y = sqrtf((this_r-other_r) + (this_g-other_g) + (this_b-other_b));
+            edge->z = edge_id + 1;
+        }
+
+        edge_id = next_row;
+        other_start = edge_id * CHANNEL_SIZE;
+        other_r = image[other_start];
+        other_g = image[other_start + 1];
+        other_b = image[other_start + 2];
+        edge = &edges[this_id * NUM_NEIGHBOURS + 4];
+        edge->x = edge_id + 1;
+        edge->y = sqrtf((this_r-other_r) + (this_g-other_g) + (this_b-other_b));
+        edge->z = edge_id + 1;
+
+        if (!is_last_col) {
+            edge_id = next_row + 1;
+            other_start = edge_id * CHANNEL_SIZE;
+            other_r = image[other_start];
+            other_g = image[other_start + 1];
+            other_b = image[other_start + 2];
+            edge = &edges[this_id * NUM_NEIGHBOURS + 5];
+            edge->x = edge_id + 1;
+            edge->y = sqrtf((this_r-other_r) + (this_g-other_g) + (this_b-other_b));
+            edge->z = edge_id + 1;
+        }
+    }
+
+    if (!is_first_col) {
+        edge_id = this_id - 1;
+        other_start = edge_id * CHANNEL_SIZE;
+        other_r = image[other_start];
+        other_g = image[other_start + 1];
+        other_b = image[other_start + 2];
+        edge = &edges[this_id * NUM_NEIGHBOURS + 6];
+        edge->x = edge_id + 1;
+        edge->y = sqrtf((this_r-other_r) + (this_g-other_g) + (this_b-other_b));
+        edge->z = edge_id + 1;
+    }
+
+    if (!is_last_col) {
+        edge_id = this_id + 1;
+        other_start = edge_id * CHANNEL_SIZE;
+        other_r = image[other_start];
+        other_g = image[other_start + 1];
+        other_b = image[other_start + 2];
+        edge = &edges[this_id * NUM_NEIGHBOURS + 7];
+        edge->x = edge_id + 1;
+        edge->y = sqrtf((this_r-other_r) + (this_g-other_g) + (this_b-other_b));
+        edge->z = edge_id + 1;
+    }
 }
 
 // Kernel to decode graph
@@ -50,10 +175,11 @@ void find_min_edges(uint4 vertices[], uint3 edges[], uint3 min_edges[], uint num
 
     uint3 min;
     min.x = UINT_MAX;
+    min.y = 0;
     // Scan all vertices and find the min with component == tid
     for (int i = 0; i < vertices_length; i++) {
         uint4 vertice = vertices[i];
-        if (vertice.y == component_id) {
+        if (vertice.y - 1 == component_id) {
             for (int j = component_id * NUM_NEIGHBOURS; j < component_id * NUM_NEIGHBOURS + NUM_NEIGHBOURS; j++) {
                 uint3 edge = edges[j];
                 if (edge.x != 0) {
@@ -72,7 +198,6 @@ void find_min_edges(uint4 vertices[], uint3 edges[], uint3 min_edges[], uint num
 // Kernel to remove cycles
 __global__
 void remove_cycles(uint3 min_edges[], uint num_components) {
-    return;
     uint component_id_x = blockDim.x * blockIdx.x + threadIdx.x;
     if (component_id_x >= num_components) return;
 
@@ -86,9 +211,9 @@ void remove_cycles(uint3 min_edges[], uint num_components) {
     uint dest = edge.z;
     __syncthreads();
 
-    uint3 curr_edge = min_edges[component_id_y];
-    if (src == curr_edge.z && dest == curr_edge.y && component_id_x > component_id_y) {
-        curr_edge.z = dest;
+    uint3 *curr_edge = &min_edges[component_id_y];
+    if (src == curr_edge->z && dest == curr_edge->y && component_id_x > component_id_y) {
+        curr_edge->z = dest;
     }
 }
 
@@ -98,20 +223,20 @@ void update_matrix(uint4 vertices[], uint3 edges[], uint vertices_length, uint n
     uint vertice_id = blockDim.y * blockIdx.y + threadIdx.y;
     if (vertice_id >= vertices_length) return;
 
-    uint4 vertice = vertices[vertice_id];
-    bool is_vertice_new_comp = vertice.y == dest_id || vertice.y == src_id;
+    uint4 *vertice = &vertices[vertice_id];
+    bool is_vertice_new_comp = vertice->y == dest_id || vertice->y == src_id;
     if (is_vertice_new_comp) {
-        vertice.y = new_component;
-        vertice.z = new_size;
-        vertice.w = new_int_diff;
+        vertice->y = new_component;
+        vertice->z = new_size;
+        vertice->w = new_int_diff;
     }
 
     for (int j = vertice_id * NUM_NEIGHBOURS; j < vertice_id * NUM_NEIGHBOURS + NUM_NEIGHBOURS; j++) {
-        uint3 neighbour_edge = edges[j];
-        if (neighbour_edge.x != 0) {
-            if (neighbour_edge.y == dest_id) {
-                if (is_vertice_new_comp) neighbour_edge.x = 0; // Remove internal edges
-                else neighbour_edge.z = new_component;
+        uint3 *neighbour_edge = &edges[j];
+        if (neighbour_edge->x != 0) {
+            if (neighbour_edge->y == dest_id) {
+                if (is_vertice_new_comp) neighbour_edge->x = 0; // Remove internal edges
+                else neighbour_edge->z = new_component;
             }
         }
     }
@@ -125,8 +250,9 @@ void merge(uint4 vertices[], uint3 edges[], uint3 min_edges[], uint *num_compone
     if (component_id >= *num_components) return;
 
     uint3 min_edge = min_edges[component_id];
-    uint4 src = vertices[min_edge.y];
-    uint4 dest = vertices[min_edge.z];
+    if (min_edge.y == min_edge.z || min_edge.y == 0) return;
+    uint4 src = vertices[min_edge.y - 1];
+    uint4 dest = vertices[min_edge.z - 1];
     __syncthreads();
     uint src_diff = src.w + (K / src.z);
     uint dest_diff = dest.w + (K / dest.z);
@@ -191,7 +317,17 @@ void segment(uint4 vertices[], uint3 edges[], uint3 min_edges[], uint *n_compone
 
         prev_n_components = curr_n_comp;
         curr_n_comp = *n_components;
-        return;
+    }
+}
+
+__global__
+void debug_print_vertices(uint4 vertices[], uint length, uint3 edges[]) {
+    for (int v_id = 0; v_id < length; v_id++) {
+        printf("vertices[%d] = %d | ", v_id, vertices[v_id].x);
+        for (int j = v_id * NUM_NEIGHBOURS; j < v_id * NUM_NEIGHBOURS + NUM_NEIGHBOURS; j++) {
+            printf("%d, ", edges[j].x);
+        }
+        printf("\n");
     }
 }
 
@@ -204,12 +340,12 @@ char *compute_segments(void *input, uint x, uint y) {
     uint4 *vertices;
     uint3 *edges;
     uint3 *min_edges;
-    uint num_vertices = x * y;
+    uint num_vertices = (x) * (y);
     uint *num_vertices_dev;
 
     cudaMalloc(&vertices, num_vertices*sizeof(uint4));
     checkErrors("Malloc vertices");
-    cudaMalloc(&edges, num_vertices*sizeof(uint3));
+    cudaMalloc(&edges, num_vertices*NUM_NEIGHBOURS*sizeof(uint3));
     checkErrors("Malloc edges");
     cudaMalloc(&min_edges, num_vertices*sizeof(uint3)); // max(min_edges) == vertices.length
     checkErrors("Malloc min_edges");
@@ -220,16 +356,34 @@ char *compute_segments(void *input, uint x, uint y) {
     checkErrors("Memcpy num_vertices");
 
     // Write to the matrix from image
-    encode<<<1, 1>>>((char*)input, vertices, edges);
+    // cudaOccupancyScheduler?
+    dim3 encode_threads;
+    dim3 encode_blocks;
+    if (num_vertices < 1024) {
+        encode_threads.x = x;
+        encode_threads.y = y;
+        encode_blocks.x = 1;
+        encode_blocks.y = 1;
+    } else {
+        encode_threads.x = 32;
+        encode_threads.y = 32;
+        encode_blocks.x = x / 32 + 1;
+        encode_blocks.y = y / 32 + 1;
+    }
+
+    encode<<<encode_blocks, encode_threads>>>((char*)input, vertices, edges, x, y);
     checkErrors("encode()");
+    //debug_print_vertices<<<1, 1>>>(vertices, num_vertices, edges);
+    //cudaDeviceSynchronize();
+    //exit(1);
 
     // Segment matrix
     segment<<<1, 1>>>(vertices, edges, min_edges, num_vertices_dev);
-    cudaDeviceSynchronize();
     checkErrors("segment()");
 
     // Write image back from segmented matrix
     decode<<<1, 1>>>(vertices, (char*)input);
+    cudaDeviceSynchronize();
     checkErrors("decode()");
 
     // Clean up matrix
