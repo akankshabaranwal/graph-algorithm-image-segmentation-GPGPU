@@ -16,6 +16,7 @@ endif()
 set(OpenCV_CUDA ON)
 find_package(OpenCV REQUIRED core imgproc highgui cudev cudafilters
     PATHS "${FELZ_OPENCV_PATH}" NO_DEFAULT_PATH)
+set( CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS}" "--ptxas-options=-arch=sm_61" )
 
 if(NOT OpenCV_FOUND)
     message(STATUS "OpenCV with CUDA support was not found.")

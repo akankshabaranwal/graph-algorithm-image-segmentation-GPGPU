@@ -8,7 +8,7 @@ This branch will serve as a template for sub-projects using OpenCV (with CUDA su
   Also make sure the necessary build tools are installed:
 
 ```
-$ sudo apt-get install build-essential cmake ninja git
+$ sudo apt-get install build-essential cmake ninja-build git qtbase5-dev
 ```
 
 [2]: https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html
@@ -33,6 +33,7 @@ $ cmake ../opencv -DOPENCV_EXTRA_MODULES_PATH=../opencv_contrib/modules \
                   -DCUDA_GENERATION=Auto                                \
                   -DCMAKE_BUILD_TYPE=Debug                              \
                   -DCMAKE_INSTALL_PREFIX="/usr/local/opencv/debug"      \
+		  -D WITH_QT=ON
                   -GNinja
 
 $ ninja
@@ -51,6 +52,7 @@ $ cmake ../opencv -DOPENCV_EXTRA_MODULES_PATH=../opencv_contrib/modules \
                   -DCUDA_GENERATION=Auto                                \
                   -DCMAKE_BUILD_TYPE=Release                            \
                   -DCMAKE_INSTALL_PREFIX="/usr/local/opencv/release"    \
+		  -D WITH_QT=ON
                   -GNinja
 
 $ ninja
