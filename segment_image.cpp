@@ -36,6 +36,7 @@ void create_graph(Edge edges[], Mat InputImage) {
                 num_edge++;
             }
             if ((j < (InputImage.rows - 1)) && (i < (InputImage.cols - 1))) {
+                //TODO: This is wrong. You are adding the wrong node to create the graph
                 edges[num_edge].u = cur_node;
                 edges[num_edge].v = bottom_right_node;
                 edges[num_edge].wt = dissimilarity(InputImage, i, j, i + 1, j + 1);
