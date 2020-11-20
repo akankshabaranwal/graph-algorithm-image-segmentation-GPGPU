@@ -25,10 +25,10 @@ int main(int argc, char **argv)
 
     //Convert image to graph
     int *VertexList;
-    E *EdgeList;
+    edge *EdgeList;
 
     cudaMallocManaged(&VertexList,numVertices*sizeof(int));
-    cudaMallocManaged(&EdgeList,numEdges*sizeof(E));
+    cudaMallocManaged(&EdgeList,numEdges*sizeof(edge));
 
     dim3 threadsPerBlock(32,32);
     dim3 numBlocks(image.rows/threadsPerBlock.x,image.cols/threadsPerBlock.y);

@@ -8,11 +8,12 @@
 #include <opencv2/cudafilters.hpp>
 #include <opencv2/highgui.hpp>
 
-class edge{
+struct edge{
+  public:
     int Vertex;
     float Weight;
-}E;
-__global__ void ImagetoGraph(cv::cuda::GpuMat Image, int *VertexList, uint64_t *EdgeList);
+};
+__global__ void ImagetoGraph(cv::cuda::GpuMat Image, int *VertexList, edge *EdgeList);
 // Check if the graph formation can be implemented using deconvolution??
 
 
