@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.17)
 
 set(CMAKE_CUDA_COMPILER "/usr/local/cuda-11.1/bin/nvcc")
-project(felzenswalb LANGUAGES CXX CUDA)
+project(felzenszwalb LANGUAGES CXX CUDA)
 include(cmake/OpenCV.cmake)
 
 set(CMAKE_CXX_STANDARD  14)
@@ -12,7 +12,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED  TRUE)
 include_directories( ${OpenCV_INCLUDE_DIRS} )
 
 add_executable(felz
-	"${CMAKE_SOURCE_DIR}/src/Main.cpp")
+	"${CMAKE_SOURCE_DIR}/src/Main.cu" "${CMAKE_SOURCE_DIR}/src/CreateGraph.h" "${CMAKE_SOURCE_DIR}/src/CreateGraph.cu")
 
 set_property(TARGET felz PROPERTY CUDA_ARCHITECTURES 61)
 
