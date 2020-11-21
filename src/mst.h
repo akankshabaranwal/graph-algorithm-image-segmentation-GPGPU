@@ -5,6 +5,6 @@
 #ifndef FELZENSWALB_MST_H
 #define FELZENSWALB_MST_H
 
-char *compute_segments(void *input, uint x, uint y);
+char *compute_segments(void *input, uint x, uint y, size_t pitch);
 
 #endif //FELZENSWALB_MST_H

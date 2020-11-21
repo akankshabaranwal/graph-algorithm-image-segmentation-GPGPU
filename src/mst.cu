@@ -30,27 +30,26 @@
  *      - z = destination id
  */
 
-
 // Kernel to encode graph
 __global__
-void encode(char *image, uint4 vertices[], uint3 edges[], uint x_len, uint y_len) {
+void encode(u_char *image, uint4 vertices[], uint3 edges[], uint x_len, uint y_len, size_t pitch) {
     uint x_pos = blockDim.x * blockIdx.x + threadIdx.x;
     if (x_pos >= x_len) return;
     uint y_pos = blockDim.y * blockIdx.y + threadIdx.y;
     if (y_pos >= y_len) return;
 
     uint this_id = (x_pos * y_len + y_pos);
-    //printf("This id: %d\n", this_id);
     uint4 *this_vertice = &vertices[this_id];
     this_vertice->x = this_id + 1;
     this_vertice->y = this_id + 1;
     this_vertice->z = 1;
     this_vertice->w = 0;
 
-    uint this_start = this_id * CHANNEL_SIZE;
-    char this_r = image[this_start];
-    char this_g = image[this_start + 1];
-    char this_b = image[this_start + 2];
+    uint this_start = x_pos * pitch + y_pos * CHANNEL_SIZE;
+    u_char this_r = image[this_start];
+    u_char this_g = image[this_start + 1];
+    u_char this_b = image[this_start + 2];
+
 
     // Maybe could have 4 edges instead of 8?
     uint3 *edge;
@@ -66,35 +65,35 @@ void encode(char *image, uint4 vertices[], uint3 edges[], uint x_len, uint y_len
         uint prev_row = this_id - y_len;
         if (!is_first_col) {
             edge_id = prev_row - 1;
-            other_start = edge_id * CHANNEL_SIZE;
+            other_start = (x_pos - 1) * pitch + (y_pos - 1) * CHANNEL_SIZE;
             other_r = image[other_start];
             other_g = image[other_start + 1];
             other_b = image[other_start + 2];
             edge = &edges[this_id * NUM_NEIGHBOURS];
             edge->x = edge_id + 1;
-            edge->y = sqrtf((this_r-other_r) + (this_g-other_g) + (this_b-other_b));
+            edge->y = sqrtf(powf((this_r-other_r) + (this_g-other_g) + (this_b-other_b), 2.0f));
             edge->z = edge_id + 1;
         }
 
         edge_id = prev_row;
-        other_start = edge_id * CHANNEL_SIZE;
+        other_start = (x_pos - 1) * pitch + (y_pos) * CHANNEL_SIZE;
         other_r = image[other_start];
         other_g = image[other_start + 1];
         other_b = image[other_start + 2];
         edge = &edges[this_id * NUM_NEIGHBOURS + 1];
         edge->x = edge_id + 1;
-        edge->y = sqrtf((this_r-other_r) + (this_g-other_g) + (this_b-other_b));
+        edge->y = sqrtf(powf((this_r-other_r) + (this_g-other_g) + (this_b-other_b), 2.0f));
         edge->z = edge_id + 1;
 
         if (!is_last_col) {
             edge_id = prev_row + 1;
-            other_start = edge_id * CHANNEL_SIZE;
+            other_start = (x_pos - 1) * pitch + (y_pos + 1) * CHANNEL_SIZE;
             other_r = image[other_start];
             other_g = image[other_start + 1];
             other_b = image[other_start + 2];
             edge = &edges[this_id * NUM_NEIGHBOURS + 2];
             edge->x = edge_id + 1;
-            edge->y = sqrtf((this_r-other_r) + (this_g-other_g) + (this_b-other_b));
+            edge->y = sqrtf(powf((this_r-other_r) + (this_g-other_g) + (this_b-other_b), 2.0f));
             edge->z = edge_id + 1;
         }
     }
@@ -103,68 +102,75 @@ void encode(char *image, uint4 vertices[], uint3 edges[], uint x_len, uint y_len
         uint next_row = this_id + y_len;
         if (!is_first_col) {
             edge_id = next_row - 1;
-            other_start = edge_id * CHANNEL_SIZE;
+            other_start = (x_pos + 1) * pitch + (y_pos - 1) * CHANNEL_SIZE;
             other_r = image[other_start];
             other_g = image[other_start + 1];
             other_b = image[other_start + 2];
             edge = &edges[this_id * NUM_NEIGHBOURS + 3];
             edge->x = edge_id + 1;
-            edge->y = sqrtf((this_r-other_r) + (this_g-other_g) + (this_b-other_b));
+            edge->y = sqrtf(powf((this_r-other_r) + (this_g-other_g) + (this_b-other_b), 2.0f));
             edge->z = edge_id + 1;
         }
 
         edge_id = next_row;
-        other_start = edge_id * CHANNEL_SIZE;
+        other_start = (x_pos + 1) * pitch + (y_pos) * CHANNEL_SIZE;;
         other_r = image[other_start];
         other_g = image[other_start + 1];
         other_b = image[other_start + 2];
         edge = &edges[this_id * NUM_NEIGHBOURS + 4];
         edge->x = edge_id + 1;
-        edge->y = sqrtf((this_r-other_r) + (this_g-other_g) + (this_b-other_b));
+        edge->y = sqrtf(powf((this_r-other_r) + (this_g-other_g) + (this_b-other_b), 2.0f));
         edge->z = edge_id + 1;
 
         if (!is_last_col) {
             edge_id = next_row + 1;
-            other_start = edge_id * CHANNEL_SIZE;
+            other_start = (x_pos + 1) * pitch + (y_pos + 1) * CHANNEL_SIZE;
             other_r = image[other_start];
             other_g = image[other_start + 1];
             other_b = image[other_start + 2];
             edge = &edges[this_id * NUM_NEIGHBOURS + 5];
             edge->x = edge_id + 1;
-            edge->y = sqrtf((this_r-other_r) + (this_g-other_g) + (this_b-other_b));
+            edge->y = sqrtf(powf((this_r-other_r) + (this_g-other_g) + (this_b-other_b), 2.0f));
             edge->z = edge_id + 1;
         }
     }
 
     if (!is_first_col) {
         edge_id = this_id - 1;
-        other_start = edge_id * CHANNEL_SIZE;
+        other_start = (x_pos) * pitch + (y_pos - 1) * CHANNEL_SIZE;;
         other_r = image[other_start];
         other_g = image[other_start + 1];
         other_b = image[other_start + 2];
         edge = &edges[this_id * NUM_NEIGHBOURS + 6];
         edge->x = edge_id + 1;
-        edge->y = sqrtf((this_r-other_r) + (this_g-other_g) + (this_b-other_b));
+        edge->y = sqrtf(powf((this_r-other_r) + (this_g-other_g) + (this_b-other_b), 2.0f));
         edge->z = edge_id + 1;
     }
 
     if (!is_last_col) {
         edge_id = this_id + 1;
-        other_start = edge_id * CHANNEL_SIZE;
+        other_start = (x_pos) * pitch + (y_pos + 1) * CHANNEL_SIZE;
         other_r = image[other_start];
         other_g = image[other_start + 1];
         other_b = image[other_start + 2];
         edge = &edges[this_id * NUM_NEIGHBOURS + 7];
         edge->x = edge_id + 1;
-        edge->y = sqrtf((this_r-other_r) + (this_g-other_g) + (this_b-other_b));
+        edge->y = sqrtf(powf((this_r-other_r) + (this_g-other_g) + (this_b-other_b), 2.0f));
         edge->z = edge_id + 1;
     }
 }
 
 // Kernel to decode graph
 __global__
-void decode(uint4 vertices[], char *image) {
+void decode(uint4 vertices[], char *image, char* colours, uint num_vertices) {
+    uint pos = blockDim.x * blockIdx.x + threadIdx.x;
+    if (pos >= num_vertices) return;
 
+    uint img_pos = pos * CHANNEL_SIZE;
+    uint colour_start = (vertices[pos].y - 1) * CHANNEL_SIZE;
+    image[img_pos] = colours[colour_start];
+    image[img_pos + 1] = colours[colour_start + 1];
+    image[img_pos + 2] = colours[colour_start + 2];
 }
 
 // Kernel to find min edge
@@ -220,7 +226,7 @@ void remove_cycles(uint3 min_edges[], uint num_components) {
 // Kernel to update vertices with new components
 __global__
 void update_matrix(uint4 vertices[], uint3 edges[], uint vertices_length, uint new_component, uint new_size, uint new_int_diff, uint dest_id, uint src_id) {
-    uint vertice_id = blockDim.y * blockIdx.y + threadIdx.y;
+    uint vertice_id = blockDim.x * blockIdx.x + threadIdx.x;
     if (vertice_id >= vertices_length) return;
 
     uint4 *vertice = &vertices[vertice_id];
@@ -257,13 +263,14 @@ void merge(uint4 vertices[], uint3 edges[], uint3 min_edges[], uint *num_compone
     uint src_diff = src.w + (K / src.z);
     uint dest_diff = dest.w + (K / dest.z);
     if (min_edge.x <= min(src_diff, dest_diff)) {
+        //printf("min_edge: %d, diff: %d\n", min_edge.x, min(src_diff, dest_diff));
         atomicSub_system(num_components, 1); // Is this horribly inefficient?
-        uint new_int_diff = max(src.w, max(dest.w, min_edge.x));
+        uint new_int_diff = max(src.w, min_edge.x);
         uint new_size = src.z + dest.z;
         uint new_component = src.x;
 
         update_matrix<<<update_blocks, update_threads>>>(vertices, edges, vertices_length, new_component, new_size, new_int_diff, dest.y, src.y);
-        return;
+        cudaDeviceSynchronize();
     }
 }
 
@@ -317,17 +324,25 @@ void segment(uint4 vertices[], uint3 edges[], uint3 min_edges[], uint *n_compone
 
         prev_n_components = curr_n_comp;
         curr_n_comp = *n_components;
+        printf("N components: %d\n", curr_n_comp);
     }
 }
 
 __global__
 void debug_print_vertices(uint4 vertices[], uint length, uint3 edges[]) {
     for (int v_id = 0; v_id < length; v_id++) {
-        printf("vertices[%d] = %d | ", v_id, vertices[v_id].x);
+        printf("vertices[%d] = %d %d | ", v_id, vertices[v_id].x, vertices[v_id].y);
         for (int j = v_id * NUM_NEIGHBOURS; j < v_id * NUM_NEIGHBOURS + NUM_NEIGHBOURS; j++) {
-            printf("%d, ", edges[j].x);
+            printf("%d(%d), ", edges[j].x, edges[j].y);
         }
         printf("\n");
+    }
+}
+
+void get_component_colours(char colours[], uint num_colours) {
+    srand(123456789);
+    for (int i = 0; i < num_colours * CHANNEL_SIZE; i++) {
+        colours[i] = rand() % 256;
     }
 }
 
@@ -336,12 +351,12 @@ void checkErrors(const char *identifier) {
     if (err != cudaSuccess) std::cout << "CUDA error: " << cudaGetErrorString(err) << " " << identifier << std::endl;
 }
 
-char *compute_segments(void *input, uint x, uint y) {
+char *compute_segments(void *input, uint x, uint y, size_t pitch) {
     uint4 *vertices;
     uint3 *edges;
     uint3 *min_edges;
     uint num_vertices = (x) * (y);
-    uint *num_vertices_dev;
+    uint *num_components;
 
     cudaMalloc(&vertices, num_vertices*sizeof(uint4));
     checkErrors("Malloc vertices");
@@ -349,10 +364,10 @@ char *compute_segments(void *input, uint x, uint y) {
     checkErrors("Malloc edges");
     cudaMalloc(&min_edges, num_vertices*sizeof(uint3)); // max(min_edges) == vertices.length
     checkErrors("Malloc min_edges");
-    cudaMalloc(&num_vertices_dev, sizeof(uint));
-    checkErrors("Malloc num vertices");
+    cudaMalloc(&num_components, sizeof(uint));
+    checkErrors("Malloc num components");
 
-    cudaMemcpy(num_vertices_dev, &num_vertices, sizeof(uint), cudaMemcpyHostToDevice);
+    cudaMemcpyAsync(num_components, &num_vertices, sizeof(uint), cudaMemcpyHostToDevice);
     checkErrors("Memcpy num_vertices");
 
     // Write to the matrix from image
@@ -371,18 +386,27 @@ char *compute_segments(void *input, uint x, uint y) {
         encode_blocks.y = y / 32 + 1;
     }
 
-    encode<<<encode_blocks, encode_threads>>>((char*)input, vertices, edges, x, y);
+    encode<<<encode_blocks, encode_threads>>>((u_char*)input, vertices, edges, x, y, pitch);
     checkErrors("encode()");
     //debug_print_vertices<<<1, 1>>>(vertices, num_vertices, edges);
     //cudaDeviceSynchronize();
     //exit(1);
 
     // Segment matrix
-    segment<<<1, 1>>>(vertices, edges, min_edges, num_vertices_dev);
+    segment<<<1, 1>>>(vertices, edges, min_edges, num_components);
     checkErrors("segment()");
 
+    // Setup random colours for components
+    char component_colours[num_vertices * CHANNEL_SIZE];
+    get_component_colours(component_colours, num_vertices);
+    char *component_colours_dev;
+    cudaMalloc(&component_colours_dev, num_vertices * CHANNEL_SIZE * sizeof(char));
+    cudaMemcpyAsync(component_colours_dev, component_colours, num_vertices * CHANNEL_SIZE * sizeof(char), cudaMemcpyHostToDevice);
+    char *output_dev;
+    cudaMalloc(&output_dev, num_vertices * CHANNEL_SIZE * sizeof(char ));
+
     // Write image back from segmented matrix
-    decode<<<1, 1>>>(vertices, (char*)input);
+    decode<<<encode_blocks, encode_threads>>>(vertices, output_dev, component_colours_dev, num_vertices);
     cudaDeviceSynchronize();
     checkErrors("decode()");
 
@@ -393,11 +417,13 @@ char *compute_segments(void *input, uint x, uint y) {
     checkErrors("Free edges");
     cudaFree(min_edges);
     checkErrors("Free min_edges");
+    cudaFree(component_colours_dev);
+    checkErrors("Free component_colours_dev");
 
     //Copy image data back from GPU
     char *output = (char*) malloc(x*y*CHANNEL_SIZE*sizeof(char));
 
-    cudaMemcpy(output, input, x*y*CHANNEL_SIZE*sizeof(char), cudaMemcpyDeviceToHost);
+    cudaMemcpy(output, output_dev, x*y*CHANNEL_SIZE*sizeof(char), cudaMemcpyDeviceToHost);
     checkErrors("Memcpy output");
 
     return output;
