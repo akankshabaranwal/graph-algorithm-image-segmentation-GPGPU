@@ -388,15 +388,22 @@ char *compute_segments(void *input, uint x, uint y, size_t pitch) {
 
     encode<<<encode_blocks, encode_threads>>>((u_char*)input, vertices, edges, x, y, pitch);
     checkErrors("encode()");
-    //debug_print_vertices<<<1, 1>>>(vertices, num_vertices, edges);
-    //cudaDeviceSynchronize();
-    //exit(1);
 
     // Segment matrix
     segment<<<1, 1>>>(vertices, edges, min_edges, num_components);
     checkErrors("segment()");
 
     // Setup random colours for components
+    dim3 decode_threads;
+    dim3 decode_blocks;
+    if (num_vertices <= 1024) {
+        decode_threads.x = num_vertices;
+        decode_blocks.x = 1;
+    } else {
+        decode_threads.x = 1024;
+        decode_blocks.x = num_vertices / 1024 + 1;
+    }
+
     char component_colours[num_vertices * CHANNEL_SIZE];
     get_component_colours(component_colours, num_vertices);
     char *component_colours_dev;
@@ -406,7 +413,7 @@ char *compute_segments(void *input, uint x, uint y, size_t pitch) {
     cudaMalloc(&output_dev, num_vertices * CHANNEL_SIZE * sizeof(char ));
 
     // Write image back from segmented matrix
-    decode<<<encode_blocks, encode_threads>>>(vertices, output_dev, component_colours_dev, num_vertices);
+    decode<<<decode_blocks, decode_threads>>>(vertices, output_dev, component_colours_dev, num_vertices);
     cudaDeviceSynchronize();
     checkErrors("decode()");
 
