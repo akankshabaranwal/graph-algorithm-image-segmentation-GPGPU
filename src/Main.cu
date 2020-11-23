@@ -31,8 +31,11 @@ int main(int argc, char **argv)
     cudaMallocManaged(&EdgeList,numEdges*sizeof(edge));
 
     dim3 threadsPerBlock(32,32);
-    dim3 numBlocks(image.rows/threadsPerBlock.x,image.cols/threadsPerBlock.y);
-    ImagetoGraph<<<numBlocks,threadsPerBlock>>>(dev_image, VertexList, EdgeList);
+    int BlockX = image.rows/threadsPerBlock.x;
+    int BlockY = image.cols/threadsPerBlock.y;
+    dim3 numBlocks(BlockX,BlockY);
+
+    ImagetoGraph<<<numBlocks,threadsPerBlock>>>(dev_output, VertexList, EdgeList, dev_output.step, dev_output.channels());
     cudaError_t err = cudaGetLastError();
     if ( err != cudaSuccess )
     {
@@ -40,11 +43,16 @@ int main(int argc, char **argv)
     }
     cudaDeviceSynchronize();
 
+    printf("\n");
     dev_output.download(output);
     imshow("Source Image", image);
     imshow("After Blur (CUDA)", output);
 
     waitKey();
+    //Print the pitch information
+ //   cudaDeviceProp devProp;
+ //   cudaGetDeviceProperties(&devProp, 0);
+ //   printf("Maximum memory pitch:%lu\n",  devProp.memPitch);
 
     return 0;
 }
