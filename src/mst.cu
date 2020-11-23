@@ -50,14 +50,13 @@ void encode(u_char *image, uint4 vertices[], uint3 edges[], uint x_len, uint y_l
     u_char this_g = image[this_start + 1];
     u_char this_b = image[this_start + 2];
 
-
     // Maybe could have 4 edges instead of 8?
     uint3 *edge;
     uint edge_id;
     uint other_start;
-    char other_r;
-    char other_g;
-    char other_b;
+    u_char other_r;
+    u_char other_g;
+    u_char other_b;
     bool is_first_col = y_pos <= 0;
     bool is_last_col = y_pos >= y_len - 1;
 
@@ -113,7 +112,7 @@ void encode(u_char *image, uint4 vertices[], uint3 edges[], uint x_len, uint y_l
         }
 
         edge_id = next_row;
-        other_start = (x_pos + 1) * pitch + (y_pos) * CHANNEL_SIZE;;
+        other_start = (x_pos + 1) * pitch + (y_pos) * CHANNEL_SIZE;
         other_r = image[other_start];
         other_g = image[other_start + 1];
         other_b = image[other_start + 2];
@@ -137,7 +136,7 @@ void encode(u_char *image, uint4 vertices[], uint3 edges[], uint x_len, uint y_l
 
     if (!is_first_col) {
         edge_id = this_id - 1;
-        other_start = (x_pos) * pitch + (y_pos - 1) * CHANNEL_SIZE;;
+        other_start = (x_pos) * pitch + (y_pos - 1) * CHANNEL_SIZE;
         other_r = image[other_start];
         other_g = image[other_start + 1];
         other_b = image[other_start + 2];
@@ -203,7 +202,7 @@ void find_min_edges(uint4 vertices[], uint3 edges[], uint3 min_edges[], uint num
 
 // Kernel to remove cycles
 __global__
-void remove_cycles(uint3 min_edges[], uint num_components) {
+void remove_cycles(uint3 min_edges[], uint num_components, uint *did_change) {
     uint component_id_x = blockDim.x * blockIdx.x + threadIdx.x;
     if (component_id_x >= num_components) return;
 
@@ -212,25 +211,29 @@ void remove_cycles(uint3 min_edges[], uint num_components) {
 
     if (component_id_x == component_id_y) return;
 
-    uint3 edge = min_edges[component_id_x];
-    uint src = edge.y;
-    uint dest = edge.z;
+    uint3 *edge = &min_edges[component_id_x];
+    uint src = edge->y;
+    uint dest = edge->z;
+    if (src == dest) return;
     __syncthreads();
 
     uint3 *curr_edge = &min_edges[component_id_y];
-    if (src == curr_edge->z && dest == curr_edge->y && component_id_x > component_id_y) {
-        curr_edge->z = dest;
+    if (src == curr_edge->z) {
+        if (component_id_x > component_id_y || dest != curr_edge->y) {
+            curr_edge->z = dest;
+            *did_change = 1;
+        }
     }
 }
 
 // Kernel to update vertices with new components
 __global__
-void update_matrix(uint4 vertices[], uint3 edges[], uint vertices_length, uint new_component, uint new_size, uint new_int_diff, uint dest_id, uint src_id) {
+void update_matrix(uint4 vertices[], uint3 edges[], uint vertices_length, uint new_component, uint new_size, uint new_int_diff, uint original_id) {
     uint vertice_id = blockDim.x * blockIdx.x + threadIdx.x;
     if (vertice_id >= vertices_length) return;
 
     uint4 *vertice = &vertices[vertice_id];
-    bool is_vertice_new_comp = vertice->y == dest_id || vertice->y == src_id;
+    bool is_vertice_new_comp = vertice->y == original_id || vertice->y == new_component;
     if (is_vertice_new_comp) {
         vertice->y = new_component;
         vertice->z = new_size;
@@ -240,7 +243,7 @@ void update_matrix(uint4 vertices[], uint3 edges[], uint vertices_length, uint n
     for (int j = vertice_id * NUM_NEIGHBOURS; j < vertice_id * NUM_NEIGHBOURS + NUM_NEIGHBOURS; j++) {
         uint3 *neighbour_edge = &edges[j];
         if (neighbour_edge->x != 0) {
-            if (neighbour_edge->y == dest_id) {
+            if (neighbour_edge->z == original_id || neighbour_edge->z == new_component) {
                 if (is_vertice_new_comp) neighbour_edge->x = 0; // Remove internal edges
                 else neighbour_edge->z = new_component;
             }
@@ -263,20 +266,27 @@ void merge(uint4 vertices[], uint3 edges[], uint3 min_edges[], uint *num_compone
     uint src_diff = src.w + (K / src.z);
     uint dest_diff = dest.w + (K / dest.z);
     if (min_edge.x <= min(src_diff, dest_diff)) {
-        //printf("min_edge: %d, diff: %d\n", min_edge.x, min(src_diff, dest_diff));
         atomicSub_system(num_components, 1); // Is this horribly inefficient?
-        uint new_int_diff = max(src.w, min_edge.x);
+        uint new_int_diff = max(dest.w, min_edge.x);
         uint new_size = src.z + dest.z;
-        uint new_component = src.x;
+        uint new_component = dest.y;
 
-        update_matrix<<<update_blocks, update_threads>>>(vertices, edges, vertices_length, new_component, new_size, new_int_diff, dest.y, src.y);
+        update_matrix<<<update_blocks, update_threads>>>(vertices, edges, vertices_length, new_component, new_size, new_int_diff, src.y);
         cudaDeviceSynchronize();
     }
 }
 
+__global__
+void debug_print_min_edges(uint3 min_edges[], uint length) {
+    for (int i = 0; i < length; i++) {
+        printf("(%d %d)\n", min_edges[i].y, min_edges[i].z);
+    }
+    printf("\n");
+}
+
 // Kernel to orchestrate
 __global__
-void segment(uint4 vertices[], uint3 edges[], uint3 min_edges[], uint *n_components) {
+void segment(uint4 vertices[], uint3 edges[], uint3 min_edges[], uint *n_components, uint *did_change) {
     uint prev_n_components = 0;
     uint n_vertices = *n_components;
     uint curr_n_comp = *n_components;
@@ -317,14 +327,20 @@ void segment(uint4 vertices[], uint3 edges[], uint3 min_edges[], uint *n_compone
 
         find_min_edges<<<blocks.x, threads.x>>>(vertices, edges, min_edges, curr_n_comp, n_vertices);
         cudaDeviceSynchronize();
-        remove_cycles<<<cycle_blocks, cycle_threads>>>(min_edges, curr_n_comp);
-        cudaDeviceSynchronize();
+
+        *did_change = 1;
+        while (*did_change == 1) {
+            *did_change = 0;
+            remove_cycles<<<cycle_blocks, cycle_threads>>>(min_edges, curr_n_comp, did_change);
+            cudaDeviceSynchronize();
+        }
+
         merge<<<blocks.x, threads.x>>>(vertices, edges, min_edges, n_components, threads.y, blocks.y, n_vertices);
         cudaDeviceSynchronize();
 
         prev_n_components = curr_n_comp;
         curr_n_comp = *n_components;
-        printf("N components: %d\n", curr_n_comp);
+        //printf("N components: %d\n", curr_n_comp);
     }
 }
 
@@ -357,6 +373,7 @@ char *compute_segments(void *input, uint x, uint y, size_t pitch) {
     uint3 *min_edges;
     uint num_vertices = (x) * (y);
     uint *num_components;
+    uint *did_change;
 
     cudaMalloc(&vertices, num_vertices*sizeof(uint4));
     checkErrors("Malloc vertices");
@@ -366,6 +383,8 @@ char *compute_segments(void *input, uint x, uint y, size_t pitch) {
     checkErrors("Malloc min_edges");
     cudaMalloc(&num_components, sizeof(uint));
     checkErrors("Malloc num components");
+    cudaMalloc(&did_change, sizeof(uint));
+    checkErrors("Malloc did change");
 
     cudaMemcpyAsync(num_components, &num_vertices, sizeof(uint), cudaMemcpyHostToDevice);
     checkErrors("Memcpy num_vertices");
@@ -390,7 +409,8 @@ char *compute_segments(void *input, uint x, uint y, size_t pitch) {
     checkErrors("encode()");
 
     // Segment matrix
-    segment<<<1, 1>>>(vertices, edges, min_edges, num_components);
+    segment<<<1, 1>>>(vertices, edges, min_edges, num_components, did_change);
+    cudaDeviceSynchronize();
     checkErrors("segment()");
 
     // Setup random colours for components
