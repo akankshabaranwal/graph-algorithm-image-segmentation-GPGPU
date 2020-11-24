@@ -246,11 +246,11 @@ def MST_recursive(V, E, W):
     return new_V, new_E, new_W, supervertex_ids
 
 def dissimilarity(image, row1, col1, row2, col2):
-    return math.sqrt(
+    return float(math.sqrt(
         np.sum(
             pow(image[row1][col1] - image[row2][col2], 2)
         )
-    )
+    ))
 
 
 # Creates compressed adjacency list graph based on 4 neigbourhood

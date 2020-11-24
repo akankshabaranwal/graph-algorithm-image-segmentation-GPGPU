@@ -3,7 +3,7 @@ from felzenswalb import felzenswalb
 import matplotlib.pyplot as plt
 import numpy as np
 import random
-
+random.seed(10)
 
 def visualise(orig, segment, grayscale=False):
     fig = plt.figure()
