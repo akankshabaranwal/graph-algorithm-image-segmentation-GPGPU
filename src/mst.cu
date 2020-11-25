@@ -8,7 +8,7 @@
 #include "mst.h"
 
 #define CHANNEL_SIZE 3
-#define K 50
+#define K 250
 #define NUM_NEIGHBOURS 8
 
 /*
@@ -70,7 +70,7 @@ void encode(u_char *image, uint4 vertices[], uint3 edges[], uint x_len, uint y_l
             other_b = image[other_start + 2];
             edge = &edges[this_id * NUM_NEIGHBOURS];
             edge->x = edge_id + 1;
-            edge->y = sqrtf(powf((this_r-other_r) + (this_g-other_g) + (this_b-other_b), 2.0f));
+            edge->y = sqrtf(powf(this_r-other_r, 2.0f) + powf(this_g-other_g, 2.0f) + powf(this_b-other_b, 2.0f));
             edge->z = edge_id + 1;
         }
 
@@ -81,7 +81,7 @@ void encode(u_char *image, uint4 vertices[], uint3 edges[], uint x_len, uint y_l
         other_b = image[other_start + 2];
         edge = &edges[this_id * NUM_NEIGHBOURS + 1];
         edge->x = edge_id + 1;
-        edge->y = sqrtf(powf((this_r-other_r) + (this_g-other_g) + (this_b-other_b), 2.0f));
+        edge->y = sqrtf(powf(this_r-other_r, 2.0f) + powf(this_g-other_g, 2.0f) + powf(this_b-other_b, 2.0f));
         edge->z = edge_id + 1;
 
         if (!is_last_col) {
@@ -92,7 +92,7 @@ void encode(u_char *image, uint4 vertices[], uint3 edges[], uint x_len, uint y_l
             other_b = image[other_start + 2];
             edge = &edges[this_id * NUM_NEIGHBOURS + 2];
             edge->x = edge_id + 1;
-            edge->y = sqrtf(powf((this_r-other_r) + (this_g-other_g) + (this_b-other_b), 2.0f));
+            edge->y = sqrtf(powf(this_r-other_r, 2.0f) + powf(this_g-other_g, 2.0f) + powf(this_b-other_b, 2.0f));
             edge->z = edge_id + 1;
         }
     }
@@ -107,7 +107,7 @@ void encode(u_char *image, uint4 vertices[], uint3 edges[], uint x_len, uint y_l
             other_b = image[other_start + 2];
             edge = &edges[this_id * NUM_NEIGHBOURS + 3];
             edge->x = edge_id + 1;
-            edge->y = sqrtf(powf((this_r-other_r) + (this_g-other_g) + (this_b-other_b), 2.0f));
+            edge->y = sqrtf(powf(this_r-other_r, 2.0f) + powf(this_g-other_g, 2.0f) + powf(this_b-other_b, 2.0f));
             edge->z = edge_id + 1;
         }
 
@@ -118,7 +118,7 @@ void encode(u_char *image, uint4 vertices[], uint3 edges[], uint x_len, uint y_l
         other_b = image[other_start + 2];
         edge = &edges[this_id * NUM_NEIGHBOURS + 4];
         edge->x = edge_id + 1;
-        edge->y = sqrtf(powf((this_r-other_r) + (this_g-other_g) + (this_b-other_b), 2.0f));
+        edge->y = sqrtf(powf(this_r-other_r, 2.0f) + powf(this_g-other_g, 2.0f) + powf(this_b-other_b, 2.0f));
         edge->z = edge_id + 1;
 
         if (!is_last_col) {
@@ -129,7 +129,7 @@ void encode(u_char *image, uint4 vertices[], uint3 edges[], uint x_len, uint y_l
             other_b = image[other_start + 2];
             edge = &edges[this_id * NUM_NEIGHBOURS + 5];
             edge->x = edge_id + 1;
-            edge->y = sqrtf(powf((this_r-other_r) + (this_g-other_g) + (this_b-other_b), 2.0f));
+            edge->y = sqrtf(powf(this_r-other_r, 2.0f) + powf(this_g-other_g, 2.0f) + powf(this_b-other_b, 2.0f));
             edge->z = edge_id + 1;
         }
     }
@@ -142,7 +142,7 @@ void encode(u_char *image, uint4 vertices[], uint3 edges[], uint x_len, uint y_l
         other_b = image[other_start + 2];
         edge = &edges[this_id * NUM_NEIGHBOURS + 6];
         edge->x = edge_id + 1;
-        edge->y = sqrtf(powf((this_r-other_r) + (this_g-other_g) + (this_b-other_b), 2.0f));
+        edge->y = sqrtf(powf(this_r-other_r, 2.0f) + powf(this_g-other_g, 2.0f) + powf(this_b-other_b, 2.0f));
         edge->z = edge_id + 1;
     }
 
@@ -154,7 +154,7 @@ void encode(u_char *image, uint4 vertices[], uint3 edges[], uint x_len, uint y_l
         other_b = image[other_start + 2];
         edge = &edges[this_id * NUM_NEIGHBOURS + 7];
         edge->x = edge_id + 1;
-        edge->y = sqrtf(powf((this_r-other_r) + (this_g-other_g) + (this_b-other_b), 2.0f));
+        edge->y = sqrtf(powf(this_r-other_r, 2.0f) + powf(this_g-other_g, 2.0f) + powf(this_b-other_b, 2.0f));
         edge->z = edge_id + 1;
     }
 }
@@ -254,9 +254,11 @@ void update_matrix(uint4 vertices[], uint3 edges[], uint vertices_length, uint n
 
 // Kernel to merge components
 __global__
-void merge(uint4 vertices[], uint3 edges[], uint3 min_edges[], uint *num_components, uint update_threads, uint update_blocks, uint vertices_length) {
+void merge(uint4 vertices[], uint3 edges[], uint3 min_edges[], uint *num_components, uint update_threads, uint update_blocks, uint vertices_length, uint comp_count) {
     uint component_id = blockDim.x * blockIdx.x + threadIdx.x;
-    if (component_id >= *num_components) return;
+    if (component_id >= comp_count)  {
+        return;
+    }
 
     uint3 min_edge = min_edges[component_id];
     if (min_edge.y == min_edge.z || min_edge.y == 0) return;
@@ -267,7 +269,7 @@ void merge(uint4 vertices[], uint3 edges[], uint3 min_edges[], uint *num_compone
     uint dest_diff = dest.w + (K / dest.z);
     if (min_edge.x <= min(src_diff, dest_diff)) {
         atomicSub_system(num_components, 1); // Is this horribly inefficient?
-        uint new_int_diff = max(dest.w, min_edge.x);
+        uint new_int_diff = max(max(dest.w, src.w), min_edge.x);
         uint new_size = src.z + dest.z;
         uint new_component = dest.y;
 
@@ -335,12 +337,12 @@ void segment(uint4 vertices[], uint3 edges[], uint3 min_edges[], uint *n_compone
             cudaDeviceSynchronize();
         }
 
-        merge<<<blocks.x, threads.x>>>(vertices, edges, min_edges, n_components, threads.y, blocks.y, n_vertices);
+        merge<<<blocks.x, threads.x>>>(vertices, edges, min_edges, n_components, threads.y, blocks.y, n_vertices, curr_n_comp);
         cudaDeviceSynchronize();
 
         prev_n_components = curr_n_comp;
         curr_n_comp = *n_components;
-        //printf("N components: %d\n", curr_n_comp);
+        printf("N components: %d\n", curr_n_comp);
     }
 }
 
