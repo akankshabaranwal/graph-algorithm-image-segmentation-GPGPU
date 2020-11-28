@@ -12,12 +12,15 @@
 #include <stdio.h>
 #include <iostream>
 
+using namespace cv::cuda;
+using namespace cv;
+
 struct edge{
   public:
     int Vertex;
     float Weight;
 };
-__global__ void ImagetoGraph(cv::cuda::GpuMat Image, int *VertexList, edge *EdgeList, int pitch, int channels);
+__global__ void ImagetoGraph(cv::cuda::GpuMat Image, int *VertexList, edge *EdgeList, int *BitEdgeList, int pitch, int channels);
 // Check if the graph formation can be implemented using deconvolution??
 
 #endif //FELZENSWALB_CREATEGRAPH_H
