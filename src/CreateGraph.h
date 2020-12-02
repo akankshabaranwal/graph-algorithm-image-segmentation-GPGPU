@@ -15,10 +15,11 @@
 using namespace cv::cuda;
 using namespace cv;
 
+//TODO: Fix the weight from int to float
 struct edge{
   public:
     int Vertex;
-    float Weight;
+    int Weight;
 };
 __global__ void ImagetoGraph(cv::cuda::GpuMat Image, int *VertexList, edge *EdgeList, int *BitEdgeList, int pitch, int channels);
 // Check if the graph formation can be implemented using deconvolution??

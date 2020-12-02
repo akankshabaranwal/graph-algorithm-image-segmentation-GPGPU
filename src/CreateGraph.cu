@@ -8,10 +8,9 @@ __global__ void ImagetoGraph(cv::cuda::GpuMat Image, int *VertexList, edge *Edge
     //https://stackoverflow.com/questions/24613637/custom-kernel-gpumat-with-float
     int i = blockIdx.x*blockDim.x + threadIdx.x + 1;
     int j = blockIdx.y*blockDim.y + threadIdx.y + 1;
-
+    //https://docs.nvidia.com/cuda/cuda-math-api/group__CUDA__MATH__INTRINSIC__INT.html: For bitwise shift etc
     int rows = Image.rows;
     int cols = Image.cols;
-
     //TODO: Check if this needs to be fixed. Right now I am removing all border pixels
     if(i>rows-1)
         return;
@@ -24,69 +23,96 @@ __global__ void ImagetoGraph(cv::cuda::GpuMat Image, int *VertexList, edge *Edge
     //TODO: Check if we really need 8 neighbors?
     //TODO: Check if this maps to some kind of deconvolution
     //TODO: Replace this with cublas??
-    uint3 SrcPix, DestPix;
+    //uint3 SrcPix, DestPix;
+    float SrcPixX, SrcPixY, SrcPixZ;
+    float DestPixX, DestPixY, DestPixZ;
+    float DiffX, DiffY, DiffZ;
+
+    //Using 16 bits for Weight and 16 for vertex id
 
     VertexList[PixIdx] = 8*PixIdx; //VertexList stores the start of each index
-    SrcPix.x = Image.data[ (i*Image.step) + j*Channels + 0];
-    SrcPix.y = Image.data[ (i*Image.step) + j*Channels + 1];
-    SrcPix.z = Image.data[ (i*Image.step) + j*Channels + 2];
+    SrcPixX = Image.data[ (i*Image.step) + j*Channels + 0];
+    SrcPixY = Image.data[ (i*Image.step) + j*Channels + 1];
+    SrcPixZ = Image.data[ (i*Image.step) + j*Channels + 2];
 
+    //TODO: Remove the weight parameter from edgelist array
     EdgeList[8*PixIdx].Vertex = i*cols + j-1; //Left
-    DestPix.x = Image.data[ (i*Image.step) + (j-1)*Channels + 0];
-    DestPix.y = Image.data[ (i*Image.step) + (j-1)*Channels + 1];
-    DestPix.z = Image.data[ (i*Image.step) + (j-1)*Channels + 2];
-    EdgeList[8*PixIdx].Weight = norm3df(SrcPix.x-DestPix.x,SrcPix.y-DestPix.y,SrcPix.z-DestPix.z);
-    BitEdgeList[8*PixIdx] =(int(norm3df(SrcPix.x-DestPix.x,SrcPix.y-DestPix.y,SrcPix.z-DestPix.z))<<21)|(i*cols + j-1);
-    //TODO: Find a way to retain double precision
-    //TODO: Remove the EdgeList array
+    DestPixX = Image.data[ (i*Image.step) + (j-1)*Channels + 0];
+    DestPixY = Image.data[ (i*Image.step) + (j-1)*Channels + 1];
+    DestPixZ = Image.data[ (i*Image.step) + (j-1)*Channels + 2];
+    DiffX = DestPixX - SrcPixX;
+    DiffY = DestPixY - SrcPixY;
+    DiffZ = DestPixZ - SrcPixZ;
+    EdgeList[8*PixIdx].Weight = int(sqrtf(DiffX*DiffX + DiffY*DiffY + DiffZ*DiffZ));
+    BitEdgeList[8*PixIdx] = (EdgeList[8*PixIdx].Weight * (2<<16)) + EdgeList[8*PixIdx].Vertex;
 
     EdgeList[8*PixIdx+1].Vertex = (i-1)*cols + j-1; //LeftTop
-    DestPix.x = Image.data[ ((i-1)*Image.step) + (j-1)*Channels + 0];
-    DestPix.y = Image.data[ ((i-1)*Image.step) + (j-1)*Channels + 1];
-    DestPix.z = Image.data[ ((i-1)*Image.step) + (j-1)*Channels + 2];
-    EdgeList[8*PixIdx+1].Weight = norm3df(SrcPix.x-DestPix.x,SrcPix.y-DestPix.y,SrcPix.z-DestPix.z);
-    BitEdgeList[8*PixIdx+1] =(int(norm3df(SrcPix.x-DestPix.x,SrcPix.y-DestPix.y,SrcPix.z-DestPix.z))<<21)|((i-1)*cols + j-1);
+    DestPixX = Image.data[ ((i-1)*Image.step) + (j-1)*Channels + 0];
+    DestPixY = Image.data[ ((i-1)*Image.step) + (j-1)*Channels + 1];
+    DestPixZ = Image.data[ ((i-1)*Image.step) + (j-1)*Channels + 2];
+    DiffX = DestPixX - SrcPixX;
+    DiffY = DestPixY - SrcPixY;
+    DiffZ = DestPixZ - SrcPixZ;
+    EdgeList[8*PixIdx+1].Weight = int(sqrtf(DiffX*DiffX + DiffY*DiffY + DiffZ*DiffZ));
+    BitEdgeList[8*PixIdx+1] = (EdgeList[8*PixIdx+1].Weight*(2<<16)) + EdgeList[8*PixIdx+1].Vertex;
 
     EdgeList[8*PixIdx+2].Vertex = (i-1)*cols + j; //Top
-    DestPix.x = Image.data[ ((i-1)*Image.step) + j*Channels + 0];
-    DestPix.y = Image.data[ ((i-1)*Image.step) + j*Channels + 1];
-    DestPix.z = Image.data[ ((i-1)*Image.step) + j*Channels + 2];
-    EdgeList[8*PixIdx+2].Weight = norm3df(SrcPix.x-DestPix.x,SrcPix.y-DestPix.y,SrcPix.z-DestPix.z);
-    BitEdgeList[8*PixIdx+2] =(int(norm3df(SrcPix.x-DestPix.x,SrcPix.y-DestPix.y,SrcPix.z-DestPix.z))<<21)|((i-1)*cols + j);
+    DestPixX = Image.data[ ((i-1)*Image.step) + j*Channels + 0];
+    DestPixY = Image.data[ ((i-1)*Image.step) + j*Channels + 1];
+    DestPixZ = Image.data[ ((i-1)*Image.step) + j*Channels + 2];
+    DiffX = DestPixX - SrcPixX;
+    DiffY = DestPixY - SrcPixY;
+    DiffZ = DestPixZ - SrcPixZ;
+    EdgeList[8*PixIdx+2].Weight = int(sqrtf(DiffX*DiffX + DiffY*DiffY + DiffZ*DiffZ));
+    BitEdgeList[8*PixIdx+2] = (EdgeList[8*PixIdx+2].Weight*(2<<16)) + EdgeList[8*PixIdx+2].Vertex;
 
     EdgeList[8*PixIdx+3].Vertex = (i-1)*cols + j+1; //TopRight
-    DestPix.x = Image.data[ ((i-1)*Image.step) + (j+1)*Channels + 0];
-    DestPix.y = Image.data[ ((i-1)*Image.step) + (j+1)*Channels + 1];
-    DestPix.z = Image.data[ ((i-1)*Image.step) + (j+1)*Channels + 2];
-    EdgeList[8*PixIdx+3].Weight = norm3df(SrcPix.x-DestPix.x,SrcPix.y-DestPix.y,SrcPix.z-DestPix.z);
-    BitEdgeList[8*PixIdx+3] =(int(norm3df(SrcPix.x-DestPix.x,SrcPix.y-DestPix.y,SrcPix.z-DestPix.z))<<21)|((i-1)*cols + j+1);
+    DestPixX = Image.data[ ((i-1)*Image.step) + (j+1)*Channels + 0];
+    DestPixY = Image.data[ ((i-1)*Image.step) + (j+1)*Channels + 1];
+    DestPixZ = Image.data[ ((i-1)*Image.step) + (j+1)*Channels + 2];
+    DiffX = DestPixX - SrcPixX;
+    DiffY = DestPixY - SrcPixY;
+    DiffZ = DestPixZ - SrcPixZ;
+    EdgeList[8*PixIdx+3].Weight = int(sqrtf(DiffX*DiffX + DiffY*DiffY + DiffZ*DiffZ));
+    BitEdgeList[8*PixIdx+3] = (EdgeList[8*PixIdx+3].Weight*(2<<16)) + EdgeList[8*PixIdx+3].Vertex;
 
     EdgeList[8*PixIdx+4].Vertex = i*cols + j+1; //Right
-    DestPix.x = Image.data[ (i*Image.step) + (j+1)*Channels + 0];
-    DestPix.y = Image.data[ (i*Image.step) + (j+1)*Channels + 1];
-    DestPix.z = Image.data[ (i*Image.step) + (j+1)*Channels + 2];
-    EdgeList[8*PixIdx+4].Weight = norm3df(SrcPix.x-DestPix.x,SrcPix.y-DestPix.y,SrcPix.z-DestPix.z);
-    BitEdgeList[8*PixIdx+4] =(int(norm3df(SrcPix.x-DestPix.x,SrcPix.y-DestPix.y,SrcPix.z-DestPix.z))<<21)|(i*cols + j+1);
+    DestPixX = Image.data[ (i*Image.step) + (j+1)*Channels + 0];
+    DestPixY = Image.data[ (i*Image.step) + (j+1)*Channels + 1];
+    DestPixZ = Image.data[ (i*Image.step) + (j+1)*Channels + 2];
+    DiffX = DestPixX - SrcPixX;
+    DiffY = DestPixY - SrcPixY;
+    DiffZ = DestPixZ - SrcPixZ;
+    EdgeList[8*PixIdx+4].Weight = int(sqrtf(DiffX*DiffX + DiffY*DiffY + DiffZ*DiffZ));
+    BitEdgeList[8*PixIdx+4] = (EdgeList[8*PixIdx+4].Weight*(2<<16)) + EdgeList[8*PixIdx+4].Vertex;
 
     EdgeList[8*PixIdx+5].Vertex = (i+1)*cols + j +1; //BottomRight
-    DestPix.x = Image.data[ ((i+1)*Image.step) + (j+1)*Channels + 0];
-    DestPix.y = Image.data[ ((i+1)*Image.step) + (j+1)*Channels + 1];
-    DestPix.z = Image.data[ ((i+1)*Image.step) + (j+1)*Channels + 2];
-    EdgeList[8*PixIdx+5].Weight = norm3df(SrcPix.x-DestPix.x,SrcPix.y-DestPix.y,SrcPix.z-DestPix.z);
-    BitEdgeList[8*PixIdx+5] =(int(norm3df(SrcPix.x-DestPix.x,SrcPix.y-DestPix.y,SrcPix.z-DestPix.z))<<21)|((i+1)*cols + j+1);
+    DestPixX = Image.data[ ((i+1)*Image.step) + (j+1)*Channels + 0];
+    DestPixY = Image.data[ ((i+1)*Image.step) + (j+1)*Channels + 1];
+    DestPixZ = Image.data[ ((i+1)*Image.step) + (j+1)*Channels + 2];
+    DiffX = DestPixX - SrcPixX;
+    DiffY = DestPixY - SrcPixY;
+    DiffZ = DestPixZ - SrcPixZ;
+    EdgeList[8*PixIdx+5].Weight = int(sqrtf(DiffX*DiffX + DiffY*DiffY + DiffZ*DiffZ));
+    BitEdgeList[8*PixIdx+5] = (EdgeList[8*PixIdx+5].Weight*(2<<16)) + EdgeList[8*PixIdx+5].Vertex;
 
     EdgeList[8*PixIdx+6].Vertex = (i+1)*cols + j; //Bottom
-    DestPix.x = Image.data[ ((i-1)*Image.step) + j*Channels + 0];
-    DestPix.y = Image.data[ ((i-1)*Image.step) + j*Channels + 1];
-    DestPix.z = Image.data[ ((i-1)*Image.step) + j*Channels + 2];
-    EdgeList[8*PixIdx+6].Weight = norm3df(SrcPix.x-DestPix.x,SrcPix.y-DestPix.y,SrcPix.z-DestPix.z);
-    BitEdgeList[8*PixIdx+6] =(int(norm3df(SrcPix.x-DestPix.x,SrcPix.y-DestPix.y,SrcPix.z-DestPix.z))<<21)|((i+1)*cols + j);
+    DestPixX = Image.data[ ((i-1)*Image.step) + j*Channels + 0];
+    DestPixY = Image.data[ ((i-1)*Image.step) + j*Channels + 1];
+    DestPixZ = Image.data[ ((i-1)*Image.step) + j*Channels + 2];
+    DiffX = DestPixX - SrcPixX;
+    DiffY = DestPixY - SrcPixY;
+    DiffZ = DestPixZ - SrcPixZ;
+    EdgeList[8*PixIdx+6].Weight = int(sqrtf(DiffX*DiffX + DiffY*DiffY + DiffZ*DiffZ));
+    BitEdgeList[8*PixIdx+6] =(EdgeList[8*PixIdx+6].Weight*(2<<16))+ EdgeList[8*PixIdx+6].Vertex;
 
     EdgeList[8*PixIdx+7].Vertex = (i+1)*cols + j-1; //BottomLeft
-    DestPix.x = Image.data[ ((i+1)*Image.step) + (j-1)*Channels + 0];
-    DestPix.y = Image.data[ ((i+1)*Image.step) + (j-1)*Channels + 1];
-    DestPix.z = Image.data[ ((i+1)*Image.step) + (j-1)*Channels + 2];
-    EdgeList[8*PixIdx+7].Weight = norm3df(SrcPix.x-DestPix.x,SrcPix.y-DestPix.y,SrcPix.z-DestPix.z);
-    BitEdgeList[8*PixIdx+7] =(int(norm3df(SrcPix.x-DestPix.x,SrcPix.y-DestPix.y,SrcPix.z-DestPix.z))<<21)|((i+1)*cols + j-1);
+    DestPixX = Image.data[ ((i+1)*Image.step) + (j-1)*Channels + 0];
+    DestPixY = Image.data[ ((i+1)*Image.step) + (j-1)*Channels + 1];
+    DestPixZ = Image.data[ ((i+1)*Image.step) + (j-1)*Channels + 2];
+    DiffX = DestPixX - SrcPixX;
+    DiffY = DestPixY - SrcPixY;
+    DiffZ = DestPixZ - SrcPixZ;
+    EdgeList[8*PixIdx+7].Weight = int(sqrtf(DiffX*DiffX + DiffY*DiffY + DiffZ*DiffZ));
+    BitEdgeList[8*PixIdx+7] =(EdgeList[8*PixIdx+7].Weight *(2<<16)) + EdgeList[8*PixIdx+7].Vertex;
 }
-

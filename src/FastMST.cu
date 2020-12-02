@@ -8,17 +8,15 @@ using namespace mgpu;
 ////////////////////////////////////////////////////////////////////////////////
 // Scan
 //https://moderngpu.github.io/faq.html
-void DemoSegReduceCsr(CudaContext& context, int *flag, int *a, int *Out) {
-    const int numElements = 10;
-    const int numSegs = 3;
+void DemoSegReduceCsr(CudaContext& context, int *flag, int *a, int *Out, int numElements, int numSegs) {
 
     printf("Input values:\n");
-    for(int i =0;i<10;i++)
+    for(int i =0;i<numElements;i++)
         printf("%d, ", a[i]);
     printf("\n");
 
     printf("Flag values:\n");
-    for(int i =0;i<3;i++)
+    for(int i =0;i<numSegs;i++)
         printf("%d, ", flag[i]);
     printf("\n");
 
@@ -27,7 +25,7 @@ void DemoSegReduceCsr(CudaContext& context, int *flag, int *a, int *Out) {
 
     printf("Output values:\n");
 
-    for(int i =0;i<3;i++)
-        printf("%d, ", Out[i]);
+    for(int i =0;i<numSegs;i++)
+        printf("%d, Weight: %d\n", Out[i], int(Out[i]>>16));
     printf("\n");
 }

@@ -27,22 +27,30 @@ int main(int argc, char **argv)
 
     //Graph parameters
     int numVertices = image.rows*image.cols;
-    int numEdges= image.rows*image.cols*8;
+    int numEdges= (image.rows-1)*(image.cols-1)*8;
 
     //Convert image to graph
-    int *VertexList, *BitEdgeList;
+    int *VertexList, *BitEdgeList, *FlagList, *OutList;
     edge *EdgeList;
 
     cudaMallocManaged(&VertexList,numVertices*sizeof(int));
+    cudaMallocManaged(&FlagList,numVertices*sizeof(int));
+    cudaMallocManaged(&OutList,numVertices*sizeof(int));
     cudaMallocManaged(&EdgeList,numEdges*sizeof(edge));
     cudaMallocManaged(&BitEdgeList,numEdges*sizeof(edge));
 
     dim3 threadsPerBlock(32,32);
     int BlockX = image.rows/threadsPerBlock.x;
     int BlockY = image.cols/threadsPerBlock.y;
-    dim3 numBlocks(BlockX,BlockY);
-
-    ImagetoGraph<<<numBlocks,threadsPerBlock>>>(dev_output, VertexList, EdgeList, BitEdgeList, dev_output.step, dev_output.channels());
+    dim3 numBlocks(BlockX, BlockY);
+    cudaDeviceSynchronize();
+    for(int i =0;i<numEdges;i++)
+    {
+    EdgeList[i].Weight=0;
+    FlagList[i] = int(i/8);
+    }
+    dev_output.download(output);
+    ImagetoGraph<<<numBlocks,threadsPerBlock>>>(dev_image, VertexList, EdgeList, BitEdgeList, dev_image.step, 3);
     cudaError_t err = cudaGetLastError();
     if ( err != cudaSuccess )
     {
@@ -51,11 +59,14 @@ int main(int argc, char **argv)
     cudaDeviceSynchronize();
 
     printf("INFO: Checking the edge list and bit edge list\n");
-    //TODO: Fix bug in edge list creation
-    for(int i =0;i<numEdges;i++)
+    //TODO: Fix bug in edge list creation. Something is wrong with the norm3DF function
+   for(int i =0;i<numEdges;i++)
     {
-        printf("%d %f %d\n", EdgeList[i].Vertex, EdgeList[i].Weight, BitEdgeList[i]);
+        if(EdgeList[i].Vertex != 0)
+            printf("%d %d %d\n", EdgeList[i].Vertex, EdgeList[i].Weight, BitEdgeList[i]);
+        //printf("%d %d\n", EdgeList[i].Vertex, EdgeList[i].Weight);
     }
+    printf("Image rows: %d, Image columns: %d\n", image.rows,image.cols);
     //dev_output.download(output);
     //imshow("Source Image", image);
     //imshow("After Blur (CUDA)", output);
@@ -66,7 +77,6 @@ int main(int argc, char **argv)
     //    int a[10] = {2,3,1,4,5,6,0,8,4,10};
 //    int flag[10] = {0,0,0,1,0,0,1,0,1,0};
 //    int Out[4];
-
     int *a;
     int *flag;
     int *Out;
@@ -100,7 +110,8 @@ int main(int argc, char **argv)
     //flag[8] =0;
     //flag[9] = 0;
 
-    DemoSegReduceCsr(*context, flag, a, Out);
+    //DemoSegReduceCsr(*context, flag, a, Out);
+    DemoSegReduceCsr(*context, FlagList, BitEdgeList, OutList, numEdges,numVertices);
 
     //for(int i=0;i<4;i++)
     //    printf("%d ,", Out[i]);
