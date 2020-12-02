@@ -19,13 +19,25 @@ int main(int argc, char **argv)
 
     dev_output.download(output);
 
+    namedWindow("Source Image", cv::WINDOW_NORMAL);
     imshow("Source Image", image);
+    namedWindow("After Blur (CUDA)", cv::WINDOW_NORMAL);
     imshow("After Blur (CUDA)", output);
+
+    time_t start, end;
+    time(&start);
 
     char *segmented_img = compute_segments(dev_output.cudaPtr(), image.rows, image.cols, dev_output.step);
 
-    imshow("Segmented", cv::Mat(image.rows, image.cols, CV_8UC3, segmented_img));
+    time(&end);
+    std::cout << "Segmentation time: " << double(end - start) << std::endl;
+
+    cv::Mat output_img = cv::Mat(image.rows, image.cols, CV_8UC3, segmented_img);
+    namedWindow("Segmented", cv::WINDOW_NORMAL);
+    imshow("Segmented", output_img);
     cv::waitKey();
+
+    imwrite("segmented.png", output_img);
 
     return 0;
 }
