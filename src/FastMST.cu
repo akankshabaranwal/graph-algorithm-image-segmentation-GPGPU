@@ -8,24 +8,27 @@ using namespace mgpu;
 ////////////////////////////////////////////////////////////////////////////////
 // Scan
 //https://moderngpu.github.io/faq.html
-void DemoSegReduceCsr(CudaContext& context, int *flag, int *a, int *Out, int numElements, int numSegs) {
-
+void SegmentedReduction(CudaContext& context, int32_t *flag, int32_t *a, int32_t *Out, int numElements, int numSegs)
+{
     printf("Input values:\n");
-    for(int i =0;i<numElements;i++)
+    for (int i = 0; i < 100; i++)
         printf("%d, ", a[i]);
     printf("\n");
 
     printf("Flag values:\n");
-    for(int i =0;i<numSegs;i++)
+    for (int i = 0; i < 100; i++)
         printf("%d, ", flag[i]);
     printf("\n");
 
-    SegReduceCsr(a, flag, numElements, numSegs,false, Out,(int)INT_MAX, mgpu::minimum<int>(), context);
+    SegReduceCsr(a, flag, numElements, numSegs, false, Out, (int)INT_MAX, mgpu::minimum<int>(), context);
     cudaDeviceSynchronize();
 
     printf("Output values:\n");
 
-    for(int i =0;i<numSegs;i++)
-        printf("%d, Weight: %d\n", Out[i], int(Out[i]>>16));
+    for (int i = 0; i < 100; i++)
+    {
+        //printf(" %d, ", Out[i]);
+        printf("%d %d\n", Out[i] % (2 << 16), Out[i] >> 16);
+    }
     printf("\n");
 }

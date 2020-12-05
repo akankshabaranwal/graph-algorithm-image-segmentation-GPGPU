@@ -13,6 +13,6 @@ using namespace cv;
 using namespace mgpu;
 
 //__global__ void FindMinWeightedEdge(cv::cuda::GpuMat Image, int *VertexList, edge *EdgeList, int pitch, int channels);
-void DemoSegReduceCsr(CudaContext& context, int *flag, int *a, int *Out, int numElements, int numSegs);
+void SegmentedReduction(CudaContext& context, int32_t *flag, int32_t *a, int32_t *Out, int numElements, int numSegs);
 
 #endif //FELZENSZWALB_FASTMST_H

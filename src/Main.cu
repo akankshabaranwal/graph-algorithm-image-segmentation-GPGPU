@@ -1,15 +1,13 @@
 #include <iostream>
-
-#include "CreateGraph.h"
 #include <cuda_runtime_api.h>
 #include <opencv2/cudafilters.hpp>
 #include <opencv2/highgui.hpp>
+#include "CreateGraph.h"
 #include "moderngpu.cuh"		// Include all MGPU kernels.
 #include "FastMST.h"
 
 using namespace cv;
 using namespace cv::cuda;
-
 using namespace mgpu;
 
 int main(int argc, char **argv)
@@ -27,17 +25,17 @@ int main(int argc, char **argv)
 
     //Graph parameters
     int numVertices = image.rows*image.cols;
-    int numEdges= (image.rows-1)*(image.cols-1)*8;
+    int numEdges= (image.rows)*(image.cols)*8;
 
     //Convert image to graph
-    int *VertexList, *BitEdgeList, *FlagList, *OutList;
+    int32_t *VertexList, *BitEdgeList, *FlagList, *OutList;
     edge *EdgeList;
 
-    cudaMallocManaged(&VertexList,numVertices*sizeof(int));
-    cudaMallocManaged(&FlagList,numVertices*sizeof(int));
-    cudaMallocManaged(&OutList,numVertices*sizeof(int));
+    cudaMallocManaged(&VertexList,numVertices*sizeof(int32_t));
+    cudaMallocManaged(&FlagList,numVertices*sizeof(int32_t));
+    cudaMallocManaged(&OutList,numVertices*sizeof(int32_t));
     cudaMallocManaged(&EdgeList,numEdges*sizeof(edge));
-    cudaMallocManaged(&BitEdgeList,numEdges*sizeof(edge));
+    cudaMallocManaged(&BitEdgeList,numEdges*sizeof(int32_t));
 
     dim3 threadsPerBlock(32,32);
     int BlockX = image.rows/threadsPerBlock.x;
@@ -47,10 +45,9 @@ int main(int argc, char **argv)
     for(int i =0;i<numEdges;i++)
     {
     EdgeList[i].Weight=0;
-    FlagList[i] = int(i/8);
     }
     dev_output.download(output);
-    ImagetoGraph<<<numBlocks,threadsPerBlock>>>(dev_image, VertexList, EdgeList, BitEdgeList, dev_image.step, 3);
+    ImagetoGraph<<<numBlocks,threadsPerBlock>>>(dev_image, VertexList, EdgeList, BitEdgeList, FlagList, dev_image.step, 3);
     cudaError_t err = cudaGetLastError();
     if ( err != cudaSuccess )
     {
@@ -58,69 +55,16 @@ int main(int argc, char **argv)
     }
     cudaDeviceSynchronize();
 
-    printf("INFO: Checking the edge list and bit edge list\n");
-    //TODO: Fix bug in edge list creation. Something is wrong with the norm3DF function
+   // printf("INFO: Checking the edge list and bit edge list\n");
+
    for(int i =0;i<numEdges;i++)
     {
         if(EdgeList[i].Vertex != 0)
-            printf("%d %d %d\n", EdgeList[i].Vertex, EdgeList[i].Weight, BitEdgeList[i]);
-        //printf("%d %d\n", EdgeList[i].Vertex, EdgeList[i].Weight);
+            printf("%d %d %d %d\n", EdgeList[i].Vertex, EdgeList[i].Weight, BitEdgeList[i]%(2<<16), BitEdgeList[i]>>16);
     }
-    printf("Image rows: %d, Image columns: %d\n", image.rows,image.cols);
-    //dev_output.download(output);
-    //imshow("Source Image", image);
-    //imshow("After Blur (CUDA)", output);
-
-    //waitKey();
 
     ContextPtr context = CreateCudaDevice(argc, argv, true);
-    //    int a[10] = {2,3,1,4,5,6,0,8,4,10};
-//    int flag[10] = {0,0,0,1,0,0,1,0,1,0};
-//    int Out[4];
-    int *a;
-    int *flag;
-    int *Out;
-    cudaMallocManaged(&a,10*sizeof(int));
-    cudaMallocManaged(&flag,3*sizeof(int));
-    cudaMallocManaged(&Out,3*sizeof(int));
-
-    a[0] = 2;
-    a[1] =3;
-    a[2] = 10;
-    a[3] = 3;
-    a[4] = 5;
-    a[5] = 6;
-    a[6] = 100;
-    a[7] = 8;
-    a[8] = 4;
-    a[9] = 6;
-
-    flag[0]=0;
-    flag[1]=3;
-    flag[2]=7;
-
-    //AB: Marksegments is not required because flag array is already like that
-
-    //flag[2] = 0;
-    //flag[3] = 1;
-    //flag[4]=0;
-    //flag[5]=0;
-    //flag[6]=0;
-    //flag[7] =1;
-    //flag[8] =0;
-    //flag[9] = 0;
-
-    //DemoSegReduceCsr(*context, flag, a, Out);
-    DemoSegReduceCsr(*context, FlagList, BitEdgeList, OutList, numEdges,numVertices);
-
-    //for(int i=0;i<4;i++)
-    //    printf("%d ,", Out[i]);
-    //https://moderngpu.github.io/segreduce.html
-
-    //Print the pitch information
- //   cudaDeviceProp devProp;
- //   cudaGetDeviceProperties(&devProp, 0);
- //   printf("Maximum memory pitch:%lu\n",  devProp.memPitch);
+    SegmentedReduction(*context, VertexList, BitEdgeList, OutList, numEdges,numVertices);
 
     return 0;
 }
