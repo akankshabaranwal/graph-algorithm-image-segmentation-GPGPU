@@ -94,5 +94,6 @@ int main(int argc, char **argv)
     //numVertices = image.rows * image.cols;
     PropagateRepresentativeVertices(Successor, numVertices);
     SortedSplit(Representative, Vertex, Successor, numVertices);
+
     return 0;
 }
