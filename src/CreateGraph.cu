@@ -3,22 +3,78 @@
 //
 #include "CreateGraph.h"
 
+double dissimilarity(Mat image, int row1, int col1, int row2, int col2) {
+    double dis = 0;
+    Point3_<uchar>* u = image.ptr<Point3_<uchar> >(row1,col1);
+    Point3_<uchar>* v = image.ptr<Point3_<uchar> >(row2,col2);
+    dis = pow((u->x - v->x), 2) + pow((u->y - v->y), 2) + pow((u->z - v->z), 2);
+    return sqrt(dis);
+}
+
+int ImagetoGraphSerial(Mat image, edge *EdgeList, int32_t *VertexList, int32_t *BitEdgeList)
+{
+    int cur_edge_idx, cur_vertex_idx, left_node, right_node, bottom_node, top_node;
+    cur_edge_idx = 0;
+    for(int i=0;i<image.rows;i++)
+    {
+        for(int j=0;j<image.cols;j++)
+        {
+            left_node = i * image.cols + j - 1;
+            right_node = i * image.cols + j + 1;
+            bottom_node = (i+1) * image.cols + j;
+            top_node = (i - 1) * image.cols + j;
+            //Add the index for VertexList
+            cur_vertex_idx = i * image.cols + j;
+            VertexList[cur_vertex_idx] = cur_edge_idx;
+            if (j > 0){
+                EdgeList[cur_edge_idx].Vertex = left_node;
+                EdgeList[cur_edge_idx].Weight = dissimilarity(image, i, j, i, j - 1);
+                BitEdgeList[cur_edge_idx] = (EdgeList[cur_edge_idx].Weight * (2<<15)) + left_node;
+                cur_edge_idx++;
+            }
+            if (j < image.cols - 1){
+                EdgeList[cur_edge_idx].Vertex = right_node;
+                EdgeList[cur_edge_idx].Weight = dissimilarity(image, i, j, i, j + 1);
+                BitEdgeList[cur_edge_idx] = (EdgeList[cur_edge_idx].Weight * (2<<15)) + right_node;
+                cur_edge_idx++;
+            }
+            if (i < image.rows - 1){
+                EdgeList[cur_edge_idx].Vertex = bottom_node;
+                EdgeList[cur_edge_idx].Weight = dissimilarity(image, i, j, i+1, j);
+                BitEdgeList[cur_edge_idx] = (EdgeList[cur_edge_idx].Weight * (2<<15)) + bottom_node;
+                cur_edge_idx++;
+            }
+            if (i > 0){
+                EdgeList[cur_edge_idx].Vertex = top_node;
+                EdgeList[cur_edge_idx].Weight = dissimilarity(image, i, j, i-1, j);
+                BitEdgeList[cur_edge_idx] = (EdgeList[cur_edge_idx].Weight * (2<<15)) + top_node;
+                cur_edge_idx++;
+            }
+        }
+    }
+    return cur_edge_idx;
+}
+
 __global__ void ImagetoGraph(cv::cuda::GpuMat Image, int32_t *VertexList, edge *EdgeList, int32_t *BitEdgeList, int32_t *FlagList, int32_t pitch, int32_t Channels){
 
-    int32_t i = blockIdx.x*blockDim.x + threadIdx.x ;
-    int32_t j = blockIdx.y*blockDim.y + threadIdx.y ;
+    int32_t i = blockIdx.x*blockDim.x + threadIdx.x +1;
+    int32_t j = blockIdx.y*blockDim.y + threadIdx.y +1;
 
     int32_t rows = Image.rows;
     int32_t cols = Image.cols;
+
     //TODO: Check if this needs to be fixed. Right now I am removing all border pixels
-    if(i>rows)
+    if(i>rows-1)
         return;
-    if(j>cols)
+    if(j>cols-1)
         return;
 
     //Add 8 neighbors of each pixel to the list of edges
     int32_t PixIdx = i*cols + j;
-
+    if(PixIdx >= 60000)
+    {
+        printf("ERROR: Something went wrong: %d i, %d j\n", i, j);
+    }
     //TODO: Check if we really need 8 neighbors?
     int32_t SrcPixX, SrcPixY, SrcPixZ;
     int32_t DestPixX, DestPixY, DestPixZ;

@@ -12,7 +12,8 @@ using namespace cv::cuda;
 using namespace cv;
 using namespace mgpu;
 
-//__global__ void FindMinWeightedEdge(cv::cuda::GpuMat Image, int *VertexList, edge *EdgeList, int pitch, int channels);
-void SegmentedReduction(CudaContext& context, int32_t *flag, int32_t *a, int32_t *Out, int numElements, int numSegs);
+void SegmentedReduction(CudaContext& context, int32_t *flag, int32_t *a, int32_t *Out, int32_t *NWE, int numElements, int numSegs);
+__global__ void FindSuccessorArray(int32_t *Successor, int32_t *NWE, int numSegments);
+__global__ void RemoveCycles(int32_t *Successor, int numSegments);
 
 #endif //FELZENSZWALB_FASTMST_H
