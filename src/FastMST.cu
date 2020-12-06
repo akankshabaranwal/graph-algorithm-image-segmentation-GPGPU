@@ -2,6 +2,8 @@
 // Created by akanksha on 28.11.20.
 //
 #include "FastMST.h"
+#include <thrust/sort.h>
+#include <thrust/execution_policy.h>
 
 using namespace mgpu;
 
@@ -79,22 +81,22 @@ __global__ void RemoveCycles(int32_t *Successor, int numSegments)
     }
 }
 
-__global__ void PropagateParallel(int32_t *Successor, int numSegments)
+__global__ void PropagateParallel(int32_t *Successor, int numSegments, bool *change)
 {
     int id = blockIdx.x*blockDim.x+threadIdx.x;
-    bool change;
     int32_t successor_2, successor;
     successor = Successor[id];
     successor_2 = Successor[successor];
     if (id < numSegments)
     {   if(successor!=successor_2)
         {
-            change = true;
+            *change = true;
             Successor[id] = successor_2;
         }
     }
     //TODO: How to return boolean change??
 }
+
 void PropagateRepresentativeVertices(int *Successor, int numSegments)
 {
     bool change =true;
@@ -103,6 +105,54 @@ void PropagateRepresentativeVertices(int *Successor, int numSegments)
         change = false;
         int numthreads = 1024;
         int numBlock = numSegments/numthreads;
-        PropagateParallel<<<numBlock,numthreads>>>(NWE, Out, numSegs);
+        //TODO: Is it worth to make this parallel? Repeat copy of change between host and device??
+        //PropagateParallel<<<numBlock,numthreads>>>(Successor, numSegments, change);
+        int32_t successor, successor_2;
+        for(int i=0; i<numSegments;i++)
+        {
+            successor = Successor[i];
+            successor_2 = Successor[successor];
+            if(successor!=successor_2)
+            {
+                change=true;
+                Successor[i] = successor_2;
+            }
+        }
     }
+}
+
+__global__ void appendSuccessorArray(int *Representative, int *Vertex, int *Successor, int numSegments)
+{
+    int vertex = blockIdx.x*blockDim.x+threadIdx.x;
+    if(vertex<numSegments)
+    {
+        Representative[vertex] = Successor[vertex];
+        Vertex[vertex] = vertex;
+    }
+}
+
+//https://thrust.github.io/doc/group__sorting_gabe038d6107f7c824cf74120500ef45ea.html#gabe038d6107f7c824cf74120500ef45ea
+void SortedSplit(int *Representative, int *Vertex, int *Successor, int numSegments)
+{
+    int numthreads = 1024;
+    int numBlock = numSegments/numthreads;
+    appendSuccessorArray<<<numBlock,numthreads>>>(Representative, Vertex, Successor, numSegments);
+    cudaError_t err = cudaGetLastError();
+    err = cudaGetLastError();
+    if ( err != cudaSuccess )
+    {
+        printf("CUDA Error in appendSuccessorArray function call: %s\n", cudaGetErrorString(err));
+    }
+    cudaDeviceSynchronize();
+
+    //printf("Before sort:\n");
+    //numSegments = 60000;
+    //for(int i =0; i<numSegments; i++)
+    //    printf(" %d,%d ;", Representative[i], Vertex[i]);
+    //printf("\n");
+    thrust::sort_by_key(thrust::host, Representative, Representative + numSegments, Vertex);
+    //printf("After sort:\n");
+    //for(int i =0; i<numSegments; i++)
+    //    printf(" %d,%d ;", Representative[i], Vertex[i]);
+    //printf("\n");
 }

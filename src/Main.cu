@@ -28,7 +28,7 @@ int main(int argc, char **argv)
     int numEdges= (image.rows)*(image.cols)*8;
 
     //Convert image to graph
-    int32_t *VertexList, *BitEdgeList, *FlagList, *OutList, *NWE, *Successor;
+    int32_t *VertexList, *BitEdgeList, *FlagList, *OutList, *NWE, *Successor, *Representative, *Vertex;
     edge *EdgeList;
 
     cudaMallocManaged(&VertexList,numVertices*sizeof(int32_t));
@@ -38,6 +38,9 @@ int main(int argc, char **argv)
     cudaMallocManaged(&BitEdgeList,numEdges*sizeof(int32_t));
     cudaMallocManaged(&NWE,numVertices*sizeof(int32_t));
     cudaMallocManaged(&Successor,numVertices*sizeof(int32_t));
+
+    cudaMallocManaged(&Representative,numVertices*sizeof(int32_t));
+    cudaMallocManaged(&Vertex,numVertices*sizeof(int32_t));
 
     dim3 threadsPerBlock(32,32);
     int BlockX = image.rows/threadsPerBlock.x;
@@ -88,5 +91,8 @@ int main(int argc, char **argv)
     {
         printf("CUDA Error in RemoveCycles function call: %s\n", cudaGetErrorString(err));
     }
+    //numVertices = image.rows * image.cols;
+    PropagateRepresentativeVertices(Successor, numVertices);
+    SortedSplit(Representative, Vertex, Successor, numVertices);
     return 0;
 }
