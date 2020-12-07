@@ -8,7 +8,7 @@
 #include "mst.h"
 
 #define CHANNEL_SIZE 3
-#define K 50
+#define K 11
 #define NUM_NEIGHBOURS 8
 
 /*
@@ -343,21 +343,20 @@ void update_whole_matrix(uint4 vertices[], uint3 edges[], min_edge min_edges[], 
     uint comp_threads = gridDim.x * blockDim.x;
     uint vertice_id = blockDim.y * blockIdx.y + threadIdx.y;
     uint v_threads = gridDim.y * blockDim.y;
-    //printf("%d %d\n", component_id, vertice_id);
 
     for (int comp_id = component_id; comp_id < num_components; comp_id += comp_threads) {
-        for (int v_id = vertice_id; v_id < num_vertices; v_id += v_threads) {
-            min_edge current_comp = min_edges[comp_id];
-            if (current_comp.src_comp == current_comp.dest_comp || current_comp.weight > 0) continue;
+        min_edge current_comp = min_edges[comp_id];
+        if (current_comp.src_comp == current_comp.dest_comp || current_comp.weight > 0) continue;
+        //printf("Merge %d into %d\n", current_comp.src_comp, current_comp.dest_comp);
 
+        // If we merge
+        for (int v_id = vertice_id; v_id < num_vertices; v_id += v_threads) {
             uint4 *vertice = &vertices[v_id];
-            bool is_vertice_in_new_comp = vertice->y == current_comp.src_comp || vertice->y == current_comp.dest_comp;
-            if (is_vertice_in_new_comp) {
-                //printf("Update %d to %d, (%d, %d)\n", vertice->y, current_comp.dest_comp, comp_id, v_id);
+            if (vertice->y == current_comp.src_comp) {
                 vertice->y = current_comp.dest_comp;
-                //vertice->z = current_comp.new_size;
+            }
+            else if (vertice->x == current_comp.dest_comp) {
                 atomicAdd_system(&(vertice->z), current_comp.new_size);
-                //vertice->w = current_comp.new_int_diff;
                 atomicMax_system(&(vertice->w), current_comp.new_int_diff);
             }
 
@@ -365,8 +364,7 @@ void update_whole_matrix(uint4 vertices[], uint3 edges[], min_edge min_edges[], 
                 uint3 *neighbour_edge = &edges[j];
                 if (neighbour_edge->x != 0) {
                     if (neighbour_edge->z == current_comp.src_comp || neighbour_edge->z == current_comp.dest_comp) {
-                        if (is_vertice_in_new_comp) neighbour_edge->x = 0; // Remove internal edges
-                        else neighbour_edge->z = current_comp.dest_comp;
+                        neighbour_edge->z = current_comp.dest_comp;
                     }
                 }
             }
@@ -376,16 +374,26 @@ void update_whole_matrix(uint4 vertices[], uint3 edges[], min_edge min_edges[], 
 
 
 __global__
-void update_new_size(uint4 vertices[], uint num_vertices) {
+void update_new_size(uint4 vertices[], uint num_vertices, uint3 edges[]) {
     uint vertice_id = blockDim.x * blockIdx.x + threadIdx.x;
     uint comp_threads = gridDim.x * blockDim.x;
 
     for (int v_id = vertice_id; v_id < num_vertices; v_id += comp_threads) {
         uint4 *vertice = &vertices[v_id];
-        if (vertice->x == vertice->y) continue;
 
-        vertice->z = vertices[vertice->y - 1].z;
-        vertice->w = vertices[vertice->y - 1].w;
+        if (vertice->x != vertice->y) {
+            vertice->z = vertices[vertice->y - 1].z;
+            vertice->w = vertices[vertice->y - 1].w;
+        }
+
+        for (int j = v_id * NUM_NEIGHBOURS; j < v_id * NUM_NEIGHBOURS + NUM_NEIGHBOURS; j++) {
+            uint3 *neighbour_edge = &edges[j];
+            if (neighbour_edge->x != 0) {
+                if (neighbour_edge->z == vertice->y) {
+                    neighbour_edge->x = 0; // Remove internal edges
+                }
+            }
+        }
     }
 }
 
@@ -483,7 +491,7 @@ void segment(uint4 vertices[], uint3 edges[], min_edge min_edges[], uint *n_comp
             cycle_blocks.y = cycle_blocks.x;
         }
 
-        if (curr_n_comp * n_vertices < 1024) {
+        if (curr_n_comp * n_vertices < 1024 && curr_n_comp < 1024 && curr_n_comp < 1024) {
             update_threads.x = curr_n_comp;
             update_threads.y = n_vertices;
 
@@ -521,9 +529,10 @@ void segment(uint4 vertices[], uint3 edges[], min_edge min_edges[], uint *n_comp
         cudaDeviceSynchronize();
         //debug_print_min_edges<<<1, 1>>>(min_edges, curr_n_comp);
         //cudaDeviceSynchronize();
+        //printf("Update whole matrix: (%d, %d), (%d, %d)\n", update_blocks.x, update_blocks.y, update_threads.x, update_threads.y);
         update_whole_matrix<<<update_blocks, update_threads>>>(vertices, edges, min_edges, curr_n_comp, n_vertices);
         cudaDeviceSynchronize();
-        update_new_size<<<blocks.y, threads.y>>>(vertices, n_vertices);
+        update_new_size<<<blocks.y, threads.y>>>(vertices, n_vertices, edges);
         cudaDeviceSynchronize();
 
         //debug_print_vertices<<<1, 1>>>(vertices, n_vertices, edges);
@@ -531,7 +540,7 @@ void segment(uint4 vertices[], uint3 edges[], min_edge min_edges[], uint *n_comp
 
         prev_n_components = curr_n_comp;
         curr_n_comp = *n_components;
-        printf("N components: %d\n", curr_n_comp);
+        //printf("N components: %d\n", curr_n_comp);
         counter++;
         //return;
     }
