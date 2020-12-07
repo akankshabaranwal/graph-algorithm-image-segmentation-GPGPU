@@ -11,6 +11,15 @@ using namespace mgpu;
 // Scan
 //https://moderngpu.github.io/faq.html
 
+__global__ void MarkSegments(int *flag, int *VertexList,int numElements)
+{
+    int id = blockIdx.x*blockDim.x+threadIdx.x;
+    if(id<numElements)
+    {
+        flag[VertexList[id]] = 1;
+    }
+}
+
 __global__ void CreateNWEArray(int32_t *NWE, int32_t *Out, int numSegments)
 {
     int id = blockIdx.x*blockDim.x+threadIdx.x;
@@ -92,7 +101,7 @@ void PropagateRepresentativeVertices(int *Successor, int numSegments)
         change = false;
         int numthreads = 1024;
         int numBlock = numSegments/numthreads;
-        //TODO: Is it worth to make this parallel? Repeat copy of change between host and device??
+        //TODO: Is it worth to make this parallel? Repeat copy of 'change' between host and device??
         //PropagateParallel<<<numBlock,numthreads>>>(Successor, numSegments, change);
         int32_t successor, successor_2;
         for(int i=0; i<numSegments;i++)
@@ -131,7 +140,7 @@ __global__ void CreateFlagArray(int *Representative, int *Vertex, int *Flag2, in
 }
 
 //https://thrust.github.io/doc/group__sorting_gabe038d6107f7c824cf74120500ef45ea.html#gabe038d6107f7c824cf74120500ef45ea
-void SortedSplit(int *Representative, int *Vertex, int *Successor, int numSegments)
+void SortedSplit(int *Representative, int *Vertex, int *Successor, int *Flag2, int numSegments)
 {
     int numthreads = 1024;
     int numBlock = numSegments/numthreads;
@@ -145,13 +154,44 @@ void SortedSplit(int *Representative, int *Vertex, int *Successor, int numSegmen
     cudaDeviceSynchronize();
 
     thrust::sort_by_key(thrust::host, Representative, Representative + numSegments, Vertex);
-    int *Flag2;
-    cudaMallocManaged(&Flag2,numSegments*sizeof(int32_t));
+
     CreateFlagArray<<<numBlock,numthreads>>>(Representative, Vertex, Flag2, numSegments);
     //Scan to assign new vertex ids. Use exclusive scan. Run exclusive scan on the flag array
     thrust::inclusive_scan(Flag2, Flag2 + numSegments, Flag2, thrust::plus<int>());
 }
 
-void RemoveSelfEdges(){
+//TODO: The array names need to be verified
+__global__ void RemoveSelfEdges(int *SuperVertexId, int *Vertex, int *Flag2, int numSegments){
+    // Find supervertex id. Create a supervertex array for the original vertex ids
+    int idx = blockIdx.x*blockDim.x+threadIdx.x;
+    int32_t vertex, supervertex_id;
+    if(idx < numSegments)
+    {
+        vertex = Vertex[idx];
+        supervertex_id = Flag2[idx];
+        SuperVertexId[vertex] = Vertex[idx];
+    }
+}
 
+void CreateUid(int *uid, int *flag, int numElements)
+{
+    thrust::inclusive_scan(flag, flag + numElements, uid, thrust::plus<int>());
+}
+//11.
+__global__ void RemoveEdge(int *BitEdgeList, int numEdges, int *uid, int *SuperVertexId)
+{    int idx = blockIdx.x*blockDim.x+threadIdx.x;
+    int32_t supervertexid_u, supervertexid_v, id_u, id_v;
+    if(idx<numEdges)
+    {
+        id_u = uid[idx];
+        supervertexid_u = SuperVertexId[id_u];
+
+        id_v = BitEdgeList[idx]% (2 << 15);
+        supervertexid_v = SuperVertexId[id_v];
+
+        if(supervertexid_u == supervertexid_v)
+        {
+            BitEdgeList[idx] = -1; //Marking edge to remove it
+        }
+    }
 }

@@ -41,6 +41,14 @@ int main(int argc, char **argv)
 
     cudaMallocManaged(&Representative,numVertices*sizeof(int32_t));
     cudaMallocManaged(&Vertex,numVertices*sizeof(int32_t));
+    int *Flag2;
+    cudaMallocManaged(&Flag2,numVertices*sizeof(int32_t));
+    int *SuperVertexId;
+    cudaMallocManaged(&SuperVertexId,numVertices*sizeof(int32_t));
+    int *flag;
+    cudaMallocManaged(&flag,numVertices*sizeof(int32_t));
+    int *uid;
+    cudaMallocManaged(&uid,numVertices*sizeof(int32_t));
 
     dim3 threadsPerBlock(32,32);
     int BlockX = image.rows/threadsPerBlock.x;
@@ -61,18 +69,6 @@ int main(int argc, char **argv)
     }
     cudaDeviceSynchronize();
 
-   // printf("INFO: Checking the edge list and bit edge list\n");
-/*
-   for(int i =0;i<4000;i++)
-   {
-       //if (EdgeList[i].Vertex != 0)
-       //{
-       //    if ((EdgeList[i].Vertex > 60000) || (BitEdgeList[i] % (2 << 15) > 60000))
-       //        printf("ERROR: Something went wrong: ");
-           //printf("%d %d %d %d; ##", EdgeList[i].Vertex, EdgeList[i].Weight, BitEdgeList[i] % (2 << 15), BitEdgeList[i] >> 16);
-       //}
-   }
-*/
     ContextPtr context = CreateCudaDevice(argc, argv, true);
     //For the first iteration VertexList and FlagList are exactly same
     //Maybe we don't need separate OutList and NWE arrays
@@ -91,9 +87,15 @@ int main(int argc, char **argv)
     {
         printf("CUDA Error in RemoveCycles function call: %s\n", cudaGetErrorString(err));
     }
-    //numVertices = image.rows * image.cols;
     PropagateRepresentativeVertices(Successor, numVertices);
-    SortedSplit(Representative, Vertex, Successor, numVertices);
+    SortedSplit(Representative, Vertex, Successor, Flag2, numVertices);
+    RemoveSelfEdges<<<numBlock,numthreads>>>(SuperVertexId, Vertex, Flag2, numVertices);
+    //TODO: This needs to be moved to before
+    MarkSegments<<<numBlock,numthreads>>>(flag, VertexList,numVertices);
+
+   //10.2 Not sure why we have this?
+    CreateUid(uid, flag, numVertices); //Maybe this Uid is not required. VerticesList has the same redundant info?
+    RemoveEdge<<<numBlock,numthreads>>>(BitEdgeList, numEdges, uid, SuperVertexId);
 
     return 0;
 }
