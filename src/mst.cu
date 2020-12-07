@@ -8,7 +8,7 @@
 #include "mst.h"
 
 #define CHANNEL_SIZE 3
-#define K 10
+#define K 50
 #define NUM_NEIGHBOURS 8
 
 /*
@@ -355,8 +355,10 @@ void update_whole_matrix(uint4 vertices[], uint3 edges[], min_edge min_edges[], 
             if (is_vertice_in_new_comp) {
                 //printf("Update %d to %d, (%d, %d)\n", vertice->y, current_comp.dest_comp, comp_id, v_id);
                 vertice->y = current_comp.dest_comp;
-                vertice->z = current_comp.new_size;
-                vertice->w = current_comp.new_int_diff;
+                //vertice->z = current_comp.new_size;
+                atomicAdd_system(&(vertice->z), current_comp.new_size);
+                //vertice->w = current_comp.new_int_diff;
+                atomicMax_system(&(vertice->w), current_comp.new_int_diff);
             }
 
             for (int j = v_id * NUM_NEIGHBOURS; j < v_id * NUM_NEIGHBOURS + NUM_NEIGHBOURS; j++) {
@@ -369,6 +371,21 @@ void update_whole_matrix(uint4 vertices[], uint3 edges[], min_edge min_edges[], 
                 }
             }
         }
+    }
+}
+
+
+__global__
+void update_new_size(uint4 vertices[], uint num_vertices) {
+    uint vertice_id = blockDim.x * blockIdx.x + threadIdx.x;
+    uint comp_threads = gridDim.x * blockDim.x;
+
+    for (int v_id = vertice_id; v_id < num_vertices; v_id += comp_threads) {
+        uint4 *vertice = &vertices[v_id];
+        if (vertice->x == vertice->y) continue;
+
+        vertice->z = vertices[vertice->y - 1].z;
+        vertice->w = vertices[vertice->y - 1].w;
     }
 }
 
@@ -391,7 +408,7 @@ void merge(uint4 vertices[], uint3 edges[], min_edge min_edges[], uint *num_comp
         //printf("Merge %d into %d\n", min_edge.src_comp, min_edge.dest_comp);
         atomicSub_system(num_components, 1); // Is this horribly inefficient?
         uint new_int_diff = max(max(dest.w, src.w), min_edge.weight);
-        uint new_size = src.z + dest.z;
+        uint new_size = src.z;
         //uint new_component = min_edge.dest_comp;
         min_edges[component_id].weight = 0;
         min_edges[component_id].new_size = new_size;
@@ -414,7 +431,7 @@ void debug_print_min_edges(min_edge min_edges[], uint length) {
 __global__
 void debug_print_vertices(uint4 vertices[], uint length, uint3 edges[]) {
     for (int v_id = 0; v_id < length; v_id++) {
-        printf("vertices[%d] = %d %d | ", v_id, vertices[v_id].x, vertices[v_id].y);
+        printf("vertices[%d] = %d %d %d | ", v_id, vertices[v_id].x, vertices[v_id].y, vertices[v_id].z);
         for (int j = v_id * NUM_NEIGHBOURS; j < v_id * NUM_NEIGHBOURS + NUM_NEIGHBOURS; j++) {
             printf("%d(%d, %d), ", edges[j].x, edges[j].y, edges[j].z);
         }
@@ -502,10 +519,15 @@ void segment(uint4 vertices[], uint3 edges[], min_edge min_edges[], uint *n_comp
 
         merge<<<blocks.x, threads.x>>>(vertices, edges, min_edges, n_components, threads.y, blocks.y, n_vertices, curr_n_comp);
         cudaDeviceSynchronize();
-        debug_print_min_edges<<<1, 1>>>(min_edges, curr_n_comp);
-        cudaDeviceSynchronize();
+        //debug_print_min_edges<<<1, 1>>>(min_edges, curr_n_comp);
+        //cudaDeviceSynchronize();
         update_whole_matrix<<<update_blocks, update_threads>>>(vertices, edges, min_edges, curr_n_comp, n_vertices);
         cudaDeviceSynchronize();
+        update_new_size<<<blocks.y, threads.y>>>(vertices, n_vertices);
+        cudaDeviceSynchronize();
+
+        //debug_print_vertices<<<1, 1>>>(vertices, n_vertices, edges);
+        //cudaDeviceSynchronize();
 
         prev_n_components = curr_n_comp;
         curr_n_comp = *n_components;
