@@ -37,6 +37,8 @@ typedef struct {
     uint src_comp;
     uint dest_id;
     uint dest_comp;
+    uint new_size;
+    uint new_int_diff;
 } min_edge;
 
 // Kernel to encode graph
@@ -334,6 +336,42 @@ void update_matrix(uint4 vertices[], uint3 edges[], uint vertices_length, uint n
 
 }
 
+// Kernel to update the whole matrix
+__global__
+void update_whole_matrix(uint4 vertices[], uint3 edges[], min_edge min_edges[], uint num_components, uint num_vertices) {
+    uint component_id = blockDim.x * blockIdx.x + threadIdx.x;
+    uint comp_threads = gridDim.x * blockDim.x;
+    uint vertice_id = blockDim.y * blockIdx.y + threadIdx.y;
+    uint v_threads = gridDim.y * blockDim.y;
+    //printf("%d %d\n", component_id, vertice_id);
+
+    for (int comp_id = component_id; comp_id < num_components; comp_id += comp_threads) {
+        for (int v_id = vertice_id; v_id < num_vertices; v_id += v_threads) {
+            min_edge current_comp = min_edges[comp_id];
+            if (current_comp.src_comp == current_comp.dest_comp || current_comp.weight > 0) continue;
+
+            uint4 *vertice = &vertices[v_id];
+            bool is_vertice_in_new_comp = vertice->y == current_comp.src_comp || vertice->y == current_comp.dest_comp;
+            if (is_vertice_in_new_comp) {
+                //printf("Update %d to %d, (%d, %d)\n", vertice->y, current_comp.dest_comp, comp_id, v_id);
+                vertice->y = current_comp.dest_comp;
+                vertice->z = current_comp.new_size;
+                vertice->w = current_comp.new_int_diff;
+            }
+
+            for (int j = v_id * NUM_NEIGHBOURS; j < v_id * NUM_NEIGHBOURS + NUM_NEIGHBOURS; j++) {
+                uint3 *neighbour_edge = &edges[j];
+                if (neighbour_edge->x != 0) {
+                    if (neighbour_edge->z == current_comp.src_comp || neighbour_edge->z == current_comp.dest_comp) {
+                        if (is_vertice_in_new_comp) neighbour_edge->x = 0; // Remove internal edges
+                        else neighbour_edge->z = current_comp.dest_comp;
+                    }
+                }
+            }
+        }
+    }
+}
+
 // Kernel to merge components
 __global__
 void merge(uint4 vertices[], uint3 edges[], min_edge min_edges[], uint *num_components, uint update_threads, uint update_blocks, uint vertices_length, uint comp_count) {
@@ -350,13 +388,17 @@ void merge(uint4 vertices[], uint3 edges[], min_edge min_edges[], uint *num_comp
     uint dest_diff = dest.w + (K / dest.z);
     __syncthreads();
     if (min_edge.weight <= min(src_diff, dest_diff)) {
+        //printf("Merge %d into %d\n", min_edge.src_comp, min_edge.dest_comp);
         atomicSub_system(num_components, 1); // Is this horribly inefficient?
         uint new_int_diff = max(max(dest.w, src.w), min_edge.weight);
         uint new_size = src.z + dest.z;
-        uint new_component = min_edge.dest_comp;
+        //uint new_component = min_edge.dest_comp;
+        min_edges[component_id].weight = 0;
+        min_edges[component_id].new_size = new_size;
+        min_edges[component_id].new_int_diff = new_int_diff;
 
-        update_matrix<<<update_blocks, update_threads>>>(vertices, edges, vertices_length, new_component, new_size, new_int_diff, src.y);
-        cudaDeviceSynchronize();
+        //update_matrix<<<update_blocks, update_threads>>>(vertices, edges, vertices_length, new_component, new_size, new_int_diff, src.y);
+        //cudaDeviceSynchronize();
     }
 }
 
@@ -391,6 +433,8 @@ void segment(uint4 vertices[], uint3 edges[], min_edge min_edges[], uint *n_comp
     dim3 blocks;
     dim3 cycle_blocks;
     dim3 cycle_threads;
+    dim3 update_blocks;
+    dim3 update_threads;
     if (n_vertices < 1024) {
         threads.y = n_vertices;
         blocks.y = 1;
@@ -422,6 +466,20 @@ void segment(uint4 vertices[], uint3 edges[], min_edge min_edges[], uint *n_comp
             cycle_blocks.y = cycle_blocks.x;
         }
 
+        if (curr_n_comp * n_vertices < 1024) {
+            update_threads.x = curr_n_comp;
+            update_threads.y = n_vertices;
+
+            update_blocks.x = 1;
+            update_blocks.y = 1;
+        } else {
+            update_threads.x = 32;
+            update_threads.y = 32;
+
+            update_blocks.x = curr_n_comp / 32 + 1;
+            update_blocks.y = n_vertices / 32 + 1;
+        }
+
         find_min_edges_sort<<<blocks.y, threads.y>>>(vertices, edges, min_edges, n_vertices);
         cudaDeviceSynchronize();
         // First time there is no point in doing these, since n_vertices == n_components
@@ -444,11 +502,16 @@ void segment(uint4 vertices[], uint3 edges[], min_edge min_edges[], uint *n_comp
 
         merge<<<blocks.x, threads.x>>>(vertices, edges, min_edges, n_components, threads.y, blocks.y, n_vertices, curr_n_comp);
         cudaDeviceSynchronize();
+        debug_print_min_edges<<<1, 1>>>(min_edges, curr_n_comp);
+        cudaDeviceSynchronize();
+        update_whole_matrix<<<update_blocks, update_threads>>>(vertices, edges, min_edges, curr_n_comp, n_vertices);
+        cudaDeviceSynchronize();
 
         prev_n_components = curr_n_comp;
         curr_n_comp = *n_components;
         printf("N components: %d\n", curr_n_comp);
         counter++;
+        //return;
     }
     printf("Iterations: %d\n", counter);
 
