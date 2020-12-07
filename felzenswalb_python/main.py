@@ -1,5 +1,7 @@
 from imageio import imread
 from felzenswalb import felzenswalb
+from felzenswalb_edge import felzenswalb_edge
+from superpixel import superpixel
 import matplotlib.pyplot as plt
 import numpy as np
 import random
@@ -31,7 +33,8 @@ def random_rgb():
 
 
 if __name__ == '__main__':
-    img_path = 'beach.gif'
+    img_path = 'data/beach.gif'
+    edge_path = 'data/beach_edge.jpg'
     sigma = 1.5
     k = 500
     min = 50
@@ -41,7 +44,16 @@ if __name__ == '__main__':
     n_rows = image.shape[0]
     n_cols = image.shape[1]
 
-    segmentation_hierarchy = felzenswalb(image, sigma, k, min)
+    # Read edge and remove alpha channel
+    edge = remove_alpha(imread(edge_path)).astype(float)
+
+    # Edge detection must be of same image as orig image
+    assert n_rows == edge.shape[0] and  n_cols == edge.shape[1] and len(edge.shape) == 2
+
+    segmentation_hierarchy = superpixel(image, edge, sigma, k, min)
+
+    #segmentation_hierarchy = felzenswalb(image, sigma, k, min)
+
 
     colors = np.zeros(shape=(n_rows * n_cols, 3))
     for i in range(n_rows * n_cols):

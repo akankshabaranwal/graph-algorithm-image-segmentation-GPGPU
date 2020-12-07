@@ -31,7 +31,7 @@ def segment_fastmst_hierarchies(V, E, W):
     while (len(V)) > 1:
         V, E, W, supervertex_ids = MST_recursive(V, E, W)
         hierarchy.append(supervertex_ids)
-        print("it")
+        print(len(V))
 
     return hierarchy
 
@@ -150,44 +150,64 @@ def MST_recursive(V, E, W):
     # - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
     # 12. Remove the largest duplicate edges using split over new u,v and w.
-    # 12.1 Append supervertex ids of u and v along with weight w into single 64 bit array (u 24 bit, v 24 bit, w 16 bit)
-    UVW = []
+    # 12.1 Append supervertex ids of u and v along with index i into single 64 bit array (u 24 bit, v 24 bit, i x bit)
+    UVI = []
     for i in range(0, len(E)):  # in parallel for all edges
         id_u = u_ids[i]
         id_v = E[i]
-        edge_weight = W[i]
+        index = i
         if id_v != math.inf:
             supervertexid_u = supervertex_ids[id_u]
             supervertexid_v = supervertex_ids[id_v]
-            UVW.append((supervertexid_u, supervertexid_v, edge_weight))
+            UVI.append((supervertexid_u, supervertexid_v, index))
         else:
             # Could also change both E[i] and id_u[i] to point to supervertex with infinite ID to avoid else
-            UVW.append((math.inf, math.inf, edge_weight))  # Inf so at back when splitting?
+            UVI.append((math.inf, math.inf, index))  # Inf so at back when splitting?
 
-    # 12.2 Split UVW by sorting first on u.supervertexid, then v.supervertexid, then weight
+    # 12.1 Split UVI by sorting first on u.supervertexid, then v.supervertexid
     # Can prob be done better, first get sorted indices, then restructure array using these indices
-    # I guess we need sort here so min weight first, maybe it would suffice to have only w sorted when u and v same
-    sorted_indices = [i[0] for i in sorted(enumerate(UVW), key=lambda x: x[1])]  # in parallel
-    UVW = itemgetter(*sorted_indices)(UVW)
+    sorted_indices = [i[0] for i in sorted(enumerate(UVI), key=lambda x: x[1])]  # in parallel
+    UVI = itemgetter(*sorted_indices)(UVI)
 
-    # 12.3 Create flag indicating smallest edges, 0 for larger duplicates (first entry sorted UVW is smallest if duplicate)
-    F3 = [0 for i in range(len(UVW))]  # in parallel for all edges
-    F3[0] = 1
+    # 12.1.1 Create a flag indicating the start of each run of parallel edges
+    F5 = [0 for i in range(len(E))]  # in parallel for all edge
+    F5[0] = 1
     new_edge_size = len(E)
-    for i in range(1, len(UVW)):  # in parallel for all edges
-        prev_supervertexid_u = UVW[i - 1][0]
-        prev_supervertexid_v = UVW[i - 1][1]
 
-        supervertexid_u = UVW[i][0]
-        supervertexid_v = UVW[i][1]
+    for i in range(1, len(E)):  # in parallel for all edges
+        supervertexid_u_prev, supervertexid_v_prev, prev_idx = UVI[i-1]
+        supervertexid_u, supervertexid_v, idx = UVI[i]
 
         if supervertexid_u != math.inf and supervertexid_v != math.inf:
-            if prev_supervertexid_u != supervertexid_u or prev_supervertexid_v != supervertexid_v:
-                F3[i] = 1
+            if supervertexid_u_prev != supervertexid_u or supervertexid_v_prev != supervertexid_v:
+                F5[i] = 1
         else:
             new_edge_size = min(new_edge_size, i)  # I guess we need sort for this to work, also needed for next step
 
+    # 12.3 Create flag indicating smallest edges by perform segmented min scan on UVI with F5 indicating start of
+    #    duplicate edge runs. 0 for larger duplicates
+    min_duplicate_idx = []
+    min_edge_weight = math.inf
+    min_edge_index = 0
+
     # From now can create new kernel size of new edge size for next operations to ignore duplicate edges between components (set to infinity)
+
+    for i in range(new_edge_size):  # in parallel for all edges
+        supervertexid_u, supervertexid_v, idx = UVI[i]
+        edge_weight = W[idx]
+
+        if edge_weight < min_edge_weight:
+            min_edge_weight = edge_weight
+            min_edge_index = i
+
+        if i + 1 == new_edge_size or F5[i + 1] == 1:
+            min_duplicate_idx.append(min_edge_index)
+            min_edge_weight = math.inf
+
+    F3 = [0 for i in range(new_edge_size)]  # in parallel for all edges
+    for i in range(len(min_duplicate_idx)):
+        idx = min_duplicate_idx[i]
+        F3[idx] = 1
 
     # 13. Compact and create new edge and weight list
     # 13.1 Scan flag to get location min entries in new edge list
@@ -208,7 +228,8 @@ def MST_recursive(V, E, W):
     new_V_size = 0
     for i in range(0, new_edge_size):  # In parallel for all edges (can use new edge size)
         if F3[i]:
-            supervertex_id_u, supervertex_id_v, edge_weight = UVW[i]
+            supervertex_id_u, supervertex_id_v, index = UVI[i]
+            edge_weight = W[index]
             new_location = compact_locations[i]
             if supervertex_id_u != math.inf and supervertex_id_v != math.inf:  # Shouldn't be necessary I think if sorted TODO check
                 new_E[new_location] = supervertex_id_v
