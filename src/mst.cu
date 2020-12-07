@@ -232,9 +232,6 @@ void sort_min_edges(min_edge min_edges[], uint vertices_length, uint offset, uin
             min_edges[tid+1] = left;
             *not_sorted = 1;
         }
-        // For some reason if the thread strided loop is there there will be
-        // duplicated threads (probably need to determine stride better)
-        return;
     }
 }
 
@@ -283,30 +280,46 @@ void compact_min_edges(min_edge min_edges[], uint n_vertices, uint *pos_counter)
 __global__
 void remove_cycles(min_edge min_edges[], uint num_components, uint *did_change) {
     uint component_id_x = blockDim.x * blockIdx.x + threadIdx.x;
-    if (component_id_x >= num_components) return;
+    uint num_threads_x = gridDim.x * blockDim.x;
 
     uint component_id_y = blockDim.y * blockIdx.y + threadIdx.y;
-    if (component_id_y >= num_components) return;
+    uint num_threads_y = gridDim.y * blockDim.y;
 
     if (component_id_x == component_id_y) return;
 
-    min_edge *x_edge = &min_edges[component_id_x];
-    min_edge *y_edge = &min_edges[component_id_y];
+    for (uint comp_x = component_id_x; comp_x < num_components; comp_x += num_threads_x) {
+        for (uint comp_y = component_id_y; comp_y < num_components; comp_y += num_threads_y) {
+            min_edge *x_edge = &min_edges[comp_x];
+            min_edge *y_edge = &min_edges[comp_y];
 
-    uint x_src = x_edge->src_comp;
-    uint x_dest = x_edge->dest_comp;
+            uint x_src = x_edge->src_comp;
+            uint x_dest = x_edge->dest_comp;
 
-    uint y_src = y_edge->src_comp;
-    uint y_dest = y_edge->dest_comp;
+            uint y_src = y_edge->src_comp;
+            uint y_dest = y_edge->dest_comp;
 
-    bool not_root = x_src != x_dest;
-    bool has_dep = x_src == y_dest;
-    bool can_update = component_id_x > component_id_y || x_dest != y_src;
+            bool not_root = x_src != x_dest;
+            bool has_dep = x_src == y_dest;
+            bool can_update = comp_x > comp_y || x_dest != y_src;
 
-    __syncthreads();
-    if (not_root && has_dep && can_update) {
-        y_edge->dest_comp = x_dest;
-        *did_change = 1;
+            __syncthreads();
+            if (not_root && has_dep && can_update) {
+                y_edge->dest_comp = x_dest;
+                *did_change = 1;
+            }
+        }
+    }
+}
+
+__device__ __forceinline__
+void remove_cycles_wrapper(min_edge min_edges[], uint curr_n_comp, uint *did_change, dim3 cycle_blocks, dim3 cycle_threads) {
+    //printf("Cycles: (%d, %d), (%d, %d)\n", cycle_blocks.x, cycle_blocks.y, cycle_threads.x, cycle_threads.y);
+    *did_change = 1;
+    while (*did_change == 1) {
+        *did_change = 0;
+        remove_cycles<<<cycle_blocks, cycle_threads>>>(min_edges, curr_n_comp, did_change);
+        cudaDeviceSynchronize();
+        //return;
     }
 }
 
@@ -401,29 +414,29 @@ void update_new_size(uint4 vertices[], uint num_vertices, uint3 edges[]) {
 __global__
 void merge(uint4 vertices[], uint3 edges[], min_edge min_edges[], uint *num_components, uint update_threads, uint update_blocks, uint vertices_length, uint comp_count) {
     uint component_id = blockDim.x * blockIdx.x + threadIdx.x;
-    if (component_id >= comp_count)  {
-        return;
-    }
+    uint num_threads = gridDim.x * blockDim.x;
+    for (uint comp_id = component_id; comp_id < comp_count; comp_id += num_threads) {
 
-    min_edge min_edge = min_edges[component_id];
-    if (min_edge.src_comp == min_edge.dest_comp || min_edge.src_comp == 0) return;
-    uint4 src = vertices[min_edge.src_id - 1];
-    uint4 dest = vertices[min_edge.dest_id - 1];
-    uint src_diff = src.w + (K / src.z);
-    uint dest_diff = dest.w + (K / dest.z);
-    __syncthreads();
-    if (min_edge.weight <= min(src_diff, dest_diff)) {
-        //printf("Merge %d into %d\n", min_edge.src_comp, min_edge.dest_comp);
-        atomicSub_system(num_components, 1); // Is this horribly inefficient?
-        uint new_int_diff = max(max(dest.w, src.w), min_edge.weight);
-        uint new_size = src.z;
-        //uint new_component = min_edge.dest_comp;
-        min_edges[component_id].weight = 0;
-        min_edges[component_id].new_size = new_size;
-        min_edges[component_id].new_int_diff = new_int_diff;
+        min_edge min_edge = min_edges[comp_id];
+        if (min_edge.src_comp == min_edge.dest_comp || min_edge.src_comp == 0) return;
+        uint4 src = vertices[min_edge.src_id - 1];
+        uint4 dest = vertices[min_edge.dest_id - 1];
+        uint src_diff = src.w + (K / src.z);
+        uint dest_diff = dest.w + (K / dest.z);
+        __syncthreads();
+        if (min_edge.weight <= min(src_diff, dest_diff)) {
+            //printf("Merge %d into %d\n", min_edge.src_comp, min_edge.dest_comp);
+            atomicSub_system(num_components, 1); // Is this horribly inefficient?
+            uint new_int_diff = max(max(dest.w, src.w), min_edge.weight);
+            uint new_size = src.z;
+            //uint new_component = min_edge.dest_comp;
+            min_edges[comp_id].weight = 0;
+            min_edges[comp_id].new_size = new_size;
+            min_edges[comp_id].new_int_diff = new_int_diff;
 
-        //update_matrix<<<update_blocks, update_threads>>>(vertices, edges, vertices_length, new_component, new_size, new_int_diff, src.y);
-        //cudaDeviceSynchronize();
+            //update_matrix<<<update_blocks, update_threads>>>(vertices, edges, vertices_length, new_component, new_size, new_int_diff, src.y);
+            //cudaDeviceSynchronize();
+        }
     }
 }
 
@@ -465,16 +478,17 @@ void segment(uint4 vertices[], uint3 edges[], min_edge min_edges[], uint *n_comp
         blocks.y = 1;
     } else {
         threads.y = 1024;
-        blocks.y = n_vertices / 1024 + 1;
+        blocks.y = min(n_vertices / 1024 + 1, 65535);
     }
 
+    printf("N components: %d\n", curr_n_comp);
     while (curr_n_comp != prev_n_components) {
         if (curr_n_comp < 1024) {
             threads.x = curr_n_comp;
             blocks.x = 1;
         } else {
             threads.x = 1024;
-            blocks.x = curr_n_comp / 1024 + 1;
+            blocks.x = min(curr_n_comp / 1024 + 1, 65535);
         }
 
         if (curr_n_comp < 32) {
@@ -485,13 +499,13 @@ void segment(uint4 vertices[], uint3 edges[], min_edge min_edges[], uint *n_comp
             cycle_blocks.y = 1;
         } else {
             cycle_threads.x = 32;
-            cycle_blocks.x = curr_n_comp / 32 + 1;
+            cycle_blocks.x = min(curr_n_comp / 32 + 1, 65535);
 
             cycle_threads.y = cycle_threads.x;
             cycle_blocks.y = cycle_blocks.x;
         }
 
-        if (curr_n_comp * n_vertices < 1024 && curr_n_comp < 1024 && curr_n_comp < 1024) {
+        if (curr_n_comp * n_vertices < 1024 && curr_n_comp < 1024 && n_vertices < 1024) {
             update_threads.x = curr_n_comp;
             update_threads.y = n_vertices;
 
@@ -501,9 +515,10 @@ void segment(uint4 vertices[], uint3 edges[], min_edge min_edges[], uint *n_comp
             update_threads.x = 32;
             update_threads.y = 32;
 
-            update_blocks.x = curr_n_comp / 32 + 1;
-            update_blocks.y = n_vertices / 32 + 1;
+            update_blocks.x = min(curr_n_comp / 32 + 1, 65535);
+            update_blocks.y = min(n_vertices / 32 + 1, 65535);
         }
+        //printf("Update: (%d, %d) (%d, %d)\n", update_blocks.x, update_blocks.y, update_threads.x, update_threads.y);
 
         find_min_edges_sort<<<blocks.y, threads.y>>>(vertices, edges, min_edges, n_vertices);
         cudaDeviceSynchronize();
@@ -518,12 +533,7 @@ void segment(uint4 vertices[], uint3 edges[], min_edge min_edges[], uint *n_comp
         // Need to enhance this so runs faster
         // Somehow reduce the number of threads
         // Only detect circular merges and apply path compression at the end of iteration?
-        *did_change = 1;
-        while (*did_change == 1) {
-            *did_change = 0;
-            remove_cycles<<<cycle_blocks, cycle_threads>>>(min_edges, curr_n_comp, did_change);
-            cudaDeviceSynchronize();
-        }
+        remove_cycles_wrapper(min_edges, curr_n_comp, did_change, cycle_blocks, cycle_threads);
 
         merge<<<blocks.x, threads.x>>>(vertices, edges, min_edges, n_components, threads.y, blocks.y, n_vertices, curr_n_comp);
         cudaDeviceSynchronize();
@@ -540,7 +550,7 @@ void segment(uint4 vertices[], uint3 edges[], min_edge min_edges[], uint *n_comp
 
         prev_n_components = curr_n_comp;
         curr_n_comp = *n_components;
-        //printf("N components: %d\n", curr_n_comp);
+        printf("N components: %d\n", curr_n_comp);
         counter++;
         //return;
     }
@@ -617,7 +627,8 @@ char *compute_segments(void *input, uint x, uint y, size_t pitch) {
         decode_blocks.x = num_vertices / 1024 + 1;
     }
 
-    char component_colours[num_vertices * CHANNEL_SIZE];
+    //char component_colours[num_vertices * CHANNEL_SIZE];
+    char *component_colours = (char *) malloc(num_vertices * CHANNEL_SIZE * sizeof(char));
     get_component_colours(component_colours, num_vertices);
     char *component_colours_dev;
     cudaMalloc(&component_colours_dev, num_vertices * CHANNEL_SIZE * sizeof(char));
