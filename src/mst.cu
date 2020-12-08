@@ -8,7 +8,7 @@
 #include "mst.h"
 
 #define CHANNEL_SIZE 3
-#define K 11
+#define K 100
 #define NUM_NEIGHBOURS 8
 
 /*
@@ -19,10 +19,9 @@
  *          * z = component size
  *          * w = component internal difference // This probably needs to be a float?
  *
- *      - edges 2D array of type uint3, where
+ *      - edges 2D array of type uint2, where
  *          * x = destination id
  *          * y = weight (dissimilarity)
- *          * z = component id
  *
  * Min edges:
  *      - x = weight
@@ -37,13 +36,12 @@ typedef struct {
     uint src_comp;
     uint dest_id;
     uint dest_comp;
-    uint new_size;
     uint new_int_diff;
 } min_edge;
 
 // Kernel to encode graph
 __global__
-void encode(u_char *image, uint4 vertices[], uint3 edges[], uint x_len, uint y_len, size_t pitch) {
+void encode(u_char *image, uint4 vertices[], uint2 edges[], uint x_len, uint y_len, size_t pitch) {
     uint x_pos = blockDim.x * blockIdx.x + threadIdx.x;
     if (x_pos >= x_len) return;
     uint y_pos = blockDim.y * blockIdx.y + threadIdx.y;
@@ -62,7 +60,7 @@ void encode(u_char *image, uint4 vertices[], uint3 edges[], uint x_len, uint y_l
     u_char this_b = image[this_start + 2];
 
     // Maybe could have 4 edges instead of 8?
-    uint3 *edge;
+    uint2 *edge;
     uint edge_id;
     uint other_start;
     u_char other_r;
@@ -82,7 +80,6 @@ void encode(u_char *image, uint4 vertices[], uint3 edges[], uint x_len, uint y_l
             edge = &edges[this_id * NUM_NEIGHBOURS];
             edge->x = edge_id + 1;
             edge->y = sqrtf(powf(this_r-other_r, 2.0f) + powf(this_g-other_g, 2.0f) + powf(this_b-other_b, 2.0f));
-            edge->z = edge_id + 1;
         }
 
         edge_id = prev_row;
@@ -93,7 +90,6 @@ void encode(u_char *image, uint4 vertices[], uint3 edges[], uint x_len, uint y_l
         edge = &edges[this_id * NUM_NEIGHBOURS + 1];
         edge->x = edge_id + 1;
         edge->y = sqrtf(powf(this_r-other_r, 2.0f) + powf(this_g-other_g, 2.0f) + powf(this_b-other_b, 2.0f));
-        edge->z = edge_id + 1;
 
         if (!is_last_col) {
             edge_id = prev_row + 1;
@@ -104,7 +100,6 @@ void encode(u_char *image, uint4 vertices[], uint3 edges[], uint x_len, uint y_l
             edge = &edges[this_id * NUM_NEIGHBOURS + 2];
             edge->x = edge_id + 1;
             edge->y = sqrtf(powf(this_r-other_r, 2.0f) + powf(this_g-other_g, 2.0f) + powf(this_b-other_b, 2.0f));
-            edge->z = edge_id + 1;
         }
     }
 
@@ -119,7 +114,6 @@ void encode(u_char *image, uint4 vertices[], uint3 edges[], uint x_len, uint y_l
             edge = &edges[this_id * NUM_NEIGHBOURS + 3];
             edge->x = edge_id + 1;
             edge->y = sqrtf(powf(this_r-other_r, 2.0f) + powf(this_g-other_g, 2.0f) + powf(this_b-other_b, 2.0f));
-            edge->z = edge_id + 1;
         }
 
         edge_id = next_row;
@@ -130,7 +124,6 @@ void encode(u_char *image, uint4 vertices[], uint3 edges[], uint x_len, uint y_l
         edge = &edges[this_id * NUM_NEIGHBOURS + 4];
         edge->x = edge_id + 1;
         edge->y = sqrtf(powf(this_r-other_r, 2.0f) + powf(this_g-other_g, 2.0f) + powf(this_b-other_b, 2.0f));
-        edge->z = edge_id + 1;
 
         if (!is_last_col) {
             edge_id = next_row + 1;
@@ -141,7 +134,6 @@ void encode(u_char *image, uint4 vertices[], uint3 edges[], uint x_len, uint y_l
             edge = &edges[this_id * NUM_NEIGHBOURS + 5];
             edge->x = edge_id + 1;
             edge->y = sqrtf(powf(this_r-other_r, 2.0f) + powf(this_g-other_g, 2.0f) + powf(this_b-other_b, 2.0f));
-            edge->z = edge_id + 1;
         }
     }
 
@@ -154,7 +146,6 @@ void encode(u_char *image, uint4 vertices[], uint3 edges[], uint x_len, uint y_l
         edge = &edges[this_id * NUM_NEIGHBOURS + 6];
         edge->x = edge_id + 1;
         edge->y = sqrtf(powf(this_r-other_r, 2.0f) + powf(this_g-other_g, 2.0f) + powf(this_b-other_b, 2.0f));
-        edge->z = edge_id + 1;
     }
 
     if (!is_last_col) {
@@ -166,7 +157,6 @@ void encode(u_char *image, uint4 vertices[], uint3 edges[], uint x_len, uint y_l
         edge = &edges[this_id * NUM_NEIGHBOURS + 7];
         edge->x = edge_id + 1;
         edge->y = sqrtf(powf(this_r-other_r, 2.0f) + powf(this_g-other_g, 2.0f) + powf(this_b-other_b, 2.0f));
-        edge->z = edge_id + 1;
     }
 }
 
@@ -184,7 +174,7 @@ void decode(uint4 vertices[], char *image, char* colours, uint num_vertices) {
 }
 
 __global__
-void find_min_edges_sort(uint4 vertices[], uint3 edges[], min_edge min_edges[], uint vertices_length) {
+void find_min_edges_sort(uint4 vertices[], uint2 edges[], min_edge min_edges[], uint vertices_length) {
     uint index = blockDim.x * blockIdx.x + threadIdx.x;
     uint num_threads = gridDim.x * blockDim.x;
     for (uint tid = index; tid < vertices_length; tid += num_threads) {
@@ -194,13 +184,14 @@ void find_min_edges_sort(uint4 vertices[], uint3 edges[], min_edge min_edges[], 
         min.src_id = 0;
         min.src_comp = 0;
         for (int j = tid * NUM_NEIGHBOURS; j < tid * NUM_NEIGHBOURS + NUM_NEIGHBOURS; j++) {
-            uint3 edge = edges[j];
+            uint2 edge = edges[j];
+            // Maybe it would be better to just check if it's not in the same component? We would not need to remove internal edges
             if (edge.x != 0) {
                 if (edge.y < min.weight) {
                     min.src_id = vertice.x;
                     min.src_comp = vertice.y;
                     min.dest_id = edge.x;
-                    min.dest_comp = edge.z;
+                    min.dest_comp = vertices[edge.x - 1].y; //edge.z;
                     min.weight = edge.y;
                 }
             }
@@ -211,6 +202,7 @@ void find_min_edges_sort(uint4 vertices[], uint3 edges[], min_edge min_edges[], 
 
 __device__ __forceinline__
 int compare_min_edges(min_edge left, min_edge right) {
+    //printf("Compare %d with %d\n", left.src_comp, right.src_comp);
     if (left.src_comp == 0 && right.src_comp == 0) return 0;
     if (left.src_comp == 0) return 1;
     if (right.src_comp == 0) return -1;
@@ -225,9 +217,11 @@ void sort_min_edges(min_edge min_edges[], uint vertices_length, uint offset, uin
     uint num_threads = gridDim.x * blockDim.x;
 
     for (uint tid = index; tid < vertices_length - 1; tid += (num_threads * 2)) {
+        //printf("tid: %d\n", tid);
         min_edge left = min_edges[tid];
         min_edge right = min_edges[tid + 1];
         if (compare_min_edges(left, right) > 0) {
+            //printf("Swap: %d with %d\n", tid, tid+1);
             min_edges[tid] = right;
             min_edges[tid+1] = left;
             *not_sorted = 1;
@@ -252,8 +246,11 @@ void sort_min_edges_wrapper(min_edge min_edges[], uint n_vertices, uint *did_cha
     while (*did_change == 1) {
         *did_change = 0;
         sort_min_edges<<<blocks, threads>>>(min_edges, n_vertices, offset, did_change);
-        offset ^= 1;
         cudaDeviceSynchronize();
+        offset ^= 1;
+        sort_min_edges<<<blocks, threads>>>(min_edges, n_vertices, offset, did_change);
+        cudaDeviceSynchronize();
+        offset ^= 0;
     }
 }
 
@@ -276,9 +273,43 @@ void compact_min_edges(min_edge min_edges[], uint n_vertices, uint *pos_counter)
     }
 }
 
+__global__
+void construct_sources(min_edge min_edges[], uint num_components, uint sources[]) {
+    uint component_id = blockDim.x * blockIdx.x + threadIdx.x;
+    uint num_threads = gridDim.x * blockDim.x;
+    for (uint comp_id = component_id; comp_id < num_components; comp_id += num_threads) {
+        min_edge *edge = &min_edges[comp_id];
+        //if (comp_id == 0) printf("Src comp %d\n", min_edges[comp_id].src_comp);
+        sources[edge->src_comp - 1] = edge->dest_comp;
+    }
+}
+
+__global__
+void update_destinations(min_edge min_edges[], uint num_components, uint sources[]) {
+    uint component_id = blockDim.x * blockIdx.x + threadIdx.x;
+    uint num_threads = gridDim.x * blockDim.x;
+    for (uint comp_id = component_id; comp_id < num_components; comp_id += num_threads) {
+        min_edge *edge = &min_edges[comp_id];
+        uint src = edge->src_comp;
+        uint dest = edge->dest_comp;
+        uint new_dest = sources[dest - 1];
+        if ((new_dest == src && src < dest)) {
+            edge->dest_comp = new_dest;
+        }
+    }
+}
+
+__device__ __forceinline__
+void remove_deps(min_edge min_edges[], uint num_components, uint sources[], uint blocks, uint threads) {
+    construct_sources<<<blocks, threads>>>(min_edges, num_components, sources);
+    cudaDeviceSynchronize();
+    update_destinations<<<blocks, threads>>>(min_edges, num_components, sources);
+    cudaDeviceSynchronize();
+}
+
 // Kernel to remove cycles
 __global__
-void remove_cycles(min_edge min_edges[], uint num_components, uint *did_change) {
+void remove_cycles(min_edge min_edges[], uint num_components) {
     uint component_id_x = blockDim.x * blockIdx.x + threadIdx.x;
     uint num_threads_x = gridDim.x * blockDim.x;
 
@@ -300,58 +331,26 @@ void remove_cycles(min_edge min_edges[], uint num_components, uint *did_change) 
 
             bool not_root = x_src != x_dest;
             bool has_dep = x_src == y_dest;
-            bool can_update = comp_x > comp_y || x_dest != y_src;
+            bool can_update = comp_x > comp_y && x_dest == y_src;
 
             __syncthreads();
             if (not_root && has_dep && can_update) {
                 y_edge->dest_comp = x_dest;
-                *did_change = 1;
             }
         }
     }
 }
 
 __device__ __forceinline__
-void remove_cycles_wrapper(min_edge min_edges[], uint curr_n_comp, uint *did_change, dim3 cycle_blocks, dim3 cycle_threads) {
+void remove_cycles_wrapper(min_edge min_edges[], uint curr_n_comp, dim3 cycle_blocks, dim3 cycle_threads) {
     //printf("Cycles: (%d, %d), (%d, %d)\n", cycle_blocks.x, cycle_blocks.y, cycle_threads.x, cycle_threads.y);
-    *did_change = 1;
-    while (*did_change == 1) {
-        *did_change = 0;
-        remove_cycles<<<cycle_blocks, cycle_threads>>>(min_edges, curr_n_comp, did_change);
-        cudaDeviceSynchronize();
-        //return;
-    }
-}
-
-// Kernel to update vertices with new components
-__global__
-void update_matrix(uint4 vertices[], uint3 edges[], uint vertices_length, uint new_component, uint new_size, uint new_int_diff, uint original_id) {
-    uint vertice_id = blockDim.x * blockIdx.x + threadIdx.x;
-    if (vertice_id >= vertices_length) return;
-
-    uint4 *vertice = &vertices[vertice_id];
-    bool is_vertice_new_comp = vertice->y == original_id || vertice->y == new_component;
-    if (is_vertice_new_comp) {
-        vertice->y = new_component;
-        vertice->z = new_size;
-        vertice->w = new_int_diff;
-    }
-
-    for (int j = vertice_id * NUM_NEIGHBOURS; j < vertice_id * NUM_NEIGHBOURS + NUM_NEIGHBOURS; j++) {
-        uint3 *neighbour_edge = &edges[j];
-        if (neighbour_edge->x != 0) {
-            if (neighbour_edge->z == original_id || neighbour_edge->z == new_component) {
-                if (is_vertice_new_comp) neighbour_edge->x = 0; // Remove internal edges
-                else neighbour_edge->z = new_component;
-            }
-        }
-    }
-
+    remove_cycles<<<cycle_blocks, cycle_threads>>>(min_edges, curr_n_comp);
+    cudaDeviceSynchronize();
 }
 
 // Kernel to update the whole matrix
 __global__
-void update_whole_matrix(uint4 vertices[], uint3 edges[], min_edge min_edges[], uint num_components, uint num_vertices) {
+void update_whole_matrix(uint4 vertices[], min_edge min_edges[], uint num_components, uint num_vertices) {
     uint component_id = blockDim.x * blockIdx.x + threadIdx.x;
     uint comp_threads = gridDim.x * blockDim.x;
     uint vertice_id = blockDim.y * blockIdx.y + threadIdx.y;
@@ -365,29 +364,26 @@ void update_whole_matrix(uint4 vertices[], uint3 edges[], min_edge min_edges[], 
         // If we merge
         for (int v_id = vertice_id; v_id < num_vertices; v_id += v_threads) {
             uint4 *vertice = &vertices[v_id];
+            // Change just the parent and then path compression takes care of it?
             if (vertice->y == current_comp.src_comp) {
                 vertice->y = current_comp.dest_comp;
             }
             else if (vertice->x == current_comp.dest_comp) {
-                atomicAdd_system(&(vertice->z), current_comp.new_size);
                 atomicMax_system(&(vertice->w), current_comp.new_int_diff);
-            }
-
-            for (int j = v_id * NUM_NEIGHBOURS; j < v_id * NUM_NEIGHBOURS + NUM_NEIGHBOURS; j++) {
-                uint3 *neighbour_edge = &edges[j];
-                if (neighbour_edge->x != 0) {
-                    if (neighbour_edge->z == current_comp.src_comp || neighbour_edge->z == current_comp.dest_comp) {
-                        neighbour_edge->z = current_comp.dest_comp;
-                    }
-                }
             }
         }
     }
 }
 
+__device__
+void print_vertice(uint4 vertices[], uint pos) {
+    uint component = vertices[pos].y;
+    uint4 parent = vertices[component - 1];
+    printf("[%d] (%d, %d) -> (%d, %d)\n", pos, vertices[pos].x, component, parent.x, parent.y);
+}
 
 __global__
-void update_new_size(uint4 vertices[], uint num_vertices, uint3 edges[]) {
+void path_compression(uint4 vertices[], uint num_vertices) {
     uint vertice_id = blockDim.x * blockIdx.x + threadIdx.x;
     uint comp_threads = gridDim.x * blockDim.x;
 
@@ -395,14 +391,35 @@ void update_new_size(uint4 vertices[], uint num_vertices, uint3 edges[]) {
         uint4 *vertice = &vertices[v_id];
 
         if (vertice->x != vertice->y) {
-            vertice->z = vertices[vertice->y - 1].z;
-            vertice->w = vertices[vertice->y - 1].w;
+            uint4 *parent = &vertices[vertice->y - 1];
+            while(parent->y != parent->x) {parent = &vertices[parent->y - 1]; /*if (parent->x == 17978) print_vertice(vertices, 17977);*/}
+            //printf("%d has root: %d\n", v_id, parent->x);
+
+            vertice->y = parent->x;
+            atomicAdd_system(&(parent->z), vertice->z);
+            atomicMax_system(&(parent->w), vertice->w);
+        }
+    }
+}
+
+__global__
+void update_new_size(uint4 vertices[], uint num_vertices, uint2 edges[]) {
+    uint vertice_id = blockDim.x * blockIdx.x + threadIdx.x;
+    uint comp_threads = gridDim.x * blockDim.x;
+
+    for (int v_id = vertice_id; v_id < num_vertices; v_id += comp_threads) {
+        uint4 *vertice = &vertices[v_id];
+
+        if (vertice->x != vertice->y) {
+            uint4 *parent = &vertices[vertice->y - 1];
+            vertice->z = parent->z;
+            vertice->w = parent->w;
         }
 
         for (int j = v_id * NUM_NEIGHBOURS; j < v_id * NUM_NEIGHBOURS + NUM_NEIGHBOURS; j++) {
-            uint3 *neighbour_edge = &edges[j];
+            uint2 *neighbour_edge = &edges[j];
             if (neighbour_edge->x != 0) {
-                if (neighbour_edge->z == vertice->y) {
+                if (vertices[neighbour_edge->x - 1].y == vertice->y) {
                     neighbour_edge->x = 0; // Remove internal edges
                 }
             }
@@ -412,7 +429,7 @@ void update_new_size(uint4 vertices[], uint num_vertices, uint3 edges[]) {
 
 // Kernel to merge components
 __global__
-void merge(uint4 vertices[], uint3 edges[], min_edge min_edges[], uint *num_components, uint update_threads, uint update_blocks, uint vertices_length, uint comp_count) {
+void merge(uint4 vertices[], min_edge min_edges[], uint *num_components, uint update_threads, uint update_blocks, uint vertices_length, uint comp_count) {
     uint component_id = blockDim.x * blockIdx.x + threadIdx.x;
     uint num_threads = gridDim.x * blockDim.x;
     for (uint comp_id = component_id; comp_id < comp_count; comp_id += num_threads) {
@@ -424,18 +441,13 @@ void merge(uint4 vertices[], uint3 edges[], min_edge min_edges[], uint *num_comp
         uint src_diff = src.w + (K / src.z);
         uint dest_diff = dest.w + (K / dest.z);
         __syncthreads();
+
         if (min_edge.weight <= min(src_diff, dest_diff)) {
             //printf("Merge %d into %d\n", min_edge.src_comp, min_edge.dest_comp);
             atomicSub_system(num_components, 1); // Is this horribly inefficient?
             uint new_int_diff = max(max(dest.w, src.w), min_edge.weight);
-            uint new_size = src.z;
-            //uint new_component = min_edge.dest_comp;
             min_edges[comp_id].weight = 0;
-            min_edges[comp_id].new_size = new_size;
             min_edges[comp_id].new_int_diff = new_int_diff;
-
-            //update_matrix<<<update_blocks, update_threads>>>(vertices, edges, vertices_length, new_component, new_size, new_int_diff, src.y);
-            //cudaDeviceSynchronize();
         }
     }
 }
@@ -450,11 +462,11 @@ void debug_print_min_edges(min_edge min_edges[], uint length) {
 }
 
 __global__
-void debug_print_vertices(uint4 vertices[], uint length, uint3 edges[]) {
+void debug_print_vertices(uint4 vertices[], uint length, uint2 edges[]) {
     for (int v_id = 0; v_id < length; v_id++) {
         printf("vertices[%d] = %d %d %d | ", v_id, vertices[v_id].x, vertices[v_id].y, vertices[v_id].z);
         for (int j = v_id * NUM_NEIGHBOURS; j < v_id * NUM_NEIGHBOURS + NUM_NEIGHBOURS; j++) {
-            printf("%d(%d, %d), ", edges[j].x, edges[j].y, edges[j].z);
+            printf("%d(%d), ", edges[j].x, edges[j].y);
         }
         printf("\n");
     }
@@ -462,7 +474,7 @@ void debug_print_vertices(uint4 vertices[], uint length, uint3 edges[]) {
 
 // Kernel to orchestrate
 __global__
-void segment(uint4 vertices[], uint3 edges[], min_edge min_edges[], uint *n_components, uint *did_change) {
+void segment(uint4 vertices[], uint2 edges[], min_edge min_edges[], uint sources[], uint *n_components, uint *did_change) {
     uint counter = 0;
     uint prev_n_components = 0;
     uint n_vertices = *n_components;
@@ -520,11 +532,15 @@ void segment(uint4 vertices[], uint3 edges[], min_edge min_edges[], uint *n_comp
         }
         //printf("Update: (%d, %d) (%d, %d)\n", update_blocks.x, update_blocks.y, update_threads.x, update_threads.y);
 
+        printf("Find min edges\n");
         find_min_edges_sort<<<blocks.y, threads.y>>>(vertices, edges, min_edges, n_vertices);
         cudaDeviceSynchronize();
         // First time there is no point in doing these, since n_vertices == n_components
         if (counter > 0) {
+            printf("Sort\n");
             sort_min_edges_wrapper(min_edges, n_vertices, did_change);
+            cudaDeviceSynchronize();
+            printf("Compact\n");
             *did_change = 1;
             compact_min_edges<<<blocks.y, threads.y>>>(min_edges, n_vertices, did_change);
             cudaDeviceSynchronize();
@@ -533,15 +549,28 @@ void segment(uint4 vertices[], uint3 edges[], min_edge min_edges[], uint *n_comp
         // Need to enhance this so runs faster
         // Somehow reduce the number of threads
         // Only detect circular merges and apply path compression at the end of iteration?
-        remove_cycles_wrapper(min_edges, curr_n_comp, did_change, cycle_blocks, cycle_threads);
+        printf("Remove cycles\n");
+        //remove_cycles_wrapper(min_edges, curr_n_comp, cycle_blocks, cycle_threads);
+        remove_deps(min_edges, curr_n_comp, sources ,blocks.x, threads.x);
+        if (false) {
+            debug_print_min_edges<<<1, 1>>>(min_edges, curr_n_comp);
+            cudaDeviceSynchronize();
+            return;
+        }
 
-        merge<<<blocks.x, threads.x>>>(vertices, edges, min_edges, n_components, threads.y, blocks.y, n_vertices, curr_n_comp);
+        printf("Merge\n");
+        merge<<<blocks.x, threads.x>>>(vertices, min_edges, n_components, threads.y, blocks.y, n_vertices, curr_n_comp);
         cudaDeviceSynchronize();
         //debug_print_min_edges<<<1, 1>>>(min_edges, curr_n_comp);
         //cudaDeviceSynchronize();
         //printf("Update whole matrix: (%d, %d), (%d, %d)\n", update_blocks.x, update_blocks.y, update_threads.x, update_threads.y);
-        update_whole_matrix<<<update_blocks, update_threads>>>(vertices, edges, min_edges, curr_n_comp, n_vertices);
+        printf("Update\n");
+        update_whole_matrix<<<update_blocks, update_threads>>>(vertices, min_edges, curr_n_comp, n_vertices);
         cudaDeviceSynchronize();
+        printf("Path compress\n");
+        path_compression<<<blocks.y, threads.y>>>(vertices, n_vertices);
+        cudaDeviceSynchronize();
+        printf("New size\n");
         update_new_size<<<blocks.y, threads.y>>>(vertices, n_vertices, edges);
         cudaDeviceSynchronize();
 
@@ -572,7 +601,8 @@ void checkErrors(const char *identifier) {
 
 char *compute_segments(void *input, uint x, uint y, size_t pitch) {
     uint4 *vertices;
-    uint3 *edges;
+    uint2 *edges;
+    uint *sources;
     min_edge *min_edges;
     uint num_vertices = (x) * (y);
     uint *num_components;
@@ -580,10 +610,12 @@ char *compute_segments(void *input, uint x, uint y, size_t pitch) {
 
     cudaMalloc(&vertices, num_vertices*sizeof(uint4));
     checkErrors("Malloc vertices");
-    cudaMalloc(&edges, num_vertices*NUM_NEIGHBOURS*sizeof(uint3));
+    cudaMalloc(&edges, num_vertices*NUM_NEIGHBOURS*sizeof(uint2));
     checkErrors("Malloc edges");
     cudaMalloc(&min_edges, num_vertices*sizeof(min_edge)); // max(min_edges) == vertices.length
     checkErrors("Malloc min_edges");
+    cudaMalloc(&sources, num_vertices*sizeof(uint));
+    checkErrors("Malloc sources");
     cudaMalloc(&num_components, sizeof(uint));
     checkErrors("Malloc num components");
     cudaMalloc(&did_change, sizeof(uint));
@@ -612,7 +644,8 @@ char *compute_segments(void *input, uint x, uint y, size_t pitch) {
     checkErrors("encode()");
 
     // Segment matrix
-    segment<<<1, 1>>>(vertices, edges, min_edges, num_components, did_change);
+    //cudaSetDeviceFlags(cudaDeviceBlockingSync);
+    segment<<<1, 1>>>(vertices, edges, min_edges, sources, num_components, did_change);
     cudaDeviceSynchronize();
     checkErrors("segment()");
 
