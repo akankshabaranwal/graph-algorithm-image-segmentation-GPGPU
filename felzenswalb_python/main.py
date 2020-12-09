@@ -1,4 +1,4 @@
-from imageio import imread
+from imageio import imread, imwrite
 from felzenswalb import felzenswalb
 from felzenswalb_edge import felzenswalb_edge
 from superpixel import superpixel
@@ -50,9 +50,10 @@ if __name__ == '__main__':
     # Edge detection must be of same image as orig image
     assert n_rows == edge.shape[0] and  n_cols == edge.shape[1] and len(edge.shape) == 2
 
-    segmentation_hierarchy = superpixel(image, edge, sigma, k, min)
+    #segmentation_hierarchy = superpixel(image, edge, sigma, k, min)
+    segmentation_hierarchy = felzenswalb_edge(image, edge, sigma, k, min)
 
-    #segmentation_hierarchy = felzenswalb(image, sigma, k, min)
+    # segmentation_hierarchy = felzenswalb(image, sigma, k, min)
 
 
     colors = np.zeros(shape=(n_rows * n_cols, 3))
@@ -71,5 +72,7 @@ if __name__ == '__main__':
                 prev_level_component[i*n_cols+j] = new_component
 
         is_grayscale = len(image.shape) < 3
-        visualise(image.astype(int), output, grayscale=is_grayscale)
+
+        imwrite('segment_{lev}.png'.format(lev=level), output)
+        #visualise(image.astype(int), output, grayscale=is_grayscale)
 
