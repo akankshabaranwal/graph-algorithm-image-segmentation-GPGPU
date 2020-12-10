@@ -95,7 +95,16 @@ int main(int argc, char **argv)
 
    //10.2 Not sure why we have this?
     CreateUid(uid, flag, numVertices); //Maybe this Uid is not required. VerticesList has the same redundant info?
-    RemoveEdge<<<numBlock,numthreads>>>(BitEdgeList, numEdges, uid, SuperVertexId);
+    //11 Removing self edges
+    RemoveSelfEdges<<<numBlock,numthreads>>>(BitEdgeList, numEdges, uid, SuperVertexId);
+
+    //12 Remove largest duplicate edges
+    int *UV, *W;
+    cudaMallocManaged(&U,numEdges*sizeof(int64_t));
+    cudaMallocManaged(&VW,numEdges*sizeof(int64_t));
+    CreateUVWArray<<<numBlock,numthreads>>>(BitEdgeList, numEdges, uid, SuperVertexId, UVW);
+
+
 
     return 0;
 }

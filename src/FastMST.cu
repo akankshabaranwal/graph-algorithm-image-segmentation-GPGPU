@@ -173,13 +173,15 @@ __global__ void RemoveSelfEdges(int *SuperVertexId, int *Vertex, int *Flag2, int
     }
 }
 
+//10.2
 void CreateUid(int *uid, int *flag, int numElements)
 {
     thrust::inclusive_scan(flag, flag + numElements, uid, thrust::plus<int>());
 }
-//11.
-__global__ void RemoveEdge(int *BitEdgeList, int numEdges, int *uid, int *SuperVertexId)
-{    int idx = blockIdx.x*blockDim.x+threadIdx.x;
+
+//11 Removing self edges
+__global__ void RemoveSelfEdges(int *BitEdgeList, int numEdges, int *uid, int *SuperVertexId)
+{   int idx = blockIdx.x*blockDim.x+threadIdx.x;
     int32_t supervertexid_u, supervertexid_v, id_u, id_v;
     if(idx<numEdges)
     {
@@ -193,5 +195,53 @@ __global__ void RemoveEdge(int *BitEdgeList, int numEdges, int *uid, int *SuperV
         {
             BitEdgeList[idx] = -1; //Marking edge to remove it
         }
+    }
+}
+
+
+//12 Removing duplicate edges
+//Instead of UVW array create separate U, V, W array.
+__global__ void CreateUVWArray(int *BitEdgeList, int numEdges, int *uid, int *SuperVertexId, int *UV, int *W)
+{
+    int idx = blockIdx.x*blockDim.x+threadIdx.x; //Index for accessing Edge
+    int32_t id_u, id_v, edge_weight;
+    int32_t supervertexid_u, supervertexid_v;
+    if(idx < numEdges)
+    {
+        id_u = uid[idx];
+        id_v = BitEdgeList[idx]>>15; //TODO: Check if this is correct
+        edge_weight = BitEdgeList[idx]% (2 << 15);//TODO: Check if we can use the NWE array?
+        if(id_v != -1) //Check if the edge is marked using the criteria from before
+        {
+            supervertexid_u = SuperVertexId[id_u];
+            supervertexid_v = SuperVertexId[id_v];
+            UV[idx] = supervertexid_u*(2<<15) + supervertexid_v; //TODO: Check if the UV here needs to be 64bit??
+            W[idx] = edge_weight;
+        }
+        else
+        {
+            UV[idx] = -1;
+            W[idx] = -1; //TODO: Need to replace the -1 with INT_MAX
+        }
+    }
+}
+
+//12.2
+void SortUVW(int *UV, int *W, int numEdges)
+{
+    thrust::sort_by_key(thrust::host, UV, UV + numEdges, W);
+    //12.3
+    //Initialize F3 array
+
+}
+
+//Create new edge list and vertex list
+void CreateNewEdgeVertexList(int *newBitEdgeList, int *newVertexList, int *U, int *V, int *W, int numnewEdges, int numnewVertices)
+{
+    //Check if this can be parallelized? can we move the min (new_edge_size) part to somewhere before?
+    int32_t supervertex_id_u, supervertex_id_v;
+    for(int i=0;i<numnewEdges;i++)
+    {
+
     }
 }

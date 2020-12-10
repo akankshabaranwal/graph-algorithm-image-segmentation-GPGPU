@@ -22,6 +22,7 @@ void PropagateRepresentativeVertices(int *Successor, int numSegments);
 void SortedSplit(int *Representative, int *Vertex, int *Successor, int *Flag2, int numSegments);
 __global__ void RemoveSelfEdges(int *SuperVertexId, int *Vertex, int *Flag2, int numSegments);
 void CreateUid(int *uid, int *flag, int numElements);
-__global__ void RemoveEdge(int *BitEdgeList, int numEdges, int *uid, int *SuperVertexId);
+__global__ void RemoveSelfEdges(int *BitEdgeList, int numEdges, int *uid, int *SuperVertexId);
+__global__ void CreateUVWArray(int *BitEdgeList, int numEdges, int *uid, int *SuperVertexId, int *UV, int *W);
 
 #endif //FELZENSZWALB_FASTMST_H
