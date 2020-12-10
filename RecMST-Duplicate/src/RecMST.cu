@@ -29,9 +29,9 @@
 // #include <cutil.h> // Removed, should just have been for CUDA_SAFE_CALL and CUDA_CUT_CALL which has been deprecated
 
 // includes, kernels
-#include "Kernels.cu" // Not included, automatically done else compiler error
+#include "Kernels.cu"
 // #include <cudpp.h> 
-#include "splitFuncs.h" // Not included, automatically done else compiler error
+#include "splitFuncs.h"
 splitSort sp;
 
 // Thrust stuff

@@ -9,7 +9,7 @@ set(CMAKE_CUDA_STANDARD_REQUIRED TRUE)
 set(CMAKE_CXX_STANDARD_REQUIRED  TRUE)
 
 add_executable(felz
-	"${CMAKE_SOURCE_DIR}/src/RecMST.cu" "${CMAKE_SOURCE_DIR}/src/Kernels.cu" "${CMAKE_SOURCE_DIR}/src/scan.cu.h" "${CMAKE_SOURCE_DIR}/src/scanKernel.cu" "${CMAKE_SOURCE_DIR}/src/splitFuncs.h" "${CMAKE_SOURCE_DIR}/src/splitKernel.cu")
+	"${CMAKE_SOURCE_DIR}/src/RecMST.cu")
 
 set_property(TARGET felz PROPERTY CUDA_ARCHITECTURES 61)
 
