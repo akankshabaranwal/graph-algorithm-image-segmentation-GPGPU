@@ -431,7 +431,7 @@ __global__ void MakeFlagForVertexList(int *d_pick_array, unsigned int *d_edge_fl
 	unsigned int tid = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
 	if(tid<no_of_edges) {
 		if(tid>0) {
-			if(d_pick_array[tid]>d_pick_array[tid-1]) { //This line may be causing problems TODO: maybe != such as in python code but should be fine
+			if(d_pick_array[tid] != d_pick_array[tid-1]) { //This line may be causing problems TODO: maybe != such as in python code but should be fine
 				d_edge_flag[tid]=1;
 			}
 		} else {
