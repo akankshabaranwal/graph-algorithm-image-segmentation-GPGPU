@@ -471,8 +471,8 @@ int main( int argc, char** argv)
 	ReadGraph(argv[1]);
 	Init();
 
-	unsigned int	timer;
-	/*cutCreateTimer( &timer);	
+	/*unsigned int	timer;
+	cutCreateTimer( &timer);	
 	cutStartTimer( timer);*/
 	//Perform Our MST algorhtm
 	do
