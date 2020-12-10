@@ -274,37 +274,45 @@ void compact_min_edges(min_edge min_edges[], uint n_vertices, uint *pos_counter)
 }
 
 __global__
-void construct_sources(min_edge min_edges[], uint num_components, uint sources[]) {
+void construct_sources(min_edge min_edges[], uint num_components, uint2 sources[]) {
     uint component_id = blockDim.x * blockIdx.x + threadIdx.x;
     uint num_threads = gridDim.x * blockDim.x;
     for (uint comp_id = component_id; comp_id < num_components; comp_id += num_threads) {
         min_edge *edge = &min_edges[comp_id];
         //if (comp_id == 0) printf("Src comp %d\n", min_edges[comp_id].src_comp);
-        sources[edge->src_comp - 1] = edge->dest_comp;
+        sources[edge->src_comp - 1].x = edge->dest_comp;
+        sources[edge->src_comp - 1].y = edge->weight;
     }
 }
 
 __global__
-void update_destinations(min_edge min_edges[], uint num_components, uint sources[]) {
+void update_destinations(min_edge min_edges[], uint num_components, uint2 sources[], uint *did_change) {
     uint component_id = blockDim.x * blockIdx.x + threadIdx.x;
     uint num_threads = gridDim.x * blockDim.x;
     for (uint comp_id = component_id; comp_id < num_components; comp_id += num_threads) {
         min_edge *edge = &min_edges[comp_id];
         uint src = edge->src_comp;
         uint dest = edge->dest_comp;
-        uint new_dest = sources[dest - 1];
-        if ((new_dest == src && src < dest)) {
+        uint weight = edge->weight;
+        uint new_dest = sources[dest - 1].x;
+        uint new_weight = sources[dest - 1].y;
+        if (((new_dest == src) || (new_dest != src && new_dest != dest && weight == new_weight)) && src < dest) {
             edge->dest_comp = new_dest;
+            *did_change = 1;
         }
     }
 }
 
 __device__ __forceinline__
-void remove_deps(min_edge min_edges[], uint num_components, uint sources[], uint blocks, uint threads) {
-    construct_sources<<<blocks, threads>>>(min_edges, num_components, sources);
-    cudaDeviceSynchronize();
-    update_destinations<<<blocks, threads>>>(min_edges, num_components, sources);
-    cudaDeviceSynchronize();
+void remove_deps(min_edge min_edges[], uint num_components, uint2 sources[], uint blocks, uint threads, uint* did_change) {
+    *did_change = 1;
+    while (*did_change == 1) {
+        *did_change = 0;
+        construct_sources<<<blocks, threads>>>(min_edges, num_components, sources);
+        cudaDeviceSynchronize();
+        update_destinations<<<blocks, threads>>>(min_edges, num_components, sources, did_change);
+        cudaDeviceSynchronize();
+    }
 }
 
 // Kernel to remove cycles
@@ -392,7 +400,7 @@ void path_compression(uint4 vertices[], uint num_vertices) {
 
         if (vertice->x != vertice->y) {
             uint4 *parent = &vertices[vertice->y - 1];
-            while(parent->y != parent->x) {parent = &vertices[parent->y - 1]; /*if (parent->x == 17978) print_vertice(vertices, 17977);*/}
+            while(parent->y != parent->x) {parent = &vertices[parent->y - 1]; /*printf("%d -> %d\n", parent->x, parent->y);*/ /*if (parent->x == 17978) print_vertice(vertices, 17977);*/}
             //printf("%d has root: %d\n", v_id, parent->x);
 
             vertice->y = parent->x;
@@ -474,7 +482,7 @@ void debug_print_vertices(uint4 vertices[], uint length, uint2 edges[]) {
 
 // Kernel to orchestrate
 __global__
-void segment(uint4 vertices[], uint2 edges[], min_edge min_edges[], uint sources[], uint *n_components, uint *did_change) {
+void segment(uint4 vertices[], uint2 edges[], min_edge min_edges[], uint2 sources[], uint *n_components, uint *did_change) {
     uint counter = 0;
     uint prev_n_components = 0;
     uint n_vertices = *n_components;
@@ -550,8 +558,12 @@ void segment(uint4 vertices[], uint2 edges[], min_edge min_edges[], uint sources
         // Somehow reduce the number of threads
         // Only detect circular merges and apply path compression at the end of iteration?
         printf("Remove cycles\n");
+        if (false) {
+            debug_print_min_edges<<<1, 1>>>(min_edges, curr_n_comp);
+            cudaDeviceSynchronize();
+        }
         //remove_cycles_wrapper(min_edges, curr_n_comp, cycle_blocks, cycle_threads);
-        remove_deps(min_edges, curr_n_comp, sources ,blocks.x, threads.x);
+        remove_deps(min_edges, curr_n_comp, sources ,blocks.x, threads.x, did_change);
         if (false) {
             debug_print_min_edges<<<1, 1>>>(min_edges, curr_n_comp);
             cudaDeviceSynchronize();
@@ -602,7 +614,7 @@ void checkErrors(const char *identifier) {
 char *compute_segments(void *input, uint x, uint y, size_t pitch) {
     uint4 *vertices;
     uint2 *edges;
-    uint *sources;
+    uint2 *sources;
     min_edge *min_edges;
     uint num_vertices = (x) * (y);
     uint *num_components;
@@ -614,7 +626,7 @@ char *compute_segments(void *input, uint x, uint y, size_t pitch) {
     checkErrors("Malloc edges");
     cudaMalloc(&min_edges, num_vertices*sizeof(min_edge)); // max(min_edges) == vertices.length
     checkErrors("Malloc min_edges");
-    cudaMalloc(&sources, num_vertices*sizeof(uint));
+    cudaMalloc(&sources, num_vertices*sizeof(uint2));
     checkErrors("Malloc sources");
     cudaMalloc(&num_components, sizeof(uint));
     checkErrors("Malloc num components");
