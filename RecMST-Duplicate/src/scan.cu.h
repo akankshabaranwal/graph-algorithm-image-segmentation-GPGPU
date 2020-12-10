@@ -82,13 +82,12 @@ void preallocBlockSums(unsigned int maxNumElements)
 			max(1, (int)ceil((float)numElts / (2.f * blockSize)));
 		if (numBlocks > 1) 
 		{
-			CUDA_SAFE_CALL(cudaMalloc((void**) &g_scanBlockSums[level++],  
-						numBlocks * sizeof(unsigned int)));
+			cudaMalloc((void**) &g_scanBlockSums[level++], numBlocks * sizeof(unsigned int));
 		}
 		numElts = numBlocks;
 	} while (numElts > 1);
 
-	CUT_CHECK_ERROR("preallocBlockSums");
+	/*CUT_CHECK_ERROR("preallocBlockSums");*/
 }
 
 void deallocBlockSums()
@@ -98,7 +97,7 @@ void deallocBlockSums()
 		cudaFree(g_scanBlockSums[i]);
 	}
 
-	CUT_CHECK_ERROR("deallocBlockSums");
+	/*CUT_CHECK_ERROR("deallocBlockSums");*/
 
 	free((void**)g_scanBlockSums);
 
@@ -152,12 +151,12 @@ void prescanArrayRecursive(unsigned int *outArray,
 	unsigned int sharedMemSize = 
 		sizeof(unsigned int) * (numEltsPerBlock + extraSpace);
 
-#ifdef DEBUG
+/*#ifdef DEBUG
 	if (numBlocks > 1)
 	{
 		assert(g_numEltsAllocated >= numElements);
 	}
-#endif
+#endif*/
 
 	// setup execution parameters
 	// if NP2, we process the last block separately
@@ -165,7 +164,7 @@ void prescanArrayRecursive(unsigned int *outArray,
 	dim3  threads(numThreads, 1, 1);
 
 	// make sure there are no CUDA errors before we start
-	CUT_CHECK_ERROR("prescanArrayRecursive before kernels");
+	/*CUT_CHECK_ERROR("prescanArrayRecursive before kernels");*/
 
 	// execute the scan
 	if (numBlocks > 1)
@@ -174,13 +173,13 @@ void prescanArrayRecursive(unsigned int *outArray,
 				inArray, 
 				g_scanBlockSums[level],
 				numThreads * 2, 0, 0);
-		CUT_CHECK_ERROR("prescanWithBlockSums");
+		/*CUT_CHECK_ERROR("prescanWithBlockSums");*/
 		if (np2LastBlock)
 		{
 			prescan<true, true><<< 1, numThreadsLastBlock, sharedMemLastBlock >>>
 				(outArray, inArray, g_scanBlockSums[level], numEltsLastBlock, 
 				 numBlocks - 1, numElements - numEltsLastBlock);
-			CUT_CHECK_ERROR("prescanNP2WithBlockSums");
+			/*CUT_CHECK_ERROR("prescanNP2WithBlockSums");*/
 		}
 
 		// After scanning all the sub-blocks, we are mostly done.  But now we 
@@ -197,7 +196,7 @@ void prescanArrayRecursive(unsigned int *outArray,
 				g_scanBlockSums[level], 
 				numElements - numEltsLastBlock, 
 				0, 0);
-		CUT_CHECK_ERROR("uniformAdd");
+		/*CUT_CHECK_ERROR("uniformAdd");*/
 		if (np2LastBlock)
 		{
 			uniformAdd<<< 1, numThreadsLastBlock >>>(outArray, 
@@ -205,20 +204,20 @@ void prescanArrayRecursive(unsigned int *outArray,
 					numEltsLastBlock, 
 					numBlocks - 1, 
 					numElements - numEltsLastBlock);
-			CUT_CHECK_ERROR("uniformAdd");
+			/*CUT_CHECK_ERROR("uniformAdd");*/
 		}
 	}
 	else if (isPowerOfTwo(numElements))
 	{
 		prescan<false, false><<< grid, threads, sharedMemSize >>>(outArray, inArray,
 				0, numThreads * 2, 0, 0);
-		CUT_CHECK_ERROR("prescan");
+		/*CUT_CHECK_ERROR("prescan");*/
 	}
 	else
 	{
 		prescan<false, true><<< grid, threads, sharedMemSize >>>(outArray, inArray, 
 				0, numElements, 0, 0);
-		CUT_CHECK_ERROR("prescanNP2");
+		/*CUT_CHECK_ERROR("prescanNP2");*/
 	}
 }
 

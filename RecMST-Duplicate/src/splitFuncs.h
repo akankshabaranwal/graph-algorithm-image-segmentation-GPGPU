@@ -81,16 +81,16 @@ void splitSort::setParams(int numElements, int RSIZE)
 void splitSort::initScratchMemory()
 {
 	//Histogram
-	CUDA_SAFE_CALL(cudaMalloc((void**)&d_blockHists , sizeof(unsigned int) * MAX_NUMBINS * NUMBLOCKS  ));
-	CUDA_SAFE_CALL(cudaMalloc((void**)&d_blockHistsScan , sizeof(unsigned int) * MAX_NUMBINS * NUMBLOCKS  ));
-	CUDA_SAFE_CALL(cudaMalloc((void**)&d_blockHistsStore , sizeof(unsigned int) * MAX_NUMBINS * NUMBLOCKS  ));
+	cudaMalloc((void**)&d_blockHists , sizeof(unsigned int) * MAX_NUMBINS * NUMBLOCKS  );
+	cudaMalloc((void**)&d_blockHistsScan , sizeof(unsigned int) * MAX_NUMBINS * NUMBLOCKS  );
+	cudaMalloc((void**)&d_blockHistsStore , sizeof(unsigned int) * MAX_NUMBINS * NUMBLOCKS  );
 }
 
 void splitSort::freeScratchMemory()
 {	
-	CUDA_SAFE_CALL(cudaFree(d_blockHists));
-	CUDA_SAFE_CALL(cudaFree(d_blockHistsScan));
-	CUDA_SAFE_CALL(cudaFree(d_blockHistsStore));
+	cudaFree(d_blockHists);
+	cudaFree(d_blockHistsScan);
+	cudaFree(d_blockHistsStore);
 }
 
 void splitSort::split( unsigned int* d_inputList, unsigned int *d_rankList, unsigned int* d_scratchMem, unsigned int *d_tempList, int numElements, int nKBits, int stBit )
@@ -118,66 +118,66 @@ void splitSort::split8( unsigned int *d_inputList, unsigned int *d_rankList, uns
 {	
 	SM_USAGE = sizeof(int) * (bMask+1) * 2;
 	
-	#ifdef	DEBUG
+	/*#ifdef	DEBUG
 	unsigned int	timer;
 	
 	float Total=0;
 	
 	cudaThreadSynchronize();
-	CUT_SAFE_CALL( cutCreateTimer( &timer));	
-	CUT_SAFE_CALL( cutStartTimer( timer));
-	#endif
+	cutCreateTimer( &timer);	
+	cutStartTimer( timer);
+	#endif*/
 	histogramCalc<<< NUMBLOCKS, 128, SM_USAGE >>>( d_blockHists, d_blockHistsStore, d_inputList, NUMELEMENTS, bMask+1, stBit, NEPB, bMask );
-	#ifdef	DEBUG
+	/*#ifdef	DEBUG
 	cudaThreadSynchronize();
-	CUT_SAFE_CALL( cutStopTimer( timer));
+	cutStopTimer( timer);
 	printf("Step 1 :: %3.3f\t",cutGetTimerValue(timer));
 	Total+=cutGetTimerValue(timer);
-	#endif
+	#endif*/
 
-	#ifdef	DEBUG
+	/*#ifdef	DEBUG
 	cudaThreadSynchronize();
-	CUT_SAFE_CALL( cutCreateTimer( &timer));	
-	CUT_SAFE_CALL( cutStartTimer( timer));
-	#endif
+	cutCreateTimer( &timer);	
+	cutStartTimer( timer);
+	#endif*/
 	preallocBlockSums(NUMBLOCKS*(bMask+1));
 	prescanArray(d_blockHistsScan, d_blockHists, (bMask+1) * NUMBLOCKS );
 	deallocBlockSums();
-	#ifdef	DEBUG
+	/*#ifdef	DEBUG
 	cudaThreadSynchronize();
-	CUT_SAFE_CALL( cutStopTimer( timer));
+	cutStopTimer( timer);
 	printf("Step 2 :: %3.3f\t",cutGetTimerValue(timer));
 	Total+=cutGetTimerValue(timer);
-	#endif
+	#endif*/
 	
-	#ifdef	DEBUG
+	/*#ifdef	DEBUG
 	cudaThreadSynchronize();
-	CUT_SAFE_CALL( cutCreateTimer( &timer));	
-	CUT_SAFE_CALL( cutStartTimer( timer));
-	#endif
+	cutCreateTimer( &timer);	
+	cutStartTimer( timer);
+	#endif*/
 	localScatter<<< NUMBLOCKS, (bStable?32:128), SM_USAGE/2 >>>( d_blockHistsStore, d_inputList, d_rankList, d_scratchMem, d_tempList, NUMELEMENTS, bMask+1, stBit, NEPB, bMask, bStable );
-	#ifdef	DEBUG
+	/*#ifdef	DEBUG
 	cudaThreadSynchronize();
-	CUT_SAFE_CALL( cutStopTimer( timer));
+	cutStopTimer( timer);
 	printf("Step 3 :: %3.3f\t",cutGetTimerValue(timer));
 	Total+=cutGetTimerValue(timer);
-	#endif
+	#endif*/
 
-	#ifdef	DEBUG
+	/*#ifdef	DEBUG
 	cudaThreadSynchronize();
-	CUT_SAFE_CALL( cutCreateTimer( &timer));	
-	CUT_SAFE_CALL( cutStartTimer( timer));
-	#endif
+	cutCreateTimer( &timer);	
+	cutStartTimer( timer);
+	#endif*/
 	globalScatter<<< NUMBLOCKS, 128, SM_USAGE >>>( d_blockHistsScan, d_blockHistsStore, d_scratchMem, d_tempList, d_inputList, d_rankList, NUMELEMENTS, bMask+1, stBit, NEPB, bMask );
-	#ifdef	DEBUG
+	/*#ifdef	DEBUG
 	cudaThreadSynchronize();
-	CUT_SAFE_CALL( cutStopTimer( timer));
+	cutStopTimer( timer);
 	printf("Step 4 :: %3.3f\t",cutGetTimerValue(timer));
 	Total+=cutGetTimerValue(timer);
 	
 	printf("%3.3f\n",Total);	
 
-	#endif
+	#endif*/
 
 
 }
@@ -210,64 +210,64 @@ void splitSort::split8( unsigned long long int *d_inputList, unsigned long long 
 {	
 	SM_USAGE = sizeof(int) * (bMask+1) * 2;
 	
-	#ifdef	DEBUG
+	/*#ifdef	DEBUG
 	unsigned int	timer;
 
 	float Total=0;
 
 	cudaThreadSynchronize();
-	CUT_SAFE_CALL( cutCreateTimer( &timer));	
-	CUT_SAFE_CALL( cutStartTimer( timer));
-	#endif
+	cutCreateTimer( &timer);	
+	cutStartTimer( timer);
+	#endif*/
 	histogramCalc<<< NUMBLOCKS, 128, SM_USAGE >>>( d_blockHists, d_blockHistsStore, d_inputList, NUMELEMENTS, bMask+1, stBit, NEPB, bMask );
-	#ifdef	DEBUG
+	/*#ifdef	DEBUG
 	cudaThreadSynchronize();
-	CUT_SAFE_CALL( cutStopTimer( timer));
+	cutStopTimer( timer);
 	printf("Step 1 :: %3.3f\t",cutGetTimerValue(timer));
 	Total+=cutGetTimerValue(timer);
-	#endif
+	#endif*/
 
-	#ifdef	DEBUG
+	/*#ifdef	DEBUG
 	cudaThreadSynchronize();
-	CUT_SAFE_CALL( cutCreateTimer( &timer));	
-	CUT_SAFE_CALL( cutStartTimer( timer));
-	#endif
+	cutCreateTimer( &timer);	
+	cutStartTimer( timer);
+	#endif*/
 	preallocBlockSums(NUMBLOCKS*(bMask+1));
 	prescanArray(d_blockHistsScan, d_blockHists, (bMask+1) * NUMBLOCKS );
 	deallocBlockSums();
-	#ifdef	DEBUG
+	/*#ifdef	DEBUG
 	cudaThreadSynchronize();
-	CUT_SAFE_CALL( cutStopTimer( timer));
+	cutStopTimer( timer);
 	printf("Step 2 :: %3.3f\t",cutGetTimerValue(timer));
 	Total+=cutGetTimerValue(timer);
-	#endif
+	#endif*/
 	
-	#ifdef	DEBUG
+	/*#ifdef	DEBUG
 	cudaThreadSynchronize();
-	CUT_SAFE_CALL( cutCreateTimer( &timer));	
-	CUT_SAFE_CALL( cutStartTimer( timer));
-	#endif
+	cutCreateTimer( &timer);	
+	cutStartTimer( timer);
+	#endif*/
 	localScatter<<< NUMBLOCKS, 32, SM_USAGE/2 >>>( d_blockHistsStore, d_inputList, d_rankList, d_scratchMem, d_tempList, NUMELEMENTS, bMask+1, stBit, NEPB, bMask, bStable );
-	#ifdef	DEBUG
+	/*#ifdef	DEBUG
 	cudaThreadSynchronize();
-	CUT_SAFE_CALL( cutStopTimer( timer));
+	cutStopTimer( timer);
 	printf("Step 3 :: %3.3f\t",cutGetTimerValue(timer));
 	Total+=cutGetTimerValue(timer);
-	#endif
+	#endif*/
 
-	#ifdef	DEBUG
+	/*#ifdef	DEBUG
 	cudaThreadSynchronize();
-	CUT_SAFE_CALL( cutCreateTimer( &timer));	
-	CUT_SAFE_CALL( cutStartTimer( timer));
-	#endif
+	cutCreateTimer( &timer);	
+	cutStartTimer( timer);
+	#endif*/
 	globalScatter<<< NUMBLOCKS, 128, SM_USAGE >>>( d_blockHistsScan, d_blockHistsStore, d_scratchMem, d_tempList, d_inputList, d_rankList, NUMELEMENTS, bMask+1, stBit, NEPB, bMask );
-	#ifdef	DEBUG
+	/*#ifdef	DEBUG
 	cudaThreadSynchronize();
-	CUT_SAFE_CALL( cutStopTimer( timer));
+	cutStopTimer( timer);
 	printf("Step 4 :: %3.3f\t",cutGetTimerValue(timer));
 	Total+=cutGetTimerValue(timer);
 	printf("%3.3f\n",Total);	
-	#endif
+	#endif*/
 }
 
 void	splitSort::setOptimalBlockCount( int RSIZE )

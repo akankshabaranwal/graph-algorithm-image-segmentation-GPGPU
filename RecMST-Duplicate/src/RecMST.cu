@@ -26,11 +26,11 @@
 #include <math.h>
 
 // includes, project
-#include <cutil.h>
+// #include <cutil.h> // Removed, should just have been for CUDA_SAFE_CALL and CUDA_CUT_CALL which has been deprecated
 
 // includes, kernels
 #include "Kernels.cu"
-// #include <cudpp.h> // DONE: remove
+// #include <cudpp.h> 
 #include "splitFuncs.h"
 splitSort sp;
 
@@ -147,62 +147,62 @@ void Init()
 	*/
 
 	//Copy the Graph to Device
-	CUDA_SAFE_CALL( cudaMalloc( (void**) &d_edge, sizeof(int)*no_of_edges));
-	CUDA_SAFE_CALL( cudaMalloc( (void**) &d_vertex, sizeof(int)*no_of_vertices));
-	CUDA_SAFE_CALL( cudaMalloc( (void**) &d_weight, sizeof(int)*no_of_edges));
-	CUDA_SAFE_CALL( cudaMemcpy( d_edge, h_edge, sizeof(int)*no_of_edges, cudaMemcpyHostToDevice));
-	CUDA_SAFE_CALL( cudaMemcpy( d_vertex, h_vertex, sizeof(int)*no_of_vertices, cudaMemcpyHostToDevice));
-	CUDA_SAFE_CALL( cudaMemcpy( d_weight, h_weight, sizeof(int)*no_of_edges, cudaMemcpyHostToDevice));
+	cudaMalloc( (void**) &d_edge, sizeof(int)*no_of_edges);
+	cudaMalloc( (void**) &d_vertex, sizeof(int)*no_of_vertices);
+	cudaMalloc( (void**) &d_weight, sizeof(int)*no_of_edges);
+	cudaMemcpy( d_edge, h_edge, sizeof(int)*no_of_edges, cudaMemcpyHostToDevice);
+	cudaMemcpy( d_vertex, h_vertex, sizeof(int)*no_of_vertices, cudaMemcpyHostToDevice);
+	cudaMemcpy( d_weight, h_weight, sizeof(int)*no_of_edges, cudaMemcpyHostToDevice);
 	printf("Graph Copied to Device\n");
 
 	//Allocate memory for other arrays
-	CUDA_SAFE_CALL(cudaMalloc( (void**) &d_segmented_min_scan_input, sizeof(int)*no_of_edges));
-	CUDA_SAFE_CALL(cudaMalloc( (void**) &d_segmented_min_scan_output, sizeof(int)*no_of_edges));
-	CUDA_SAFE_CALL(cudaMalloc( (void**) &d_edge_flag, sizeof(unsigned int)*no_of_edges));
-	CUDA_SAFE_CALL(cudaMalloc( (void**) &d_edge_flag_thrust, sizeof(unsigned int)*no_of_edges));
-	CUDA_SAFE_CALL(cudaMalloc( (void**) &d_pick_array, sizeof(unsigned int)*no_of_edges));
-	CUDA_SAFE_CALL(cudaMalloc( (void**) &d_successor,sizeof(int)*no_of_vertices));
-	CUDA_SAFE_CALL(cudaMalloc( (void**) &d_successor_copy,sizeof(int)*no_of_vertices));
-	CUDA_SAFE_CALL(cudaMalloc( (void**) &d_output_MST, sizeof(unsigned int)*no_of_edges));
+	cudaMalloc( (void**) &d_segmented_min_scan_input, sizeof(int)*no_of_edges);
+	cudaMalloc( (void**) &d_segmented_min_scan_output, sizeof(int)*no_of_edges);
+	cudaMalloc( (void**) &d_edge_flag, sizeof(unsigned int)*no_of_edges);
+	cudaMalloc( (void**) &d_edge_flag_thrust, sizeof(unsigned int)*no_of_edges);
+	cudaMalloc( (void**) &d_pick_array, sizeof(unsigned int)*no_of_edges);
+	cudaMalloc( (void**) &d_successor,sizeof(int)*no_of_vertices);
+	cudaMalloc( (void**) &d_successor_copy,sizeof(int)*no_of_vertices);
+	cudaMalloc( (void**) &d_output_MST, sizeof(unsigned int)*no_of_edges);
 	
 	//Clear Output MST array
 	unsigned int *h_test=(unsigned int*)malloc(sizeof(unsigned int)*no_of_edges);
 	for(int i=0;i<no_of_edges;i++)h_test[i]=0;
-	CUDA_SAFE_CALL( cudaMemcpy( d_output_MST, h_test, sizeof(unsigned int)*no_of_edges, cudaMemcpyHostToDevice));
+	cudaMemcpy( d_output_MST, h_test, sizeof(unsigned int)*no_of_edges, cudaMemcpyHostToDevice);
 
-	CUDA_SAFE_CALL(cudaMalloc( (void**) &d_succchange, sizeof(bool)));
-	CUDA_SAFE_CALL(cudaMalloc( (void**) &d_vertex_split, sizeof(unsigned long long int)*no_of_vertices));
-	CUDA_SAFE_CALL(cudaMalloc( (void**) &d_vertex_split_scratchmem, sizeof(unsigned long long int)*no_of_vertices));
-	CUDA_SAFE_CALL(cudaMalloc( (void**) &d_vertex_flag, sizeof(unsigned int)*no_of_vertices));
-	CUDA_SAFE_CALL(cudaMalloc( (void**) &d_new_supervertexIDs, sizeof(unsigned int)*no_of_vertices));
-	CUDA_SAFE_CALL(cudaMalloc( (void**) &d_old_uIDs, sizeof(unsigned int)*no_of_edges));
-	CUDA_SAFE_CALL(cudaMalloc( (void**) &d_appended_uvw, sizeof(unsigned long long int)*no_of_edges));
-	CUDA_SAFE_CALL(cudaMalloc( (void**) &d_edge_split_scratchmem, sizeof(unsigned long long int)*no_of_edges));
-	CUDA_SAFE_CALL(cudaMalloc( (void**) &d_size, sizeof(unsigned int)));
-	CUDA_SAFE_CALL(cudaMalloc( (void**) &d_edge_mapping, sizeof(unsigned int)*no_of_edges)); 
-	CUDA_SAFE_CALL(cudaMalloc( (void**) &d_edge_mapping_copy, sizeof(unsigned int)*no_of_edges)); 
+	cudaMalloc( (void**) &d_succchange, sizeof(bool));
+	cudaMalloc( (void**) &d_vertex_split, sizeof(unsigned long long int)*no_of_vertices);
+	cudaMalloc( (void**) &d_vertex_split_scratchmem, sizeof(unsigned long long int)*no_of_vertices);
+	cudaMalloc( (void**) &d_vertex_flag, sizeof(unsigned int)*no_of_vertices);
+	cudaMalloc( (void**) &d_new_supervertexIDs, sizeof(unsigned int)*no_of_vertices);
+	cudaMalloc( (void**) &d_old_uIDs, sizeof(unsigned int)*no_of_edges);
+	cudaMalloc( (void**) &d_appended_uvw, sizeof(unsigned long long int)*no_of_edges);
+	cudaMalloc( (void**) &d_edge_split_scratchmem, sizeof(unsigned long long int)*no_of_edges);
+	cudaMalloc( (void**) &d_size, sizeof(unsigned int));
+	cudaMalloc( (void**) &d_edge_mapping, sizeof(unsigned int)*no_of_edges); 
+	cudaMalloc( (void**) &d_edge_mapping_copy, sizeof(unsigned int)*no_of_edges); 
 	//Initiaize the d_edge_mapping array
 	for(int i=0;i<no_of_edges;i++)h_test[i]=i;
-	CUDA_SAFE_CALL( cudaMemcpy( d_edge_mapping, h_test, sizeof(unsigned int)*no_of_edges, cudaMemcpyHostToDevice));
+	cudaMemcpy( d_edge_mapping, h_test, sizeof(unsigned int)*no_of_edges, cudaMemcpyHostToDevice);
 
-	CUDA_SAFE_CALL(cudaMalloc( (void**) &d_edge_list_size, sizeof(int)));
-	CUDA_SAFE_CALL(cudaMalloc( (void**) &d_vertex_list_size, sizeof(int)));
+	cudaMalloc( (void**) &d_edge_list_size, sizeof(int));
+	cudaMalloc( (void**) &d_vertex_list_size, sizeof(int));
 	
 
 	h_output_MST_test = (unsigned int*)malloc(sizeof(unsigned int)*no_of_edges);
 
-	CUDA_SAFE_CALL(cudaMalloc( (void**) &d_vertex_split_rank, sizeof(unsigned long long int)*no_of_vertices));
-	CUDA_SAFE_CALL(cudaMalloc( (void**) &d_vertex_rank_scratchmem, sizeof(unsigned long long int)*no_of_vertices));
+	cudaMalloc( (void**) &d_vertex_split_rank, sizeof(unsigned long long int)*no_of_vertices);
+	cudaMalloc( (void**) &d_vertex_rank_scratchmem, sizeof(unsigned long long int)*no_of_vertices);
 	h_vertex_split_rank_test=(unsigned long long int*)malloc(sizeof(unsigned long long int)*no_of_vertices);
 	for(int i=0;i<no_of_vertices;i++)h_vertex_split_rank_test[i]=i;
-	CUDA_SAFE_CALL( cudaMemcpy( d_vertex_split_rank, h_vertex_split_rank_test, sizeof(unsigned long long int)*no_of_vertices, cudaMemcpyHostToDevice));
+	cudaMemcpy( d_vertex_split_rank, h_vertex_split_rank_test, sizeof(unsigned long long int)*no_of_vertices, cudaMemcpyHostToDevice);
 
-	CUDA_SAFE_CALL(cudaMalloc( (void**) &d_edge_rank, sizeof(unsigned long long int)*no_of_edges));
-	CUDA_SAFE_CALL(cudaMalloc( (void**) &d_edge_rank_scratchmem, sizeof(unsigned long long int)*no_of_edges));
+	cudaMalloc( (void**) &d_edge_rank, sizeof(unsigned long long int)*no_of_edges);
+	cudaMalloc( (void**) &d_edge_rank_scratchmem, sizeof(unsigned long long int)*no_of_edges);
 	//Initialize the edge rank list
 	h_edge_rank_test=(unsigned long long int*)malloc(sizeof(unsigned long long int)*no_of_edges);
 	for(int i=0;i<no_of_edges;i++)h_edge_rank_test[i]=i;
-	CUDA_SAFE_CALL( cudaMemcpy( d_edge_rank, h_edge_rank_test, sizeof(unsigned long long int)*no_of_edges, cudaMemcpyHostToDevice));
+	cudaMemcpy( d_edge_rank, h_edge_rank_test, sizeof(unsigned long long int)*no_of_edges, cudaMemcpyHostToDevice);
 
 	free(h_test);
 }
@@ -233,8 +233,8 @@ void HPGMST()
 {
 	
 	//Reinitialize the ranking arrays, must be orig but this also works
-	CUDA_SAFE_CALL( cudaMemcpy( d_vertex_split_rank, h_vertex_split_rank_test, sizeof(unsigned long long int)*no_of_vertices, cudaMemcpyHostToDevice));
-	CUDA_SAFE_CALL( cudaMemcpy( d_edge_rank, h_edge_rank_test, sizeof(unsigned long long int)*no_of_edges, cudaMemcpyHostToDevice));
+	cudaMemcpy( d_vertex_split_rank, h_vertex_split_rank_test, sizeof(unsigned long long int)*no_of_vertices, cudaMemcpyHostToDevice);
+	cudaMemcpy( d_edge_rank, h_edge_rank_test, sizeof(unsigned long long int)*no_of_edges, cudaMemcpyHostToDevice);
 	
 
 	//Make both grids needed for execution, no_of_vertices and no_of_edges length sizes
@@ -311,12 +311,12 @@ void HPGMST()
 	do
 	{
 		succchange=false; //if no thread changes this value, the loop stops
-		CUDA_SAFE_CALL( cudaMemcpy( d_succchange, &succchange, sizeof(bool), cudaMemcpyHostToDevice));
+		cudaMemcpy( d_succchange, &succchange, sizeof(bool), cudaMemcpyHostToDevice);
 		//Reusing Vertex Flag
 		SuccToCopy<<< grid_vertexlen, threads_vertexlen, 0>>>(d_successor, d_successor_copy, no_of_vertices);
 		PropagateRepresentativeID<<< grid_vertexlen, threads_vertexlen, 0>>>(d_successor, d_successor_copy, d_succchange,no_of_vertices);
 		CopyToSucc<<< grid_vertexlen, threads_vertexlen, 0>>>(d_successor, d_successor_copy, no_of_vertices);
-		CUDA_SAFE_CALL( cudaMemcpy( &succchange, d_succchange, sizeof(bool), cudaMemcpyDeviceToHost));
+		cudaMemcpy( &succchange, d_succchange, sizeof(bool), cudaMemcpyDeviceToHost);
 	}
 	while(succchange);
 
@@ -365,7 +365,7 @@ void HPGMST()
 	//Pick the first distinct (u,v) combination, mark these edges and compact
 	ClearArray<<< grid_edgelen, threads_edgelen, 0>>>( d_edge_flag, no_of_edges );
 	unsigned int dsize=no_of_edges; //just make sure
-	CUDA_SAFE_CALL( cudaMemcpy( d_size, &dsize, sizeof(unsigned int), cudaMemcpyHostToDevice));
+	cudaMemcpy( d_size, &dsize, sizeof(unsigned int), cudaMemcpyHostToDevice);
 	MarkEdgesUV<<< grid_edgelen, threads_edgelen, 0>>>(d_edge_flag, d_appended_uvw, d_size, no_of_edges);
 
 	//Scan the flag array to know where to write the value in new edge and weight lists // DONE: change to thrust
@@ -384,13 +384,13 @@ void HPGMST()
 	ClearArray<<< grid_edgelen, threads_edgelen, 0>>>( d_edge_mapping_copy, no_of_edges);
 	ClearArray<<< grid_edgelen, threads_edgelen, 0>>>( (unsigned int*)d_pick_array, no_of_edges); //Reusing the Pick Array
 	int negative=0;
-	CUDA_SAFE_CALL( cudaMemcpy( d_edge_list_size, &negative, sizeof( int), cudaMemcpyHostToDevice));
-	CUDA_SAFE_CALL( cudaMemcpy( d_vertex_list_size, &negative, sizeof( int), cudaMemcpyHostToDevice));
+	cudaMemcpy( d_edge_list_size, &negative, sizeof( int), cudaMemcpyHostToDevice);
+	cudaMemcpy( d_vertex_list_size, &negative, sizeof( int), cudaMemcpyHostToDevice);
 	
 	//Compact the edge and weight lists
 	//Make a new grid for valid entries in the d_edge_flag array
 	unsigned int validsize=0;
-	CUDA_SAFE_CALL( cudaMemcpy( &validsize, d_size, sizeof(unsigned int), cudaMemcpyDeviceToHost));
+	cudaMemcpy( &validsize, d_size, sizeof(unsigned int), cudaMemcpyDeviceToHost);
 
 	SetGridThreadLen(validsize, &num_of_blocks, &num_of_threads_per_block);
 	dim3 grid_validsizelen(num_of_blocks, 1, 1);
@@ -408,9 +408,9 @@ void HPGMST()
 
 	MakeVertexList<<< grid_edgelen, threads_edgelen, 0>>>(d_vertex, d_pick_array, d_edge_flag, no_of_edges);
 	
-	CUDA_SAFE_CALL( cudaMemcpy( &no_of_edges, d_edge_list_size, sizeof(int), cudaMemcpyDeviceToHost));
+	cudaMemcpy( &no_of_edges, d_edge_list_size, sizeof(int), cudaMemcpyDeviceToHost);
 
-	CUDA_SAFE_CALL( cudaMemcpy( &no_of_vertices, d_vertex_list_size, sizeof(int), cudaMemcpyDeviceToHost));
+	cudaMemcpy( &no_of_vertices, d_vertex_list_size, sizeof(int), cudaMemcpyDeviceToHost);
 
 }
 
@@ -427,33 +427,33 @@ void FreeMem()
 	free(h_output_MST_test);
 	free(h_vertex_split_rank_test);
 	free(h_edge_rank_test);
-	CUDA_SAFE_CALL(cudaFree(d_edge));
-	CUDA_SAFE_CALL(cudaFree(d_vertex));
-	CUDA_SAFE_CALL(cudaFree(d_weight));
-	CUDA_SAFE_CALL(cudaFree(d_segmented_min_scan_input));
-	CUDA_SAFE_CALL(cudaFree(d_segmented_min_scan_output));
-	CUDA_SAFE_CALL(cudaFree(d_edge_flag));
-	CUDA_SAFE_CALL(cudaFree(d_pick_array));
-	CUDA_SAFE_CALL(cudaFree(d_successor));
-	CUDA_SAFE_CALL(cudaFree(d_successor_copy));
-	CUDA_SAFE_CALL(cudaFree(d_output_MST));
-	CUDA_SAFE_CALL(cudaFree(d_succchange));
-	CUDA_SAFE_CALL(cudaFree(d_vertex_split));
-	CUDA_SAFE_CALL(cudaFree(d_vertex_split_scratchmem));
-	CUDA_SAFE_CALL(cudaFree(d_vertex_flag));
-	CUDA_SAFE_CALL(cudaFree(d_new_supervertexIDs));
-	CUDA_SAFE_CALL(cudaFree(d_old_uIDs));
-	CUDA_SAFE_CALL(cudaFree(d_edge_split_scratchmem));
-	CUDA_SAFE_CALL(cudaFree(d_size));
-	CUDA_SAFE_CALL(cudaFree(d_edge_mapping));
-	CUDA_SAFE_CALL(cudaFree(d_edge_mapping_copy));
-	CUDA_SAFE_CALL(cudaFree(d_edge_list_size));
-	CUDA_SAFE_CALL(cudaFree(d_vertex_list_size));
-	CUDA_SAFE_CALL(cudaFree(d_vertex_split_rank));
-	CUDA_SAFE_CALL(cudaFree(d_vertex_rank_scratchmem));
-	CUDA_SAFE_CALL(cudaFree(d_edge_rank));
-	CUDA_SAFE_CALL(cudaFree(d_edge_rank_scratchmem));
-	CUDA_SAFE_CALL(cudaFree(d_appended_uvw));
+	cudaFree(d_edge);
+	cudaFree(d_vertex);
+	cudaFree(d_weight);
+	cudaFree(d_segmented_min_scan_input);
+	cudaFree(d_segmented_min_scan_output);
+	cudaFree(d_edge_flag);
+	cudaFree(d_pick_array);
+	cudaFree(d_successor);
+	cudaFree(d_successor_copy);
+	cudaFree(d_output_MST);
+	cudaFree(d_succchange);
+	cudaFree(d_vertex_split);
+	cudaFree(d_vertex_split_scratchmem);
+	cudaFree(d_vertex_flag);
+	cudaFree(d_new_supervertexIDs);
+	cudaFree(d_old_uIDs);
+	cudaFree(d_edge_split_scratchmem);
+	cudaFree(d_size);
+	cudaFree(d_edge_mapping);
+	cudaFree(d_edge_mapping_copy);
+	cudaFree(d_edge_list_size);
+	cudaFree(d_vertex_list_size);
+	cudaFree(d_vertex_split_rank);
+	cudaFree(d_vertex_rank_scratchmem);
+	cudaFree(d_edge_rank);
+	cudaFree(d_edge_rank_scratchmem);
+	cudaFree(d_appended_uvw);
 }
 
 
@@ -472,22 +472,22 @@ int main( int argc, char** argv)
 	Init();
 
 	unsigned int	timer;
-	CUT_SAFE_CALL( cutCreateTimer( &timer));	
-	CUT_SAFE_CALL( cutStartTimer( timer));
+	/*cutCreateTimer( &timer);	
+	cutStartTimer( timer);*/
 	//Perform Our MST algorhtm
 	do
 	{
 	    HPGMST();
 	}
 	while(no_of_vertices>1);
-	CUT_SAFE_CALL( cutStopTimer( timer));
-	printf("\n=================== Time taken To perform MST :: %3.3f ms===================\n",cutGetTimerValue(timer));
+	/*cutStopTimer( timer);
+	printf("\n=================== Time taken To perform MST :: %3.3f ms===================\n",cutGetTimerValue(timer));*/
 
 
 	//Copy the Final MST array to the CPU memory, a 1 at the index means that edge was selected in the MST, 0 otherwise.
 	//It should be noted that each edge has an opposite edge also, out of whcih only one is selected in this output.
 	//So total number of 1s in this array must be equal to no_of_vertices_orig-1.
-	CUDA_SAFE_CALL( cudaMemcpy( h_output_MST_test, d_output_MST, sizeof(unsigned int)*no_of_edges_orig, cudaMemcpyDeviceToHost));
+	cudaMemcpy( h_output_MST_test, d_output_MST, sizeof(unsigned int)*no_of_edges_orig, cudaMemcpyDeviceToHost);
 	int k=0;
 	int weight=0;
 	//printf("\n\nSelected Edges in MST...\n\n");
