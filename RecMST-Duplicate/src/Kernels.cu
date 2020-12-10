@@ -407,7 +407,7 @@ __global__ void CompactEdgeList(int *d_edge, int *d_weight, unsigned int *d_edge
 				//max writepos will give the new edge list size
 				atomicMax(d_edge_list_size,(writepos+1));
 				atomicMax(d_vertex_list_size,(v+1));
-				// Orig: atomicMax(d_vertex_list_size,(u+1)); //how can max(v) be > max(u), error!!!!!
+				// Orig: atomicMax(d_vertex_list_size,(u+1)); //how can max(v) be > max(u), error!!!!! TODO check this whole thing
 			}
 		}		
 	}
@@ -431,7 +431,7 @@ __global__ void MakeFlagForVertexList(int *d_pick_array, unsigned int *d_edge_fl
 	unsigned int tid = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
 	if(tid<no_of_edges) {
 		if(tid>0) {
-			if(d_pick_array[tid] != d_pick_array[tid-1]) { //This line may be causing problems TODO: maybe != such as in python code but should be fine
+			if(d_pick_array[tid] != d_pick_array[tid-1]) { //This line may be causing problems TODO: maybe != such as in python code but should be fine. Change back to > for orig
 				d_edge_flag[tid]=1;
 			}
 		} else {
