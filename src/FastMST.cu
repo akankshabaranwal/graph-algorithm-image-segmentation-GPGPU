@@ -226,22 +226,144 @@ __global__ void CreateUVWArray(int *BitEdgeList, int numEdges, int *uid, int *Su
     }
 }
 
-//12.2
-void SortUVW(int *UV, int *W, int numEdges)
+//FIXME: Add code for clearing of flag array before every place it has been used
+int SortUVW(int *UV, int *W, int numEdges, int *flag3)
 {
+    //12.2
     thrust::sort_by_key(thrust::host, UV, UV + numEdges, W);
     //12.3
     //Initialize F3 array
+    int new_edge_size = numEdges;
+    int32_t prev_supervertexid_u, prev_supervertexid_v, supervertexid_u, supervertexid_v;
 
+    // TODO: Check how to replace the min(newEdges part so that this can be parallelized.
+    for(int i=1;i<numEdges;i++)
+    {
+        prev_supervertexid_u = UV[i-1]>>15; //TODO: Check if this needs to be 15 or 16
+        prev_supervertexid_v = UV[i-1] %(2<<15);
+
+        supervertexid_u = UV[i]>>15;
+        supervertexid_v = UV[i]%(2<<15);
+
+        if((supervertexid_u!=-1) and (supervertexid_v!=-1))
+        {
+            if((prev_supervertexid_u !=supervertexid_v) || (prev_supervertexid_v!=supervertexid_v))
+            {
+                flag3[i] = 1;
+            }
+            else
+            {
+                flag3[i] = 0;
+                new_edge_size = min(new_edge_size, i); // Basically we are setting new_edge_size to the last index wherever the value is not max.
+                //FIXME: For this to work the while marking the edges you need to set it as infinity instead of -1.
+            }
+        }
+    }
+    return new_edge_size;
+}
+/*
+__global__ void createInParallel(int *newBitEdgeList, int *newVertexList, int *compact_locations, int new_edge_size, int *flag3, int *UV, int *W)
+{
+    int idx = blockIdx.x*blockDim.x+threadIdx.x;
+    int32_t supervertex_id_u, supervertex_id_v, edge_weight;
+    int new_location;
+
+    if(idx < new_edge_size)
+    {
+        if(flag3[idx]){
+            supervertex_id_u = UV[idx]>>15;
+            supervertex_id_v = UV[idx]%(2<<15);
+            edge_weight = W[idx];
+            new_location = compact_locations [idx];
+            if()
+        }
+    }
+}*/
+
+//FIXME: The create flag array kernel calls are redundant. Replace them with a single kernel.
+__global__ void CreateFlag4Array(int *Representative, int *Flag4, int numSegments)
+{
+    int vertex = blockIdx.x*blockDim.x+threadIdx.x;
+    if((vertex<numSegments)&&(vertex>0))
+    {
+        if(Representative[vertex] != Representative[vertex-1])
+            Flag4[vertex]=1;
+        else
+            Flag4[vertex]=0;
+    }
+}
+
+__global__ void CreateNewVertexList(int *newVertexList, int *Flag4, int new_E_size, int *expanded_u)
+{
+    int idx = blockIdx.x*blockDim.x+threadIdx.x;
+    int32_t id_u;
+
+    if(idx<new_E_size)
+    {
+     if(Flag4[idx] == 1)
+     {
+         id_u = expanded_u[idx];
+         newVertexList[id_u] = idx;
+     }
+    }
 }
 
 //Create new edge list and vertex list
-void CreateNewEdgeVertexList(int *newBitEdgeList, int *newVertexList, int *U, int *V, int *W, int numnewEdges, int numnewVertices)
+void CreateNewEdgeVertexList(int *newBitEdgeList, int *newVertexList, int *UV, int *W, int *compact_locations, int *flag3, int new_edge_size)
 {
     //Check if this can be parallelized? can we move the min (new_edge_size) part to somewhere before?
     int32_t supervertex_id_u, supervertex_id_v;
-    for(int i=0;i<numnewEdges;i++)
-    {
 
+    //13.1 Create the Compact new edge list
+    //Scan of flag3 array and store it in compact_locations.
+    //TODO: You can rename flag3 to compact_locations, so this way you dont need 2 arrays
+    //FIXME: Same fixme as above for replacing -1 with INT_MAX
+    thrust::inclusive_scan(flag3, flag3 + new_edge_size, compact_locations, thrust::plus<int>());
+    //TODO: Check if New_E_Size and New V Size would be <= Number of 1s in the flag array??
+    //FIXME: Need to allocate memory for newBitEdgeList and newVertexList appropriately.
+    //TODO: Check if we can just override the variables here and dont need to repeatedly create BitEdgeList and vertexList
+    int new_E_size = 0;
+    int new_V_size =0;
+    //expand_u is not the same as newVertexList. newVertexList will get created later
+
+    int *expand_u;
+    cudaMallocManaged(&expand_u, new_edge_size * sizeof(int32_t));
+    // FIXME: Need to find a way to get newEdgeListLength and newVertexListLength in parallel
+
+    int edge_weight;
+    int new_location;
+
+    new_V_size=0;
+    new_E_size = 0;
+    for(int i=0;i < new_edge_size; i++)
+    {
+        if(flag3[i])
+        {
+            supervertex_id_u = UV[i]>>15;
+            supervertex_id_v = UV[i]%(2<<15);
+            edge_weight = W[i];
+            new_location = compact_locations [i];
+            //FIXME: Replace -1 with infinity
+            if((supervertex_id_v!= -1)&&(supervertex_id_u!=-1))
+            {
+                newBitEdgeList[i] = edge_weight*(2<<15) + supervertex_id_v;
+                expand_u[i] = supervertex_id_u;
+                new_edge_size = max(new_location+1, new_edge_size);
+                new_V_size = max(supervertex_id_v+1, new_V_size);
+            }
+        }
     }
+
+    //Skipping step 13.3 as not required in C
+    //14. Building a new vertex list
+    int *flag4; //Same as F4. New flag for creating vertex list. Assigning the new ids.
+    cudaMallocManaged(&flag4, new_E_size * sizeof(int));
+    if(new_E_size>0)
+        flag4[0] =1;
+    //Create the flag array in parallel
+    int numthreads = 1024;
+    int numBlock = new_E_size/numthreads;
+    CreateFlag4Array<<<numBlock, numthreads>>>(expanded_u, flag4, new_E_size);
+    //Can this flag4 array creation be skipped?? Can we directly use the index while creating the expand_u array?
+    CreateNewVertexList<<<numBlock, numthreads>>>(newVertexList, Flag4, new_E_size, expanded_u);
 }

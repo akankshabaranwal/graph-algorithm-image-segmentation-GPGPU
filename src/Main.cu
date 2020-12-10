@@ -100,11 +100,16 @@ int main(int argc, char **argv)
 
     //12 Remove largest duplicate edges
     int *UV, *W;
-    cudaMallocManaged(&U,numEdges*sizeof(int64_t));
-    cudaMallocManaged(&VW,numEdges*sizeof(int64_t));
-    CreateUVWArray<<<numBlock,numthreads>>>(BitEdgeList, numEdges, uid, SuperVertexId, UVW);
+    cudaMallocManaged(&UV,numEdges*sizeof(int64_t));
+    cudaMallocManaged(&W,numEdges*sizeof(int64_t));
+    CreateUVWArray<<<numBlock,numthreads>>>(BitEdgeList, numEdges, uid, SuperVertexId, UV, W);
 
+    int32_t *flag3;
+    cudaMallocManaged(&flag3,numEdges*sizeof(int32_t));
+    int new_edge_size = SortUVW(UV, W, numEdges, flag3);
 
+    int32_t *compact_locations;
+    cudaMallocManaged(&compact_locations,new_edge_size*sizeof(int32_t));
 
     return 0;
 }
