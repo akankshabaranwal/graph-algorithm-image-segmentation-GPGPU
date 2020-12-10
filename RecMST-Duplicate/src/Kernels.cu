@@ -331,9 +331,9 @@ __global__ void AppendForDuplicateEdgeRemoval(unsigned long long int *d_appended
 		u = d_old_uIDs[tid];
 		v = d_edge[tid];
 
-		/*if (v == INF) { // TODO: maybe useful. else (u, INF, w)
+		if (v == INF) { // TODO: maybe useful. else (u, INF, w)
 			u = INF;
-		}*/
+		}
 
 		if(u!=INF && v!=INF) {
 			superuid = d_new_supervertexIDs[u];
