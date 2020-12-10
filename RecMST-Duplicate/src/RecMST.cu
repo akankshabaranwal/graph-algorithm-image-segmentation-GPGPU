@@ -29,16 +29,18 @@
 // #include <cutil.h> // Removed, should just have been for CUDA_SAFE_CALL and CUDA_CUT_CALL which has been deprecated
 
 // includes, kernels
-#include "Kernels.cu"
+#include "Kernels.cu" // Not included, automatically done else compiler error
 // #include <cudpp.h> 
-#include "splitFuncs.h"
+#include "splitFuncs.h" // Not included, automatically done else compiler error
 splitSort sp;
 
 // Thrust stuff
 #include <thrust/device_ptr.h>
 #include <thrust/scan.h>
 #include <thrust/execution_policy.h>
-
+#include <thrust/transform.h>
+#include <thrust/iterator/constant_iterator.h>
+#include <thrust/functional.h>
 
 ////////////////////////////////////////////////
 // Variables
@@ -262,12 +264,13 @@ void HPGMST()
 	MakeFlag_3<<< grid_vertexlen, threads_vertexlen, 0>>>( d_edge_flag, d_vertex, no_of_vertices);
 
 	//Perfom the Segmented Min Scan on resulting array using d_edge_flag as segments // DONE: change to thrust
-	// // Min inclusive segmented scan on ints from start to end.
+	// Min inclusive segmented scan on ints from start to end.
 	thrust::inclusive_scan(thrust::device, d_edge_flag, d_edge_flag + no_of_edges, d_edge_flag_thrust);
 
 	thrust::equal_to<unsigned int> binaryPred;
 	thrust::minimum<unsigned int> binaryOp;
 	thrust::inclusive_scan_by_key(thrust::device, d_edge_flag_thrust, d_edge_flag_thrust + no_of_edges, d_segmented_min_scan_input, d_segmented_min_scan_output, binaryPred, binaryOp);
+
 
 	/*
 	cudppPlan(&segmentedScanPlan_min, config_segmented_min, no_of_edges, 1, 0 ); //Make the segmented min scan plan
@@ -370,6 +373,16 @@ void HPGMST()
 
 	//Scan the flag array to know where to write the value in new edge and weight lists // DONE: change to thrust
 	thrust::inclusive_scan(thrust::device, d_edge_flag, d_edge_flag + no_of_edges, d_old_uIDs);
+	
+	/*// TODO: can be done more efficient in case works
+	thrust::transform(thrust::device,
+				  d_old_uIDs,
+                  d_old_uIDs + no_of_edges,
+                  thrust::make_constant_iterator(1),
+                  d_old_uIDs,
+                  thrust::minus<unsigned int>());*/
+
+	
 	/*
 	cudppPlan(&scanPlan_add, config_scan_add, no_of_edges, 1, 0);
 	cudppScan(scanPlan_add, d_old_uIDs, d_edge_flag, no_of_edges); //Just reusing the d_old_uIDs array for compating
@@ -494,10 +507,13 @@ int main( int argc, char** argv)
 	for(int i=0;i<no_of_edges_orig;i++)
 		if(h_output_MST_test[i]==1)
 			{
-				//printf("%d %d\n",h_edge[i],h_weight[i]);
+				printf("%d %d\n",h_edge[i],h_weight[i]);
 				k++;
 				weight+=h_weight[i];
 			}
+		else {
+			printf("not %d %d\n",h_edge[i],h_weight[i]);
+		}
 	printf("\nNumber of edges in MST, must be=(no_of_vertices-1)): %d,(%d)\nTotal MST weight: %d\n",k, no_of_vertices_orig,weight);
 	
 	FreeMem();
