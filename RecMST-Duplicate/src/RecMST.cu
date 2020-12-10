@@ -30,9 +30,14 @@
 
 // includes, kernels
 #include "Kernels.cu"
-#include <cudpp.h>
+// #include <cudpp.h> // DONE: remove
 #include "splitFuncs.h"
 splitSort sp;
+
+// Thrust stuff
+#include <thrust/device_ptr.h>
+#include <thrust/scan.h>
+#include <thrust/execution_policy.h>
 
 
 ////////////////////////////////////////////////
@@ -45,6 +50,7 @@ int *d_edge, *d_vertex, *d_weight;					//Graph held in these variables at the de
 int *d_segmented_min_scan_input;					//Input to the Segmented Min Scan, appended array of weights and edge IDs (X in paper)
 int *d_segmented_min_scan_output;					//Output of the Segmented Min Scan, minimum weight outgoing edge as (weight|to_vertex_id elements) for each verte
 unsigned int *d_edge_flag;							//Flag for the segmented min scan
+unsigned int *d_edge_flag_thrust;					//NEW! Flag for the segmented min scan in thrust Needs to be 000111222 instead of 100100100
 unsigned int *d_vertex_flag;						//Flag for the scan input for supervertex ID generation
 unsigned int *d_output_MST;							//Final output, marks 1 for selected edges in MST, 0 otherwise
 int *d_pick_array;									//PickArray for each edge. For each edge from u, segmented scan location min edge going out of u if not removed. Else -1 if removed (representative doesn't add edges)
@@ -72,8 +78,8 @@ unsigned long long int *h_vertex_split_rank_test;	//Used to copy split rank to d
 unsigned long long int *h_edge_rank_test;			//Used to copy edge rank to device, initially 1 2 3 4 5 ...
 
 //CUDPP Scan and Segmented Scan Variables
-CUDPPHandle			segmentedScanPlan_min, scanPlan_add ; 
-CUDPPConfiguration	config_segmented_min, config_scan_add ;
+// CUDPPHandle			segmentedScanPlan_min, scanPlan_add ;   // DONE: remove
+// CUDPPConfiguration	config_segmented_min, config_scan_add ; // DONE: remove
 
 
 ////////////////////////////////////////////////
@@ -125,16 +131,20 @@ void ReadGraph(char *filename)
 void Init()
 {
 
-	//Setting the CUDPP configurations for SCAN and SEGMENTED MIN SCAN
+	/*
+	//Setting the CUDPP configurations for SCAN and SEGMENTED MIN SCAN // DONE: remove
+	// Min inclusive segmented scan on ints from start to end.
 	config_segmented_min.algorithm = CUDPP_SEGMENTED_SCAN;
 	config_segmented_min.op = CUDPP_MIN;
 	config_segmented_min.datatype = CUDPP_INT;
 	config_segmented_min.options = CUDPP_OPTION_FORWARD | CUDPP_OPTION_INCLUSIVE;
 
+	// Summation scan on ints from start to end. Each summation sums elements up to the current element i
 	config_scan_add.algorithm = CUDPP_SCAN;
 	config_scan_add.op = CUDPP_ADD;
 	config_scan_add.datatype = CUDPP_INT;
 	config_scan_add.options = CUDPP_OPTION_FORWARD | CUDPP_OPTION_INCLUSIVE;
+	*/
 
 	//Copy the Graph to Device
 	CUDA_SAFE_CALL( cudaMalloc( (void**) &d_edge, sizeof(int)*no_of_edges));
@@ -149,6 +159,7 @@ void Init()
 	CUDA_SAFE_CALL(cudaMalloc( (void**) &d_segmented_min_scan_input, sizeof(int)*no_of_edges));
 	CUDA_SAFE_CALL(cudaMalloc( (void**) &d_segmented_min_scan_output, sizeof(int)*no_of_edges));
 	CUDA_SAFE_CALL(cudaMalloc( (void**) &d_edge_flag, sizeof(unsigned int)*no_of_edges));
+	CUDA_SAFE_CALL(cudaMalloc( (void**) &d_edge_flag_thrust, sizeof(unsigned int)*no_of_edges));
 	CUDA_SAFE_CALL(cudaMalloc( (void**) &d_pick_array, sizeof(unsigned int)*no_of_edges));
 	CUDA_SAFE_CALL(cudaMalloc( (void**) &d_successor,sizeof(int)*no_of_vertices));
 	CUDA_SAFE_CALL(cudaMalloc( (void**) &d_successor_copy,sizeof(int)*no_of_vertices));
@@ -250,10 +261,19 @@ void HPGMST()
 	//Mark the segments for the segmented min scan using scan
 	MakeFlag_3<<< grid_vertexlen, threads_vertexlen, 0>>>( d_edge_flag, d_vertex, no_of_vertices);
 
-	//Perfom the Segmented Min Scan on resulting array using d_edge_flag as segments
+	//Perfom the Segmented Min Scan on resulting array using d_edge_flag as segments // DONE: change to thrust
+	// // Min inclusive segmented scan on ints from start to end.
+	thrust::inclusive_scan(thrust::device, d_edge_flag, d_edge_flag + no_of_edges, d_edge_flag_thrust);
+
+	thrust::equal_to<unsigned int> binaryPred;
+	thrust::minimum<unsigned int> binaryOp;
+	thrust::inclusive_scan_by_key(thrust::device, d_edge_flag_thrust, d_edge_flag_thrust + no_of_edges, d_segmented_min_scan_input, d_segmented_min_scan_output, binaryPred, binaryOp);
+
+	/*
 	cudppPlan(&segmentedScanPlan_min, config_segmented_min, no_of_edges, 1, 0 ); //Make the segmented min scan plan
 	cudppSegmentedScan(segmentedScanPlan_min, d_segmented_min_scan_output, d_segmented_min_scan_input, (const unsigned int*)d_edge_flag, no_of_edges);
 	cudppDestroyPlan(segmentedScanPlan_min);
+	*/
 
 	//Make the Sucessor Array
 	MakeSucessorArray<<< grid_vertexlen, threads_vertexlen, 0>>>(d_successor, d_vertex, d_segmented_min_scan_output, no_of_vertices, no_of_edges);
@@ -267,10 +287,14 @@ void HPGMST()
 
 	MakeFlagForUIds<<< grid_vertexlen, threads_vertexlen, 0>>>(d_edge_flag, d_vertex,no_of_vertices); // F is now same as previous F but first element is 0 instead of 1
 
-	// For each edge calculate vertex ID u of source vertex
-	cudppPlan(&scanPlan_add, config_scan_add, no_of_edges , 1, 0);
+	// For each edge calculate vertex ID u of source vertex // DONE: change to thrust
+	thrust::inclusive_scan(thrust::device, d_edge_flag, d_edge_flag + no_of_edges, d_old_uIDs);
+
+	/*
+	cudppPlan(&scanPlan_add, config_scan_add, no_of_edges , 1, 0);// Create scanplan 
 	cudppScan(scanPlan_add, d_old_uIDs, d_edge_flag, no_of_edges);
 	cudppDestroyPlan(scanPlan_add);
+	*/
 
 	ClearArray<<< grid_edgelen, threads_edgelen, 0>>>((unsigned int*)d_pick_array, no_of_edges);
 
@@ -309,11 +333,13 @@ void HPGMST()
 	ClearArray<<< grid_vertexlen, threads_vertexlen, 0>>>( d_vertex_flag, no_of_vertices);
 	MakeFlagForScan<<< grid_vertexlen, threads_vertexlen, 0>>>(d_vertex_flag, d_vertex_split, no_of_vertices);
 
-	//Scan the newly formed flag array to assign new ids to supervertices
+	//Scan the newly formed flag array to assign new ids to supervertices // DONE: change to thrust
+	thrust::inclusive_scan(thrust::device, d_vertex_flag, d_vertex_flag + no_of_vertices, d_new_supervertexIDs);
+	/*
 	cudppPlan(&scanPlan_add, config_scan_add, no_of_vertices , 1, 0);
 	cudppScan(scanPlan_add, d_new_supervertexIDs, d_vertex_flag, no_of_vertices);
 	cudppDestroyPlan(scanPlan_add);
-
+	*/
 
 	//Make the new supervertexids per vertex
 	MakeSuperVertexIDPerVertex<<< grid_vertexlen, threads_vertexlen, 0>>>(d_new_supervertexIDs, d_vertex_split, d_vertex_flag, no_of_vertices);
@@ -342,10 +368,13 @@ void HPGMST()
 	CUDA_SAFE_CALL( cudaMemcpy( d_size, &dsize, sizeof(unsigned int), cudaMemcpyHostToDevice));
 	MarkEdgesUV<<< grid_edgelen, threads_edgelen, 0>>>(d_edge_flag, d_appended_uvw, d_size, no_of_edges);
 
-	//Scan the flag array to know where to write the value in new edge and weight lists
+	//Scan the flag array to know where to write the value in new edge and weight lists // DONE: change to thrust
+	thrust::inclusive_scan(thrust::device, d_edge_flag, d_edge_flag + no_of_edges, d_old_uIDs);
+	/*
 	cudppPlan(&scanPlan_add, config_scan_add, no_of_edges, 1, 0);
 	cudppScan(scanPlan_add, d_old_uIDs, d_edge_flag, no_of_edges); //Just reusing the d_old_uIDs array for compating
 	cudppDestroyPlan(scanPlan_add);
+	*/
 
 	//******************************************************************************************
 	//Do all clearing in a single kernel, no need to call multiple times, OK for testing only
