@@ -2,17 +2,23 @@ cmake_minimum_required(VERSION 3.10)
 
 set(CMAKE_CUDA_COMPILER "/usr/local/cuda-11.1/bin/nvcc")
 project(felzenszwalb LANGUAGES CXX CUDA)
+include(cmake/OpenCV.cmake)
 
 set(CMAKE_CXX_STANDARD  14)
 set(CMAKE_CUDA_STANDARD 14)
 set(CMAKE_CUDA_STANDARD_REQUIRED TRUE)
 set(CMAKE_CXX_STANDARD_REQUIRED  TRUE)
 
+include_directories(${OpenCV_INCLUDE_DIRS})
+
+
 add_executable(felz
 	"${CMAKE_SOURCE_DIR}/src/RecMST.cu")
 
 set_property(TARGET felz PROPERTY CUDA_ARCHITECTURES 61)
 
+target_include_directories(felz PRIVATE ${OpenCV_INCLUDE_DIRS})
+target_link_libraries(felz PRIVATE ${OpenCV_LIBS})
 
 add_custom_command(
         TARGET felz POST_BUILD

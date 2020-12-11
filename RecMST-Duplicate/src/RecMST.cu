@@ -22,6 +22,7 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <iostream>
 #include <string.h>
 #include <math.h>
 
@@ -41,6 +42,12 @@ splitSort sp;
 #include <thrust/transform.h>
 #include <thrust/iterator/constant_iterator.h>
 #include <thrust/functional.h>
+
+// Opencv stuff
+#include <opencv2/cudafilters.hpp>
+using namespace cv;
+using namespace cv::cuda;
+
 
 ////////////////////////////////////////////////
 // Variables
@@ -184,46 +191,93 @@ void printUInt(unsigned int *d_val) {
 ////////////////////////////////////////////////
 // Read the Graph in our format (Compressed adjacency list)
 ////////////////////////////////////////////////
-void ReadGraph(char *filename)
-{
-	FILE *fp;
-	fp = fopen(filename,"r");
+int dissimilarity(Mat image, int row1, int col1, int row2, int col2) {
+    Point3_<uchar>* u = image.ptr<Point3_<uchar> >(row1,col1);
+    Point3_<uchar>* v = image.ptr<Point3_<uchar> >(row2,col2);
+    double distance = sqrt(pow((u->x - v->x), 2) + pow((u->y - v->y), 2) + pow((u->z - v->z), 2));
+    return (int) round(distance); // TODO: maybe map to larger interval for better accuracy
+}
 
-	// Read number of vertices
-	fscanf(fp,"%d",&no_of_vertices); 
+
+int ImagetoGraphSerial(Mat image) {
+    
+	int cur_edge_idx, cur_vertex_idx, left_node, right_node, bottom_node, top_node;
+    cur_edge_idx = 0;
+
+    for(int i=0; i<image.rows; i++) {
+        for(int j=0; j<image.cols; j++) {
+            left_node = i * image.cols + j - 1;
+            right_node = i * image.cols + j + 1;
+            bottom_node = (i+1) * image.cols + j;
+            top_node = (i - 1) * image.cols + j;
+
+            //Add the index for VertexList
+            cur_vertex_idx = i * image.cols + j;
+            h_vertex[cur_vertex_idx] = cur_edge_idx;
+
+            if (j > 0) {
+            	h_edge[cur_edge_idx] = left_node;
+            	h_weight[cur_edge_idx] = dissimilarity(image, i, j, i, j - 1);
+                cur_edge_idx++;
+            }
+
+            if (j < image.cols - 1) {
+                h_edge[cur_edge_idx] = right_node;
+                h_weight[cur_edge_idx] = dissimilarity(image, i, j, i, j + 1);
+                cur_edge_idx++;
+            }
+
+            if (i < image.rows - 1) {
+                h_edge[cur_edge_idx] = bottom_node;
+                h_weight[cur_edge_idx] = dissimilarity(image, i, j, i+1, j);
+                cur_edge_idx++;
+            }
+
+            if (i > 0) {
+                h_edge[cur_edge_idx] = top_node;
+                h_weight[cur_edge_idx] = dissimilarity(image, i, j, i-1, j);
+                cur_edge_idx++;
+            }
+        }
+    }
+
+    return cur_edge_idx;
+}
+
+
+void ReadGraph(char *filename) {
+
+	Mat image, output;				// Released automatically
+    GpuMat dev_image, dev_output; 	// Released automatically
+
+    // Read image
+    image = imread(argv[1], IMREAD_COLOR);
+    printf("Size of image obtained is: Rows: %d, Columns: %d, Pixels: %d\n", image.rows, image.cols, image.rows * image.cols);
+
+    // Apply gaussian filter
+    dev_image.upload(image);
+    Ptr<Filter> filter = createGaussianFilter(CV_8UC3, CV_8UC3, Size(5, 5), 1.0);
+    filter->apply(dev_image, dev_output);
+    dev_output.download(output);
+
+    // Get graph parameters
+	no_of_vertices = image.rows * image.cols;
+	no_of_vertices_orig = no_of_vertices;
 	h_vertex = (int*)malloc(sizeof(int)*no_of_vertices);
-	no_of_vertices_orig = no_of_vertices ;
 
-	// Read V (start index edges for each vertex)
-	int start, index ;
-	for ( int i = 0 ; i < no_of_vertices ; i++ )
-	{
-		fscanf(fp,"%d %d",&start, &index) ; // Format: start edges, ignored
-		h_vertex[i] = start ;
-	}
-
-	// Read "root" of graph (unused)
-	int source = 0 ;
-	fscanf(fp,"%d",&source);
-
-	// Read number of edges
-	fscanf(fp,"%d",&no_of_edges);
-	no_of_edges_orig = no_of_edges ;
-
-	// Read edges
+	// Initial approximation number of edges
+	no_of_edges = (image.rows)*(image.cols)*4;
 	h_edge = (int*) malloc (sizeof(int)*no_of_edges);
 	h_weight = (int*) malloc (sizeof(int)*no_of_edges);
 
-	int edgeindex, edgeweight ;
-	for( int i = 0 ; i < no_of_edges ; i++ )
-	{
-		fscanf(fp,"%d %d",&edgeindex, &edgeweight); // Format: to, weight
-		h_edge[i] = edgeindex ;
-		h_weight[i] =  edgeweight ;
-	}
-	fclose(fp);
+	no_of_edges = ImagetoGraphSerial(image, EdgeList, VertexList, BitEdgeList);
+	no_of_edges_orig = no_of_edges;
 
-	printf("File read successfully %d %d\n",no_of_vertices, no_of_edges);
+	// Scale down to real size
+	h_edge = (int*) realloc(h_edge, no_of_edges * sizeof(int));
+	h_weight = (int*) realloc(h_edge, no_of_edges * sizeof(int));
+
+	printf("Image read successfully into graph with %d vertices and %d edges\n", no_of_vertices, no_of_edges);
 }
 
 
@@ -637,7 +691,7 @@ void FreeMem()
 ////////////////////////////////////////////////////////////////////////////////
 // Program main
 ////////////////////////////////////////////////////////////////////////////////
-int main( int argc, char** argv) 
+int mstMain( int argc, char** argv) 
 {
 	if(argc<2) {
 		printf("Specify an Input Graph\n");
@@ -681,6 +735,53 @@ int main( int argc, char** argv)
 		//}
 	printf("\nNumber of edges in MST, must be=(no_of_vertices-1)): %d,(%d)\nTotal MST weight: %d\n",k, no_of_vertices_orig,weight);
 	
+	FreeMem();
+}
+
+int Main( int argc, char** argv) {
+	if(argc<2) {
+		printf("Specify an Input Image\n");
+		exit(1);
+	}
+
+
+	ReadGraph(argv[1]);
+	Init();
+	//printf("\n\n");
+
+	/*unsigned int	timer;
+	cutCreateTimer( &timer);	
+	cutStartTimer( timer);*/
+	//Perform Our MST algorhtm
+	do
+	{
+	    HPGMST();
+	    //printf("\n");
+	}
+	while(no_of_vertices>1);
+	/*cutStopTimer( timer);
+	printf("\n=================== Time taken To perform MST :: %3.3f ms===================\n",cutGetTimerValue(timer));*/
+	//printf("\n\nOutputs:\n");
+
+	//Copy the Final MST array to the CPU memory, a 1 at the index means that edge was selected in the MST, 0 otherwise.
+	//It should be noted that each edge has an opposite edge also, out of whcih only one is selected in this output.
+	//So total number of 1s in this array must be equal to no_of_vertices_orig-1.
+	cudaMemcpy( h_output_MST_test, d_output_MST, sizeof(unsigned int)*no_of_edges_orig, cudaMemcpyDeviceToHost);
+	/*int k=0;
+	int weight=0;
+	//printf("\n\nSelected Edges in MST...\n\n");
+	for(int i=0;i<no_of_edges_orig;i++)
+		if(h_output_MST_test[i]==1)
+			{
+				printf("%d %d\n",h_edge[i],h_weight[i]);
+				k++;
+				weight+=h_weight[i];
+			}
+		//else {
+		//	printf("not %d %d\n",h_edge[i],h_weight[i]);
+		//}
+	printf("\nNumber of edges in MST, must be=(no_of_vertices-1)): %d,(%d)\nTotal MST weight: %d\n",k, no_of_vertices_orig,weight);*/
+	printf("Done\n");
 	FreeMem();
 }
 
