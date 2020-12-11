@@ -83,6 +83,88 @@ unsigned long long int *h_edge_rank_test;			//Used to copy edge rank to device, 
 // CUDPPHandle			segmentedScanPlan_min, scanPlan_add ;   // DONE: remove
 // CUDPPConfiguration	config_segmented_min, config_scan_add ; // DONE: remove
 
+// Debug helper function
+void printIntArr(int* d_data, int n_elements) {
+	int* h_data = (int *)malloc(sizeof(int)*n_elements);
+	cudaMemcpy(h_data, d_data, sizeof(int) * n_elements, cudaMemcpyDeviceToHost);
+	for (int i = 0; i < n_elements; i++) {
+		printf("%d ",h_data[i]);
+	}
+	printf("\n");
+	free(h_data);
+}
+
+void printXArr(int* d_data, int n_elements) {
+	int* h_data = (int *)malloc(sizeof(int)*n_elements);
+	cudaMemcpy(h_data, d_data, sizeof(int) * n_elements, cudaMemcpyDeviceToHost);
+	for (int i = 0; i < n_elements; i++) {
+		int mask = pow(2.0,MOVEBITS)-1;
+		int vertex = h_data[i]&mask;
+		int weight = h_data[i]>>MOVEBITS;
+		printf("%d|%d ",weight, vertex);
+	}
+	printf("\n");
+	free(h_data);
+}
+
+void printUVWArr(unsigned long long int *d_data, int n_elements) {
+	unsigned long long int* h_data = (unsigned long long int *)malloc(sizeof(unsigned long long int)*n_elements);
+	cudaMemcpy(h_data, d_data, sizeof(unsigned long long int) * n_elements, cudaMemcpyDeviceToHost);
+	for (int i = 0; i < n_elements; i++) {
+		unsigned long long int UVW = h_data[i];
+		unsigned long long int mask = pow(2.0,64-(NO_OF_BITS_MOVED_FOR_VERTEX_IDS+NO_OF_BITS_MOVED_FOR_VERTEX_IDS))-1;
+		unsigned long long int w  = (int) UVW&mask;
+		unsigned long long int test = UVW>>(64-(NO_OF_BITS_MOVED_FOR_VERTEX_IDS+NO_OF_BITS_MOVED_FOR_VERTEX_IDS));
+		unsigned long long int mask2 = pow(2.0,NO_OF_BITS_MOVED_FOR_VERTEX_IDS)-1;
+		unsigned long long int v = test&mask2;
+		unsigned long long int u = test>>NO_OF_BITS_MOVED_FOR_VERTEX_IDS;
+		printf("%llu|%llu|%llu ",u, v, w);
+	}
+	printf("\n");
+	free(h_data);
+}
+
+void printUIntArr(unsigned int* d_data, int n_elements) {
+	unsigned int* h_data = (unsigned int *)malloc(sizeof(unsigned int)*n_elements);
+	cudaMemcpy(h_data, d_data, sizeof(unsigned int) * n_elements, cudaMemcpyDeviceToHost);
+	for (int i = 0; i < n_elements; i++) {
+		printf("%u ",h_data[i]);
+	}
+	printf("\n");
+	free(h_data);
+}
+
+void printULongArr(long* d_data, int n_elements) {
+	unsigned long* h_data = (unsigned long *)malloc(sizeof(unsigned long)*n_elements);
+	cudaMemcpy(h_data, d_data, sizeof(unsigned long) * n_elements, cudaMemcpyDeviceToHost);
+	for (int i = 0; i < n_elements; i++) {
+		printf("%lu ",h_data[i]);
+	}
+	printf("\n");
+	free(h_data);
+}
+
+void printLongArr(long* d_data, int n_elements) {
+	long* h_data = (long *)malloc(sizeof(long)*n_elements);
+	cudaMemcpy(h_data, d_data, sizeof(long) * n_elements, cudaMemcpyDeviceToHost);
+	for (int i = 0; i < n_elements; i++) {
+		printf("%ld ",h_data[i]);
+	}
+	printf("\n");
+	free(h_data);
+}
+
+void printInt(int *d_val) {
+	int h_val;
+	cudaMemcpy( &h_val, d_val, sizeof(int), cudaMemcpyDeviceToHost);
+	printf("%d", h_val);
+}
+
+void printUInt(unsigned int *d_val) {
+	unsigned int h_val;
+	cudaMemcpy( &h_val, d_val, sizeof(unsigned int), cudaMemcpyDeviceToHost);
+	printf("%u", h_val);
+}
 
 ////////////////////////////////////////////////
 // Read the Graph in our format (Compressed adjacency list)
@@ -278,10 +360,18 @@ void HPGMST()
 	// Prepare key vector for thrust
 	thrust::inclusive_scan(thrust::device, d_edge_flag, d_edge_flag + no_of_edges, d_edge_flag_thrust);
 
+	//printf("X:\n");
+	//printUIntArr(d_edge_flag, no_of_edges);
+	//printXArr(d_segmented_min_scan_input, no_of_edges);
+
 	// Min inclusive segmented scan on ints from start to end.
 	thrust::equal_to<unsigned int> binaryPred;
 	thrust::minimum<int> binaryOp;
 	thrust::inclusive_scan_by_key(thrust::device, d_edge_flag_thrust, d_edge_flag_thrust + no_of_edges, d_segmented_min_scan_input, d_segmented_min_scan_output, binaryPred, binaryOp);
+
+	//printXArr(d_segmented_min_scan_output, no_of_edges);
+	//printf("\n");
+
 	/*
 	cudppPlan(&segmentedScanPlan_min, config_segmented_min, no_of_edges, 1, 0 ); //Make the segmented min scan plan
 	cudppSegmentedScan(segmentedScanPlan_min, d_segmented_min_scan_output, d_segmented_min_scan_input, (const unsigned int*)d_edge_flag, no_of_edges);
@@ -312,6 +402,10 @@ void HPGMST()
 
 	// 10.2 Create vector indicating source vertex u for each edge // DONE: change to thrust
 	thrust::inclusive_scan(thrust::device, d_edge_flag, d_edge_flag + no_of_edges, d_old_uIDs);
+
+	//printf("Expanded U:\n");
+	//printUIntArr(d_old_uIDs, no_of_edges);
+
 	/*
 	cudppPlan(&scanPlan_add, config_scan_add, no_of_edges , 1, 0);// Create scanplan 
 	cudppScan(scanPlan_add, d_old_uIDs, d_edge_flag, no_of_edges);
@@ -365,7 +459,9 @@ void HPGMST()
 	MakeFlagForScan<<< grid_vertexlen, threads_vertexlen, 0>>>(d_vertex_flag, d_vertex_split, no_of_vertices);
  
 	// 9.3 Scan flag to assign new IDs to supervertices, Using a scan on O(V) elements // DONE: change to thrust
+	//printf("New supervertex ids:\n");
 	thrust::inclusive_scan(thrust::device, d_vertex_flag, d_vertex_flag + no_of_vertices, d_new_supervertexIDs);
+	//printUIntArr(d_new_supervertexIDs, no_of_vertices);
 	/*
 	cudppPlan(&scanPlan_add, config_scan_add, no_of_vertices , 1, 0);
 	cudppScan(scanPlan_add, d_new_supervertexIDs, d_vertex_flag, no_of_vertices);
@@ -400,7 +496,11 @@ void HPGMST()
 
 	//12.2 Split the array using {u,v) as the key. Pick First distinct (u,v) entry as the edge, nullify others
 	//     You may also replace the split with sort, but we could not find a 64-bit sort.
-	sp.split(d_appended_uvw, d_edge_rank, d_edge_split_scratchmem, d_edge_rank_scratchmem, no_of_edges, NO_OF_BITS_TO_SPLIT_ON_UVW, 0);
+	// sp.split(d_appended_uvw, d_edge_rank, d_edge_split_scratchmem, d_edge_rank_scratchmem, no_of_edges, NO_OF_BITS_TO_SPLIT_ON_UVW, 0);
+	// thrust::sort(thrust::device, d_appended_uvw, d_appended_uvw + no_of_edges); // TODO: check
+
+	thrust::sort_by_key(thrust::device, d_appended_uvw, d_appended_uvw + no_of_edges, d_edge_rank); // TODO: can just use sort for segmentation
+
 	
 	//Pick the first distinct (u,v) combination, mark these edges and compact
 	// 12.3 Create flag indicating smallest edges, 0 for larger duplicates
@@ -408,6 +508,13 @@ void HPGMST()
 	unsigned int dsize=no_of_edges; //just make sure
 	cudaMemcpy( d_size, &dsize, sizeof(unsigned int), cudaMemcpyHostToDevice);
 	MarkEdgesUV<<< grid_edgelen, threads_edgelen, 0>>>(d_edge_flag, d_appended_uvw, d_size, no_of_edges);
+
+	//printf("UVW:");
+	//printUVWArr(d_appended_uvw, no_of_edges);
+	//printUIntArr(d_edge_flag, no_of_edges);
+
+	//printf("New edge size: ");
+	//printUInt(d_size);
 
 	// 13. Compact and create new edge and weight list
 	// 13.1 Scan the flag array to know where to write the value in new edge and weight lists // DONE: change to thrust
@@ -426,6 +533,7 @@ void HPGMST()
                   d_old_uIDs,
                   thrust::minus<unsigned int>());
 
+	//printf("Write positions:");
 
 	//******************************************************************************************
 	//Do all clearing in a single kernel, no need to call multiple times, OK for testing only TODO
@@ -523,6 +631,7 @@ int main( int argc, char** argv)
 
 	ReadGraph(argv[1]);
 	Init();
+	//printf("\n\n");
 
 	/*unsigned int	timer;
 	cutCreateTimer( &timer);	
@@ -531,11 +640,12 @@ int main( int argc, char** argv)
 	do
 	{
 	    HPGMST();
+	    //printf("\n");
 	}
 	while(no_of_vertices>1);
 	/*cutStopTimer( timer);
 	printf("\n=================== Time taken To perform MST :: %3.3f ms===================\n",cutGetTimerValue(timer));*/
-
+	//printf("\n\nOutputs:\n");
 
 	//Copy the Final MST array to the CPU memory, a 1 at the index means that edge was selected in the MST, 0 otherwise.
 	//It should be noted that each edge has an opposite edge also, out of whcih only one is selected in this output.
@@ -551,9 +661,9 @@ int main( int argc, char** argv)
 				k++;
 				weight+=h_weight[i];
 			}
-		else {
-			printf("not %d %d\n",h_edge[i],h_weight[i]);
-		}
+		//else {
+		//	printf("not %d %d\n",h_edge[i],h_weight[i]);
+		//}
 	printf("\nNumber of edges in MST, must be=(no_of_vertices-1)): %d,(%d)\nTotal MST weight: %d\n",k, no_of_vertices_orig,weight);
 	
 	FreeMem();
