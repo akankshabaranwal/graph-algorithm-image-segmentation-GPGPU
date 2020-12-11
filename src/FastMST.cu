@@ -193,7 +193,7 @@ __global__ void RemoveSelfEdges(int *BitEdgeList, int numEdges, int *uid, int *S
 
         if(supervertexid_u == supervertexid_v)
         {
-            BitEdgeList[idx] = -1; //Marking edge to remove it
+            BitEdgeList[idx] = INT_MAX; //Marking edge to remove it
         }
     }
 }
@@ -211,7 +211,7 @@ __global__ void CreateUVWArray(int *BitEdgeList, int numEdges, int *uid, int *Su
         id_u = uid[idx];
         id_v = BitEdgeList[idx]>>15; //TODO: Check if this is correct
         edge_weight = BitEdgeList[idx]% (2 << 15);//TODO: Check if we can use the NWE array?
-        if(id_v != -1) //Check if the edge is marked using the criteria from before
+        if(BitEdgeList[idx] != INT_MAX) //Check if the edge is marked using the criteria from before
         {
             supervertexid_u = SuperVertexId[id_u];
             supervertexid_v = SuperVertexId[id_v];
@@ -220,8 +220,8 @@ __global__ void CreateUVWArray(int *BitEdgeList, int numEdges, int *uid, int *Su
         }
         else
         {
-            UV[idx] = -1;
-            W[idx] = -1; //TODO: Need to replace the -1 with INT_MAX
+            UV[idx] = INT_MAX;
+            W[idx] = INT_MAX; //TODO: Need to replace the -1 with INT_MAX
         }
     }
 }
@@ -245,7 +245,7 @@ int SortUVW(int *UV, int *W, int numEdges, int *flag3)
         supervertexid_u = UV[i]>>15;
         supervertexid_v = UV[i]%(2<<15);
 
-        if((supervertexid_u!=-1) and (supervertexid_v!=-1))
+        if((supervertexid_u!=INT_MAX) and (supervertexid_v!=INT_MAX))
         {
             if((prev_supervertexid_u !=supervertexid_v) || (prev_supervertexid_v!=supervertexid_v))
             {
@@ -344,7 +344,7 @@ void CreateNewEdgeVertexList(int *newBitEdgeList, int *newVertexList, int *UV, i
             edge_weight = W[i];
             new_location = compact_locations [i];
             //FIXME: Replace -1 with infinity
-            if((supervertex_id_v!= -1)&&(supervertex_id_u!=-1))
+            if((supervertex_id_v!= INT_MAX)&&(supervertex_id_u!=INT_MAX))
             {
                 newBitEdgeList[i] = edge_weight*(2<<15) + supervertex_id_v;
                 expand_u[i] = supervertex_id_u;
@@ -363,7 +363,7 @@ void CreateNewEdgeVertexList(int *newBitEdgeList, int *newVertexList, int *UV, i
     //Create the flag array in parallel
     int numthreads = 1024;
     int numBlock = new_E_size/numthreads;
-    CreateFlag4Array<<<numBlock, numthreads>>>(expanded_u, flag4, new_E_size);
+    CreateFlag4Array<<<numBlock, numthreads>>>(expand_u, flag4, new_E_size);
     //Can this flag4 array creation be skipped?? Can we directly use the index while creating the expand_u array?
-    CreateNewVertexList<<<numBlock, numthreads>>>(newVertexList, Flag4, new_E_size, expanded_u);
+    CreateNewVertexList<<<numBlock, numthreads>>>(newVertexList, flag4, new_E_size, expand_u);
 }

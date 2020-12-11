@@ -38,7 +38,6 @@ int main(int argc, char **argv)
     cudaMallocManaged(&BitEdgeList,numEdges*sizeof(int32_t));
     cudaMallocManaged(&NWE,numVertices*sizeof(int32_t));
     cudaMallocManaged(&Successor,numVertices*sizeof(int32_t));
-
     cudaMallocManaged(&Representative,numVertices*sizeof(int32_t));
     cudaMallocManaged(&Vertex,numVertices*sizeof(int32_t));
     int *Flag2;
@@ -49,12 +48,12 @@ int main(int argc, char **argv)
     cudaMallocManaged(&flag,numVertices*sizeof(int32_t));
     int *uid;
     cudaMallocManaged(&uid,numVertices*sizeof(int32_t));
-
     dim3 threadsPerBlock(32,32);
     int BlockX = image.rows/threadsPerBlock.x;
     int BlockY = image.cols/threadsPerBlock.y;
     dim3 numBlocks(BlockX, BlockY);
     cudaDeviceSynchronize();
+
     for(int i =0;i<numEdges;i++)
     {
     EdgeList[i].Weight=0;
@@ -68,7 +67,6 @@ int main(int argc, char **argv)
         printf("CUDA Error in ImagetoGraph function call: %s\n", cudaGetErrorString(err));
     }
     cudaDeviceSynchronize();
-
     ContextPtr context = CreateCudaDevice(argc, argv, true);
     //For the first iteration VertexList and FlagList are exactly same
     //Maybe we don't need separate OutList and NWE arrays
