@@ -46,6 +46,7 @@ splitSort sp;
 #include <thrust/functional.h>
 
 // Opencv stuff
+#include <opencv2/highgui.hpp>
 #include <opencv2/cudafilters.hpp>
 using namespace cv;
 using namespace cv::cuda;
@@ -252,7 +253,7 @@ void ReadGraph(char *filename) {
     GpuMat dev_image, dev_output; 	// Released automatically
 
     // Read image
-    image = imread(argv[1], IMREAD_COLOR);
+    image = imread(filename, IMREAD_COLOR);
     printf("Size of image obtained is: Rows: %d, Columns: %d, Pixels: %d\n", image.rows, image.cols, image.rows * image.cols);
     no_of_rows = image.rows;
     no_of_cols = image.cols;
@@ -273,7 +274,7 @@ void ReadGraph(char *filename) {
 	h_edge = (int*) malloc (sizeof(int)*no_of_edges);
 	h_weight = (int*) malloc (sizeof(int)*no_of_edges);
 
-	no_of_edges = ImagetoGraphSerial(image, EdgeList, VertexList, BitEdgeList);
+	no_of_edges = ImagetoGraphSerial(image);
 	no_of_edges_orig = no_of_edges;
 
 	// Scale down to real size
@@ -665,6 +666,7 @@ int mstMain( int argc, char** argv)
 	printf("\nNumber of edges in MST, must be=(no_of_vertices-1)): %d,(%d)\nTotal MST weight: %d\n",k, no_of_vertices_orig,weight);
 	
 	FreeMem();
+	return 0;
 }
 
 void get_component_colours(char colours[], uint num_colours) {
@@ -675,7 +677,7 @@ void get_component_colours(char colours[], uint num_colours) {
 }
 
 
-int Main( int argc, char** argv) {
+int main( int argc, char** argv) {
 	if(argc<2) {
 		printf("Specify an Input Image\n");
 		exit(1);
@@ -690,6 +692,7 @@ int Main( int argc, char** argv) {
 	cutCreateTimer( &timer);	
 	cutStartTimer( timer);*/
 	//Perform Our MST algorhtm
+	printf("start\n");
 	do
 	{
 	    HPGMST();
@@ -701,7 +704,8 @@ int Main( int argc, char** argv) {
 	    hierarchy_levels.push_back(cur_hierarchy);
 	    hierarchy_level_sizes.push_back(cur_hierarchy_size);
 	    
-	    //printf("\n");
+	    printf("it\n");
+	    break;
 	}
 	while(no_of_vertices>1);
 
@@ -711,7 +715,7 @@ int Main( int argc, char** argv) {
 	char *component_colours = (char *) malloc(no_of_vertices_orig * CHANNEL_SIZE * sizeof(char));
 	get_component_colours(component_colours, no_of_vertices_orig);
 
-	char *output = (char*) malloc(x*y*CHANNEL_SIZE*sizeof(char));
+	char *output = (char*) malloc(no_of_rows*no_of_rows*CHANNEL_SIZE*sizeof(char));
 
 	unsigned int* prev_level_component = (unsigned int*)malloc(sizeof(unsigned int)*no_of_vertices_orig);
 	for (int i = 0; i < no_of_rows; i++) {
@@ -730,11 +734,11 @@ int Main( int argc, char** argv) {
 
 				int img_pos = CHANNEL_SIZE * (i * no_of_cols + j);
 				int colour_pos = CHANNEL_SIZE * new_component;
-				output[img_pos] = component_colours[colour_pos]
-				output[img_pos + 1] = component_colours[colour_pos+1]
-				output[img_pos + 2] = component_colours[colour_pos+2]
+				output[img_pos] = component_colours[colour_pos];
+				output[img_pos + 1] = component_colours[colour_pos+1];
+				output[img_pos + 2] = component_colours[colour_pos+2];
 
-                prev_level_component[i * no_of_cols + j] = new_component
+                prev_level_component[i * no_of_cols + j] = new_component;
 			}
 		}
 		cv::Mat output_img = cv::Mat(no_of_rows, no_of_cols, CV_8UC3, output);
