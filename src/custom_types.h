@@ -6,7 +6,7 @@
 #define FELZENSWALB_CUSTOM_TYPES_H
 
 #define CHANNEL_SIZE 3
-#define K 20
+#define K 250
 #define NUM_NEIGHBOURS 8
 
 typedef struct {

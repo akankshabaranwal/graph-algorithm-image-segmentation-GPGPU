@@ -245,7 +245,7 @@ void segment(uint4 vertices[], uint2 edges[], min_edge min_edges[], uint2 source
         blocks.y = min(n_vertices / 1024 + 1, 65535);
     }
 
-    printf("N components: %d\n", curr_n_comp);
+    //printf("N components: %d\n", curr_n_comp);
     while (curr_n_comp != prev_n_components) {
         if (curr_n_comp < 1024) {
             threads.x = curr_n_comp;
@@ -255,47 +255,53 @@ void segment(uint4 vertices[], uint2 edges[], min_edge min_edges[], uint2 source
             blocks.x = min(curr_n_comp / 1024 + 1, 65535);
         }
 
-        printf("Find min edges\n");
+        //printf("Find min edges\n");
         find_min_edges_sort<<<blocks.y, threads.y>>>(vertices, edges, min_edges, n_vertices);
         cudaDeviceSynchronize();
 
         // First time there is no point in doing these, since n_vertices == n_components
         if (counter > 0) {
-            printf("Sort\n");
-            sort_min_edges(min_edges, n_vertices, did_change);
+            //printf("Sort\n");
+            //debug_print_min_edges<<<1, 1>>>(min_edges, n_vertices);
+            //cudaDeviceSynchronize();
+            //sort_min_edges(min_edges, n_vertices, did_change);
+            sort_min_edges_bitonic(min_edges, n_vertices);
+            //debug_print_min_edges<<<1, 1>>>(min_edges, n_vertices);
+            //cudaDeviceSynchronize();
+            //return;
 
-            printf("Compact\n");
+            //printf("Compact\n");
             *did_change = 1;
             compact_min_edges<<<blocks.y, threads.y>>>(min_edges, n_vertices, did_change);
             cudaDeviceSynchronize();
         }
 
-        printf("Remove cycles\n");
+        //printf("Remove cycles\n");
         remove_deps(min_edges, curr_n_comp, sources ,blocks.x, threads.x, did_change);
 
-        printf("Merge\n");
+        //printf("Merge\n");
         merge<<<blocks.x, threads.x>>>(vertices, min_edges, n_components, threads.y, blocks.y, n_vertices, curr_n_comp);
         cudaDeviceSynchronize();
 
-        printf("Update\n");
+        //printf("Update\n");
         update_parents<<<blocks.x, threads.x>>>(vertices, min_edges, curr_n_comp);
         cudaDeviceSynchronize();
 
-        printf("Path compress\n");
+        //printf("Path compress\n");
         path_compression<<<blocks.y, threads.y>>>(vertices, n_vertices);
         cudaDeviceSynchronize();
 
-        printf("New size\n");
+        //printf("New size\n");
         update_new_size<<<blocks.y, threads.y>>>(vertices, n_vertices, edges);
         cudaDeviceSynchronize();
 
         prev_n_components = curr_n_comp;
         curr_n_comp = *n_components;
-        printf("N components: %d\n", curr_n_comp);
+        //printf("N components: %d\n", curr_n_comp);
         counter++;
         //return;
     }
-    printf("Iterations: %d\n", counter);
+    //printf("Iterations: %d\n", counter);
 
 }
 
