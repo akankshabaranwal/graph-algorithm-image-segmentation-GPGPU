@@ -380,9 +380,9 @@ __global__ void MarkEdgesUV(unsigned int *d_edge_flag, unsigned long long int *d
 ///////////////////////////////////////////////////////////////////////////////////////////////
 // Compact the edgelist and weight list, keep a mapping for each edge, Runs for d_size Length
 ///////////////////////////////////////////////////////////////////////////////////////////////
-__global__ void CompactEdgeList(int *d_edge, int *d_weight, unsigned int *d_edge_mapping, unsigned int* d_edge_mapping_copy, 
+__global__ void CompactEdgeList(int *d_edge, int *d_weight, 
 								unsigned int *d_old_uIDs, unsigned int *d_edge_flag, unsigned long long int *d_appended_uvw,
-								int *d_pick_array, unsigned long long int *d_edge_rank, unsigned int *d_size, 
+								int *d_pick_array, unsigned int *d_size, 
 								int *d_edge_list_size, int *d_vertex_list_size)
 {
 	unsigned int tid = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
@@ -397,10 +397,7 @@ __global__ void CompactEdgeList(int *d_edge, int *d_weight, unsigned int *d_edge
 			unsigned long long int v = test&mask2;
 			unsigned long long int u = test>>NO_OF_BITS_MOVED_FOR_VERTEX_IDS;
 			if(u!=INF && v!=INF) {
-				//look at this carefully, very very carefully.
-				unsigned long long int pos = d_edge_rank[tid];
 				//Copy the edge_mapping into a temporary array, used to resolve read after write inconsistancies
-				d_edge_mapping_copy[writepos] = d_edge_mapping[pos]; //keep a mapping from old edge-list to new one
 				d_pick_array[writepos]=u; // reusing this to store u's
 				d_edge[writepos] = v;
 				d_weight[writepos] = w;
