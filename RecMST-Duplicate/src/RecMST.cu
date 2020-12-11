@@ -45,40 +45,55 @@ splitSort sp;
 ////////////////////////////////////////////////
 // Variables
 ////////////////////////////////////////////////
-int no_of_vertices,no_of_vertices_orig;				//Actual input graph sizes
-int no_of_edges, no_of_edges_orig;					//Current graph sizes
-int *h_edge, *h_vertex, *h_weight;					//Graph held in these variables at the host end, 3 arrays for compressed adjacency list format
-int *d_edge, *d_vertex, *d_weight;					//Graph held in these variables at the device end
-int *d_segmented_min_scan_input;					//Input to the Segmented Min Scan, appended array of weights and edge IDs (X in paper)
-int *d_segmented_min_scan_output;					//Output of the Segmented Min Scan, minimum weight outgoing edge as (weight|to_vertex_id elements) for each verte
+int no_of_vertices;									//Actual input graph sizes
+int no_of_vertices_orig;							//Original number of vertices graph (constant)
+
+int no_of_edges;									//Current graph sizes
+int no_of_edges_orig;								//Original number of edges graph (constant)
+
+//Graph held in these variables at the host end
+int *h_edge;										//Original E (end vertex index each edge)
+int *h_vertex;										//Original V (start index edges for each vertex)
+int *h_weight;										//Original W (weight each edge)
+
+//Graph held in these variables at the device end
+int *d_edge;										// Starts as h_edge
+int *d_vertex;										// starts as h_vertex
+int *d_weight;										// starts as h_weight
+
+int *d_segmented_min_scan_input;					//X, Input to the Segmented Min Scan, appended array of weights and edge IDs
+int *d_segmented_min_scan_output;					//Output of the Segmented Min Scan, minimum weight outgoing edge as (weight|to_vertex_id elements) can be found at end of each segment
 unsigned int *d_edge_flag;							//Flag for the segmented min scan
 unsigned int *d_edge_flag_thrust;					//NEW! Flag for the segmented min scan in thrust Needs to be 000111222 instead of 100100100
-unsigned int *d_vertex_flag;						//Flag for the scan input for supervertex ID generation
+unsigned int *d_vertex_flag;						//F2, Flag for the scan input for supervertex ID generation
 unsigned int *d_output_MST;							//Final output, marks 1 for selected edges in MST, 0 otherwise
-int *d_pick_array;									//PickArray for each edge. For each edge from u, segmented scan location min edge going out of u if not removed. Else -1 if removed (representative doesn't add edges)
-int *d_successor;									//Successor Array, S
-int *d_successor_copy;
-bool *d_succchange;									//Variable to check for execution while propagating representative vertex IDs
-unsigned long long int *d_vertex_split;				//Input to the split function
-unsigned long long int *d_vertex_split_scratchmem;	//Scratch memory to the split function
-unsigned long long int *d_vertex_split_rank;		//Ranking arrary to the split function
-unsigned long long int *d_vertex_rank_scratchmem;	//Scratch memory to the split function
-unsigned int *d_new_supervertexIDs;					//new supervertex ids after scanning older IDs
-unsigned int *d_old_uIDs;							//old ids, stored per edge, needed to remove self edges (orig ID of source vertex u for each edge(weight|dest_vertex_id_v))
+int *d_pick_array;									//PickArray for each edge. index min weight outgoing edge of u in sorted array if not removed. Else -1 if removed (representative doesn't add edges)
+int *d_successor;									//S, Successor Array
+int *d_successor_copy;								//Helper array for pointer doubling
+bool *d_succchange;									//Variable to check if can stop pointer doubling
+
+unsigned int *d_new_supervertexIDs;					//mapping from each original vertex ID to its new supervertex ID so we can lookup supervertex IDs directly
+unsigned int *d_old_uIDs;							//expanded old u ids, stored per edge, needed to remove self edges (orig ID of source vertex u for each edge(weight|dest_vertex_id_v))
 unsigned long long int *d_appended_uvw;				//Appended u,v,w array for duplicate edge removal
-unsigned long long int *d_edge_split_scratchmem;	//Scratch memory to the split function
-unsigned long long int *d_edge_rank;				//Rank array for duplicate edge removal
-unsigned long long int *d_edge_rank_scratchmem;		//Scratch memory to the split function
+
 unsigned int *d_size;								//Stores amount of edges
-unsigned int *d_edge_mapping;
+unsigned int *d_edge_mapping;						// Initially 0 1 2 3 4 5 ...
 unsigned int *d_edge_mapping_copy;
 int	*d_edge_list_size;
 int	*d_vertex_list_size;
 
 unsigned int *h_output_MST_test;					//Final output on host, marks 1 for selected edges in MST, 0 otherwise
-unsigned long long int *h_vertex_split_rank_test;	//Used to copy split rank to device, initially 1 2 3 4 5 ...
-unsigned long long int *h_edge_rank_test;			//Used to copy edge rank to device, initially 1 2 3 4 5 ...
 
+unsigned long long int *h_vertex_split_rank_test;	//Initializes d_vertex_split_rank with 0 1 2 ... no_of_vertices-1 for each iteration
+unsigned long long int *d_vertex_split;				//L, Input to the split function
+unsigned long long int *d_vertex_split_scratchmem;	//Scratch memory to the split function
+unsigned long long int *d_vertex_split_rank;		//Ranking arrary to the split function
+unsigned long long int *d_vertex_rank_scratchmem;	//Scratch memory to the split function
+
+unsigned long long int *h_edge_rank_test;			//Initializes d_edge_rank with 0 1 2 ... no_of_edges-1 for each iteration
+unsigned long long int *d_edge_split_scratchmem;	//Scratch memory to the split function
+unsigned long long int *d_edge_rank;				//Rank array for duplicate edge removal
+unsigned long long int *d_edge_rank_scratchmem;		//Scratch memory to the split function
 //CUDPP Scan and Segmented Scan Variables
 // CUDPPHandle			segmentedScanPlan_min, scanPlan_add ;   // DONE: remove
 // CUDPPConfiguration	config_segmented_min, config_scan_add ; // DONE: remove
