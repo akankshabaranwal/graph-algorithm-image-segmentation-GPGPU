@@ -2,14 +2,13 @@ cmake_minimum_required(VERSION 3.10)
 
 set(CMAKE_CUDA_COMPILER "/usr/local/cuda-11.1/bin/nvcc")
 project(felzenszwalb LANGUAGES CXX CUDA)
-include(cmake/OpenCV.cmake)
+find_package( OpenCV REQUIRED )
+include_directories( ${OpenCV_INCLUDE_DIRS} )
 
 set(CMAKE_CXX_STANDARD  14)
 set(CMAKE_CUDA_STANDARD 14)
 set(CMAKE_CUDA_STANDARD_REQUIRED TRUE)
 set(CMAKE_CXX_STANDARD_REQUIRED  TRUE)
-
-include_directories(${OpenCV_INCLUDE_DIRS})
 
 
 add_executable(felz
