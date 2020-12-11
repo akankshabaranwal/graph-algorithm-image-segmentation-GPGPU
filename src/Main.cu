@@ -25,12 +25,13 @@ int main(int argc, char **argv)
 
     //Graph parameters
     int numVertices = image.rows*image.cols;
-    int numEdges= (image.rows)*(image.cols)*8;
+    int numEdges= (image.rows)*(image.cols)*4;
 
     //Convert image to graph
     int32_t *VertexList, *BitEdgeList, *FlagList, *OutList, *NWE, *Successor, *Representative, *Vertex;
     edge *EdgeList;
 
+    //Allocating memory
     cudaMallocManaged(&VertexList,numVertices*sizeof(int32_t));
     cudaMallocManaged(&FlagList,numVertices*sizeof(int32_t));
     cudaMallocManaged(&OutList,numVertices*sizeof(int32_t));
@@ -40,6 +41,7 @@ int main(int argc, char **argv)
     cudaMallocManaged(&Successor,numVertices*sizeof(int32_t));
     cudaMallocManaged(&Representative,numVertices*sizeof(int32_t));
     cudaMallocManaged(&Vertex,numVertices*sizeof(int32_t));
+
     int *Flag2;
     cudaMallocManaged(&Flag2,numVertices*sizeof(int32_t));
     int *SuperVertexId;
@@ -52,24 +54,62 @@ int main(int argc, char **argv)
     int BlockX = image.rows/threadsPerBlock.x;
     int BlockY = image.cols/threadsPerBlock.y;
     dim3 numBlocks(BlockX, BlockY);
-    cudaDeviceSynchronize();
+    cudaDeviceSynchronize();//FIXME: Need to check where all this synchronize call is needed
+    ContextPtr context = CreateCudaDevice(argc, argv, true);
+    cudaError_t err = cudaGetLastError();
 
+    //FIXME: Make this initialization run in parallel?
+    //TODO: Figure out if this initialization is required??
     for(int i =0;i<numEdges;i++)
     {
     EdgeList[i].Weight=0;
     }
+
     dev_output.download(output);
-    //ImagetoGraph<<<numBlocks,threadsPerBlock>>>(dev_image, VertexList, EdgeList, BitEdgeList, FlagList, dev_image.step, 3);
-    numEdges = ImagetoGraphSerial(image, EdgeList, VertexList, BitEdgeList);
-    cudaError_t err = cudaGetLastError();
+    /*ImagetoGraph<<<numBlocks,threadsPerBlock>>>(dev_image, VertexList, EdgeList, BitEdgeList, FlagList, dev_image.step, 3);
+
     if ( err != cudaSuccess )
     {
         printf("CUDA Error in ImagetoGraph function call: %s\n", cudaGetErrorString(err));
     }
-    cudaDeviceSynchronize();
-    ContextPtr context = CreateCudaDevice(argc, argv, true);
-    //For the first iteration VertexList and FlagList are exactly same
-    //Maybe we don't need separate OutList and NWE arrays
+    cudaDeviceSynchronize();*/
+
+    numEdges = ImagetoGraphSerial(image, EdgeList, VertexList, BitEdgeList);
+
+    /**** MST Starts ****/
+    //Maybe we don't need separate OutList and NWE arrays? Where are we using the NWE array anyway??
+    bool DidReduce; //Boolean to check if more segments got created or not
+
+    // This recursive call should return the SuperVertex_Ids which we use to recolor
+    // Probably for the hierarchies paper we need to store the SuperVertex_Ids of every iteration
+
+    int32_t tmp_V, tmp_Wt;
+    for(int i =0; i<numEdges; i++)
+    {
+        tmp_V = BitEdgeList[i]% (2 << 15);
+        tmp_Wt = BitEdgeList[i]>>16;
+        printf("EdgeListV:%d, EdgeListWt:%d, BitVertex:%d, BitWt:%d\n", EdgeList[i].Vertex, EdgeList[i].Weight, tmp_V, tmp_Wt);
+    }
+
+    int numthreads = 1024;
+    int numBlock = numVertices/numthreads;
+    printf("flag: ");
+    DidReduce = 1;
+    while(DidReduce)
+    {
+        DidReduce = 0;
+        //1. The graph creation step above takes care of this
+
+        //2.
+        MarkSegments<<<numBlock, numthreads>>>(flag, VertexList, numVertices);
+
+        //Segmented min scan
+        SegmentedReduction(*context, VertexList, BitEdgeList, OutList, NWE, numEdges, numVertices);
+        FindSuccessorArray<<<numBlock,numthreads>>>(Successor, NWE, numVertices);
+
+    }
+
+    /*
     SegmentedReduction(*context, VertexList, BitEdgeList, OutList, NWE, numEdges, numVertices);
     int numthreads = 1024;
     int numBlock = numVertices/numthreads;
@@ -108,6 +148,6 @@ int main(int argc, char **argv)
 
     int32_t *compact_locations;
     cudaMallocManaged(&compact_locations,new_edge_size*sizeof(int32_t));
-
+*/
     return 0;
 }
