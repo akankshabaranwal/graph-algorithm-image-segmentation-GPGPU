@@ -1,3 +1,0 @@
-/home/ubuntu/gpu-mst/RecMST-Duplicate/build/CMakeFiles/rebuild_cache.dir
-/home/ubuntu/gpu-mst/RecMST-Duplicate/build/CMakeFiles/felz.dir
-/home/ubuntu/gpu-mst/RecMST-Duplicate/build/CMakeFiles/edit_cache.dir

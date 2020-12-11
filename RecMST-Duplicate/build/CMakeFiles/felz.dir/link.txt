@@ -1,1 +1,0 @@
-/usr/bin/g++   CMakeFiles/felz.dir/src/RecMST.cu.o CMakeFiles/felz.dir/cmake_device_link.o -o felz  -L"/usr/local/cuda-11.1/targets/x86_64-linux/lib/stubs" -L"/usr/local/cuda-11.1/targets/x86_64-linux/lib" -lcudadevrt -lcudart_static -lrt -lpthread -ldl
