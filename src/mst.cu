@@ -57,20 +57,59 @@ void find_min_edges_sort(uint4 vertices[], uint2 edges[], min_edge min_edges[], 
 }
 
 __global__
-void compact_min_edges(min_edge min_edges[], uint n_vertices, uint *pos_counter) {
+void reset_wrappers(min_edge_wrapper wrappers[], uint length) {
     uint tid = blockDim.x * blockIdx.x + threadIdx.x;
     uint num_threads = gridDim.x * blockDim.x;
-    for (int index = tid + 1; index < n_vertices - 1; index += num_threads) {
-        uint pos;
-        min_edge left = min_edges[index];
-        min_edge right = min_edges[index + 1];
-        bool write = right.src_comp != left.src_comp && right.src_comp != 0;
-        if (write) {
-            pos = atomicAdd_system(pos_counter, 1);
+
+    for (uint min_edge_id = tid; min_edge_id < length; min_edge_id += num_threads) {
+        wrappers[min_edge_id].edge.src_comp = 0;
+        wrappers[min_edge_id].locked = 0;
+    }
+}
+
+__global__
+void filter_min_edges(min_edge min_edges[], min_edge_wrapper new_min_edges[], uint length) {
+    uint tid = blockDim.x * blockIdx.x + threadIdx.x;
+    uint num_threads = gridDim.x * blockDim.x;
+
+    for (uint min_edge_id = tid; min_edge_id < length; min_edge_id += num_threads) {
+        min_edge our = min_edges[min_edge_id];
+        uint id = our.src_comp;
+
+        uint lock;
+        min_edge their;
+        bool exit = false;
+        while(!exit) {
+            their = new_min_edges[id].edge;
+            if (compare_min_edges(our, their) < 0) {
+                lock = atomicCAS_system(&(new_min_edges[id].locked), 0, 1);
+
+                if (lock == 0) {
+                    min_edge updated_their = new_min_edges[id].edge;
+                    if (compare_min_edges(our, updated_their) < 0) {
+                        new_min_edges[id].edge = our;
+                        __threadfence_system();
+                    }
+                    atomicExch_system(&(new_min_edges[id].locked), 0);
+                    exit = true;
+                }
+                __threadfence_system();
+            } else {
+                exit = true;
+            }
         }
-        __syncthreads();
-        if (write) {
-            min_edges[pos] = right;
+    }
+}
+
+__global__
+void compact_min_edge_wrappers(min_edge min_edges[], min_edge_wrapper wrappers[], uint n_vertices, uint *pos_counter) {
+    uint tid = blockDim.x * blockIdx.x + threadIdx.x;
+    uint num_threads = gridDim.x * blockDim.x;
+    for (int index = tid; index < n_vertices; index += num_threads) {
+        min_edge edge = wrappers[index].edge;
+        if (edge.src_id != 0 && edge.src_comp != 0) {
+            uint pos = atomicAdd_system(pos_counter, 1);
+            min_edges[pos] = edge;
         }
     }
 }
@@ -150,7 +189,7 @@ void path_compression(uint4 vertices[], uint num_vertices) {
 
         if (vertice->x != vertice->y) {
             uint4 *parent = &vertices[vertice->y - 1];
-            while(parent->y != parent->x) {parent = &vertices[parent->y - 1];}
+            while(parent->y != parent->x) {parent = &vertices[parent->y - 1]; if (false) printf("Parent %d -> %d\n", parent->x, parent->y);}
 
             vertice->y = parent->x;
             atomicAdd_system(&(parent->z), vertice->z);
@@ -213,6 +252,7 @@ void debug_print_min_edges(min_edge min_edges[], uint length) {
     for (int i = 0; i < length; i++) {
         if (min_edges[i].src_comp == 0) continue;
         printf("[%d]: %d(%d) -(%d)-> %d (%d)\n", i, min_edges[i].src_comp, min_edges[i].src_id, min_edges[i].weight, min_edges[i].dest_comp, min_edges[i].dest_id);
+        //printf("%d -(%d)-> %d\n", min_edges[i].src_comp, min_edges[i].weight, min_edges[i].dest_comp);
     }
     printf("\n");
 }
@@ -230,7 +270,7 @@ void debug_print_vertices(uint4 vertices[], uint length, uint2 edges[]) {
 
 // Kernel to orchestrate
 __global__
-void segment(uint4 vertices[], uint2 edges[], min_edge min_edges[], uint2 sources[], uint *n_components, uint *did_change) {
+void segment(uint4 vertices[], uint2 edges[], min_edge min_edges[], min_edge_wrapper wrappers[], uint2 sources[], uint *n_components, uint *did_change) {
     uint counter = 0;
     uint prev_n_components = 0;
     uint n_vertices = *n_components;
@@ -262,17 +302,14 @@ void segment(uint4 vertices[], uint2 edges[], min_edge min_edges[], uint2 source
         // First time there is no point in doing these, since n_vertices == n_components
         if (counter > 0) {
             //printf("Sort\n");
-            //debug_print_min_edges<<<1, 1>>>(min_edges, n_vertices);
-            //cudaDeviceSynchronize();
-            //sort_min_edges(min_edges, n_vertices, did_change);
-            sort_min_edges_bitonic(min_edges, n_vertices);
-            //debug_print_min_edges<<<1, 1>>>(min_edges, n_vertices);
-            //cudaDeviceSynchronize();
-            //return;
+            reset_wrappers<<<blocks.y, threads.y>>>(wrappers, n_vertices);
+            cudaDeviceSynchronize();
+            filter_min_edges<<<blocks.y, threads.y>>>(min_edges, wrappers, n_vertices);
+            cudaDeviceSynchronize();
 
             //printf("Compact\n");
-            *did_change = 1;
-            compact_min_edges<<<blocks.y, threads.y>>>(min_edges, n_vertices, did_change);
+            *did_change = 0;
+            compact_min_edge_wrappers<<<blocks.y, threads.y>>>(min_edges, wrappers, n_vertices, did_change);
             cudaDeviceSynchronize();
         }
 
@@ -314,7 +351,10 @@ void get_component_colours(char colours[], uint num_colours) {
 
 void checkErrors(const char *identifier) {
     cudaError_t err = cudaGetLastError();
-    if (err != cudaSuccess) std::cout << "CUDA error: " << cudaGetErrorString(err) << " " << identifier << std::endl;
+    if (err != cudaSuccess) {
+        std::cout << "CUDA error: " << cudaGetErrorString(err) << " " << identifier << std::endl;
+        exit(1);
+    }
 }
 
 char *compute_segments(void *input, uint x, uint y, size_t pitch) {
@@ -322,6 +362,7 @@ char *compute_segments(void *input, uint x, uint y, size_t pitch) {
     uint2 *edges;
     uint2 *sources;
     min_edge *min_edges;
+    min_edge_wrapper *wrappers;
     uint num_vertices = (x) * (y);
     uint *num_components;
     uint *did_change;
@@ -332,6 +373,8 @@ char *compute_segments(void *input, uint x, uint y, size_t pitch) {
     checkErrors("Malloc edges");
     cudaMalloc(&min_edges, num_vertices*sizeof(min_edge)); // max(min_edges) == vertices.length
     checkErrors("Malloc min_edges");
+    cudaMalloc(&wrappers, num_vertices*sizeof(min_edge_wrapper)); // max(min_edges) == vertices.length
+    checkErrors("Malloc min_edge wrappers");
     cudaMalloc(&sources, num_vertices*sizeof(uint2));
     checkErrors("Malloc sources");
     cudaMalloc(&num_components, sizeof(uint));
@@ -363,7 +406,7 @@ char *compute_segments(void *input, uint x, uint y, size_t pitch) {
 
     // Segment matrix
     //cudaSetDeviceFlags(cudaDeviceBlockingSync);
-    segment<<<1, 1>>>(vertices, edges, min_edges, sources, num_components, did_change);
+    segment<<<1, 1>>>(vertices, edges, min_edges, wrappers, sources, num_components, did_change);
     cudaDeviceSynchronize();
     checkErrors("segment()");
 

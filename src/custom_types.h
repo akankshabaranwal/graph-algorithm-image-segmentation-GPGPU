@@ -18,4 +18,9 @@ typedef struct {
     uint new_int_diff;
 } min_edge;
 
+typedef struct{
+    min_edge edge;
+    uint locked;
+} min_edge_wrapper;
+
 #endif //FELZENSWALB_CUSTOM_TYPES_H
