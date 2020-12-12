@@ -73,33 +73,33 @@ using namespace cv::cuda;
 ////////////////////////////////////////////////
 // Variables
 ////////////////////////////////////////////////
-int no_of_rows;										// Number of rows in image
-int no_of_cols;										// Number of columns in image
+unsigned int no_of_rows;										// Number of rows in image
+unsigned int no_of_cols;										// Number of columns in image
 
-int no_of_vertices;									//Actual input graph sizes
-int no_of_vertices_orig;							//Original number of vertices graph (constant)
+unsigned int no_of_vertices;									//Actual input graph sizes
+unsigned int no_of_vertices_orig;							//Original number of vertices graph (constant)
 
-int no_of_edges;									//Current graph sizes
-int no_of_edges_orig;								//Original number of edges graph (constant)
+unsigned int no_of_edges;									//Current graph sizes
+unsigned int no_of_edges_orig;								//Original number of edges graph (constant)
 
 //Graph held in these variables at the host end
-int *h_edge;										//Original E (end vertex index each edge)
-int *h_vertex;										//Original V (start index edges for each vertex)
-int *h_weight;										//Original W (weight each edge)
+unsigned int *h_edge;										//Original E (end vertex index each edge)
+unsigned int *h_vertex;										//Original V (start index edges for each vertex)
+unsigned int *h_weight;										//Original W (weight each edge)
 
 //Graph held in these variables at the device end
-int *d_edge;										// Starts as h_edge
-int *d_vertex;										// starts as h_vertex
-int *d_weight;										// starts as h_weight
+unsigned int *d_edge;										// Starts as h_edge
+unsigned int *d_vertex;										// starts as h_vertex
+unsigned int *d_weight;										// starts as h_weight
 
-int *d_segmented_min_scan_input;					//X, Input to the Segmented Min Scan, appended array of weights and edge IDs
-int *d_segmented_min_scan_output;					//Output of the Segmented Min Scan, minimum weight outgoing edge as (weight|to_vertex_id elements) can be found at end of each segment
+unsigned int *d_segmented_min_scan_input;					//X, Input to the Segmented Min Scan, appended array of weights and edge IDs
+unsigned int *d_segmented_min_scan_output;					//Output of the Segmented Min Scan, minimum weight outgoing edge as (weight|to_vertex_id elements) can be found at end of each segment
 unsigned int *d_edge_flag;							//Flag for the segmented min scan
 unsigned int *d_edge_flag_thrust;					//NEW! Flag for the segmented min scan in thrust Needs to be 000111222 instead of 100100100
 unsigned int *d_vertex_flag;						//F2, Flag for the scan input for supervertex ID generation
-int *d_pick_array;									//PickArray for each edge. index min weight outgoing edge of u in sorted array if not removed. Else -1 if removed (representative doesn't add edges)
-int *d_successor;									//S, Successor Array
-int *d_successor_copy;								//Helper array for pointer doubling
+unsigned int *d_pick_array;									//PickArray for each edge. index min weight outgoing edge of u in sorted array if not removed. Else -1 if removed (representative doesn't add edges)
+unsigned int *d_successor;									//S, Successor Array
+unsigned int *d_successor_copy;								//Helper array for pointer doubling
 bool *d_succchange;									//Variable to check if can stop pointer doubling
 
 unsigned int *d_new_supervertexIDs;					//mapping from each original vertex ID to its new supervertex ID so we can lookup supervertex IDs directly
@@ -108,10 +108,8 @@ unsigned long long int *d_appended_uvw;				//Appended u,v,w array for duplicate 
 
 unsigned int *d_size;								//Stores amount of edges
 unsigned int *d_edge_mapping_copy;
-int	*d_edge_list_size;
-int	*d_vertex_list_size;
-
-unsigned int *h_output_MST_test;					//Final output on host, marks 1 for selected edges in MST, 0 otherwise
+unsigned int	*d_edge_list_size;
+unsigned int	*d_vertex_list_size;
 
 unsigned long long int *h_vertex_split_rank_test;	//Initializes d_vertex_split_rank with 0 1 2 ... no_of_vertices-1 for each iteration
 unsigned long long int *d_vertex_split;				//L, Input to the split function
@@ -210,11 +208,11 @@ void printUInt(unsigned int *d_val) {
 ////////////////////////////////////////////////
 // Read the Graph in our format (Compressed adjacency list)
 ////////////////////////////////////////////////
-int dissimilarity(Mat image, int row1, int col1, int row2, int col2) {
+unsigned int dissimilarity(Mat image, int row1, int col1, int row2, int col2) {
     Point3_<uchar>* u = image.ptr<Point3_<uchar> >(row1,col1);
     Point3_<uchar>* v = image.ptr<Point3_<uchar> >(row2,col2);
     double distance = sqrt(pow((u->x - v->x), 2) + pow((u->y - v->y), 2) + pow((u->z - v->z), 2));
-    return (int) round(distance); // TODO: maybe map to larger interval for better accuracy
+    return (unsigned int) round(distance); // TODO: maybe map to larger interval for better accuracy
 }
 
 
@@ -286,19 +284,19 @@ void ReadGraph(char *filename) {
     // Get graph parameters
 	no_of_vertices = image.rows * image.cols;
 	no_of_vertices_orig = no_of_vertices;
-	h_vertex = (int*)malloc(sizeof(int)*no_of_vertices);
+	h_vertex = (unsigned int*)malloc(sizeof(unsigned int)*no_of_vertices);
 
 	// Initial approximation number of edges
 	no_of_edges = (image.rows)*(image.cols)*4;
-	h_edge = (int*) malloc (sizeof(int)*no_of_edges);
-	h_weight = (int*) malloc (sizeof(int)*no_of_edges);
+	h_edge = (unsigned int*) malloc (sizeof(unsigned int)*no_of_edges);
+	h_weight = (unsigned int*) malloc (sizeof(unsigned int)*no_of_edges);
 
 	no_of_edges = ImagetoGraphSerial(image);
 	no_of_edges_orig = no_of_edges;
 
 	// Scale down to real size
-	h_edge = (int*) realloc(h_edge, no_of_edges * sizeof(int));
-	h_weight = (int*) realloc(h_weight, no_of_edges * sizeof(int));
+	h_edge = (unsigned int*) realloc(h_edge, no_of_edges * sizeof(unsigned int));
+	h_weight = (unsigned int*) realloc(h_weight, no_of_edges * sizeof(unsigned int));
 
 	printf("Image read successfully into graph with %d vertices and %d edges\n", no_of_vertices, no_of_edges);
 }
@@ -311,22 +309,22 @@ void Init()
 {
 
 	//Copy the Graph to Device
-	cudaMalloc( (void**) &d_edge, sizeof(int)*no_of_edges);
-	cudaMalloc( (void**) &d_vertex, sizeof(int)*no_of_vertices);
-	cudaMalloc( (void**) &d_weight, sizeof(int)*no_of_edges);
-	cudaMemcpy( d_edge, h_edge, sizeof(int)*no_of_edges, cudaMemcpyHostToDevice);
-	cudaMemcpy( d_vertex, h_vertex, sizeof(int)*no_of_vertices, cudaMemcpyHostToDevice);
-	cudaMemcpy( d_weight, h_weight, sizeof(int)*no_of_edges, cudaMemcpyHostToDevice);
+	cudaMalloc( (void**) &d_edge, sizeof(unsigned int)*no_of_edges);
+	cudaMalloc( (void**) &d_vertex, sizeof(unsigned int)*no_of_vertices);
+	cudaMalloc( (void**) &d_weight, sizeof(unsigned int)*no_of_edges);
+	cudaMemcpy( d_edge, h_edge, sizeof(unsigned int)*no_of_edges, cudaMemcpyHostToDevice);
+	cudaMemcpy( d_vertex, h_vertex, sizeof(unsigned int)*no_of_vertices, cudaMemcpyHostToDevice);
+	cudaMemcpy( d_weight, h_weight, sizeof(unsigned int)*no_of_edges, cudaMemcpyHostToDevice);
 	printf("Graph Copied to Device\n");
 
 	//Allocate memory for other arrays
-	cudaMalloc( (void**) &d_segmented_min_scan_input, sizeof(int)*no_of_edges);
-	cudaMalloc( (void**) &d_segmented_min_scan_output, sizeof(int)*no_of_edges);
+	cudaMalloc( (void**) &d_segmented_min_scan_input, sizeof(unsigned int)*no_of_edges);
+	cudaMalloc( (void**) &d_segmented_min_scan_output, sizeof(unsigned int)*no_of_edges);
 	cudaMalloc( (void**) &d_edge_flag, sizeof(unsigned int)*no_of_edges);
 	cudaMalloc( (void**) &d_edge_flag_thrust, sizeof(unsigned int)*no_of_edges);
 	cudaMalloc( (void**) &d_pick_array, sizeof(unsigned int)*no_of_edges);
-	cudaMalloc( (void**) &d_successor,sizeof(int)*no_of_vertices);
-	cudaMalloc( (void**) &d_successor_copy,sizeof(int)*no_of_vertices);
+	cudaMalloc( (void**) &d_successor,sizeof(unsigned int)*no_of_vertices);
+	cudaMalloc( (void**) &d_successor_copy,sizeof(unsigned int)*no_of_vertices);
 	
 	//Clear Output MST array
 	cudaMalloc( (void**) &d_succchange, sizeof(bool));
@@ -339,12 +337,9 @@ void Init()
 	cudaMalloc( (void**) &d_size, sizeof(unsigned int));
 	cudaMalloc( (void**) &d_edge_mapping_copy, sizeof(unsigned int)*no_of_edges); 
 
-	cudaMalloc( (void**) &d_edge_list_size, sizeof(int));
-	cudaMalloc( (void**) &d_vertex_list_size, sizeof(int));
+	cudaMalloc( (void**) &d_edge_list_size, sizeof(unsigned int));
+	cudaMalloc( (void**) &d_vertex_list_size, sizeof(unsigned int));
 	
-
-	h_output_MST_test = (unsigned int*)malloc(sizeof(unsigned int)*no_of_edges);
-
 	cudaMalloc( (void**) &d_vertex_split_rank, sizeof(unsigned long long int)*no_of_vertices);
 	cudaMalloc( (void**) &d_vertex_rank_scratchmem, sizeof(unsigned long long int)*no_of_vertices);
 	h_vertex_split_rank_test=(unsigned long long int*)malloc(sizeof(unsigned long long int)*no_of_vertices);
@@ -423,7 +418,7 @@ void HPGMST()
 
 	// Min inclusive segmented scan on ints from start to end.
 	thrust::equal_to<unsigned int> binaryPred;
-	thrust::minimum<int> binaryOp;
+	thrust::minimum<unsigned int> binaryOp;
 	thrust::inclusive_scan_by_key(thrust::device, d_edge_flag_thrust, d_edge_flag_thrust + no_of_edges, d_segmented_min_scan_input, d_segmented_min_scan_output, binaryPred, binaryOp);
 
 	//printXArr(d_segmented_min_scan_output, no_of_edges);
@@ -566,9 +561,9 @@ void HPGMST()
 	ClearArray<<< grid_edgelen, threads_edgelen, 0>>>((unsigned int*)d_weight, no_of_edges );
 	ClearArray<<< grid_edgelen, threads_edgelen, 0>>>( d_edge_mapping_copy, no_of_edges);
 	ClearArray<<< grid_edgelen, threads_edgelen, 0>>>( (unsigned int*)d_pick_array, no_of_edges); //Reusing the Pick Array
-	int negative=0;
-	cudaMemcpy( d_edge_list_size, &negative, sizeof( int), cudaMemcpyHostToDevice);
-	cudaMemcpy( d_vertex_list_size, &negative, sizeof( int), cudaMemcpyHostToDevice);
+	unsigned int negative=0;
+	cudaMemcpy( d_edge_list_size, &negative, sizeof(unsigned int), cudaMemcpyHostToDevice);
+	cudaMemcpy( d_vertex_list_size, &negative, sizeof(unsigned int), cudaMemcpyHostToDevice);
 	
 	//Compact the edge and weight lists
 	unsigned int validsize=0;
@@ -594,8 +589,8 @@ void HPGMST()
 	MakeVertexList<<< grid_edgelen, threads_edgelen, 0>>>(d_vertex, d_pick_array, d_edge_flag, no_of_edges);
 	
 	cur_hierarchy_size = no_of_vertices;
-	cudaMemcpy( &no_of_edges, d_edge_list_size, sizeof(int), cudaMemcpyDeviceToHost);
-	cudaMemcpy( &no_of_vertices, d_vertex_list_size, sizeof(int), cudaMemcpyDeviceToHost);
+	cudaMemcpy( &no_of_edges, d_edge_list_size, sizeof(unsigned int), cudaMemcpyDeviceToHost);
+	cudaMemcpy( &no_of_vertices, d_vertex_list_size, sizeof(unsigned int), cudaMemcpyDeviceToHost);
 
 }
 
@@ -606,18 +601,11 @@ void HPGMST()
 ////////////////////////////////////////////////
 void FreeMem()
 {
-	free(h_edge);
-	free(h_vertex);
-	free(h_weight);
-	free(h_output_MST_test);
-	free(h_vertex_split_rank_test);
 	cudaFree(d_edge);
 	cudaFree(d_vertex);
 	cudaFree(d_weight);
 	cudaFree(d_segmented_min_scan_input);
 	cudaFree(d_segmented_min_scan_output);
-		printf("here\n");
-
 	cudaFree(d_edge_flag);
 	cudaFree(d_pick_array);
 	cudaFree(d_successor);
@@ -635,6 +623,11 @@ void FreeMem()
 	cudaFree(d_vertex_split_rank);
 	cudaFree(d_vertex_rank_scratchmem);
 	cudaFree(d_appended_uvw);
+
+	free(h_edge);
+	free(h_vertex);
+	free(h_weight);
+	free(h_vertex_split_rank_test);
 }
 
 
@@ -642,54 +635,6 @@ void FreeMem()
 ////////////////////////////////////////////////////////////////////////////////
 // Program main
 ////////////////////////////////////////////////////////////////////////////////
-int mstMain( int argc, char** argv) 
-{
-	if(argc<2) {
-		printf("Specify an Input Graph\n");
-		exit(1);
-	}
-
-	ReadGraph(argv[1]);
-	Init();
-	//printf("\n\n");
-
-	/*unsigned int	timer;
-	cutCreateTimer( &timer);	
-	cutStartTimer( timer);*/
-	//Perform Our MST algorhtm
-	do
-	{
-	    HPGMST();
-	    //printf("\n");
-	}
-	while(no_of_vertices>1);
-	/*cutStopTimer( timer);
-	printf("\n=================== Time taken To perform MST :: %3.3f ms===================\n",cutGetTimerValue(timer));*/
-	//printf("\n\nOutputs:\n");
-
-	//Copy the Final MST array to the CPU memory, a 1 at the index means that edge was selected in the MST, 0 otherwise.
-	//It should be noted that each edge has an opposite edge also, out of whcih only one is selected in this output.
-	//So total number of 1s in this array must be equal to no_of_vertices_orig-1.
-	//cudaMemcpy( h_output_MST_test, d_output_MST, sizeof(unsigned int)*no_of_edges_orig, cudaMemcpyDeviceToHost);
-	int k=0;
-	int weight=0;
-	//printf("\n\nSelected Edges in MST...\n\n");
-	for(int i=0;i<no_of_edges_orig;i++)
-		if(h_output_MST_test[i]==1)
-			{
-				printf("%d %d\n",h_edge[i],h_weight[i]);
-				k++;
-				weight+=h_weight[i];
-			}
-		//else {
-		//	printf("not %d %d\n",h_edge[i],h_weight[i]);
-		//}
-	printf("\nNumber of edges in MST, must be=(no_of_vertices-1)): %d,(%d)\nTotal MST weight: %d\n",k, no_of_vertices_orig,weight);
-	
-	FreeMem();
-	return 0;
-}
-
 void get_component_colours(char colours[], uint num_colours) {
     srand(123456789);
     for (int i = 0; i < num_colours * CHANNEL_SIZE; i++) {

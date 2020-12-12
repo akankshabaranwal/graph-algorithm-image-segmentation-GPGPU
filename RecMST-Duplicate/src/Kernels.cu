@@ -26,18 +26,18 @@
 #define NO_OF_BITS_TO_SPLIT_ON 32			// Amount of bits for L split (32 bits one vertex, 32 other)
 #define NO_OF_BITS_MOVED_FOR_VERTEX_IDS 24
 #define NO_OF_BITS_TO_SPLIT_ON_UVW 64
-#define MAX_THREADS_PER_BLOCK 1024
+#define MAX_THREADS_PER_BLOCK 1024 // IMPORTANT TO SET CORRECTLY
 #define INF 10000000
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////
 // Append the Weight And Vertex ID into segmented min scan input array, Runs for Edge Length
 ////////////////////////////////////////////////////////////////////////////////////////////
-__global__ void AppendKernel_1(int *d_segmented_min_scan_input, int *d_weight, int *d_edges, int no_of_edges) 
+__global__ void AppendKernel_1(unsigned int *d_segmented_min_scan_input, unsigned int *d_weight, unsigned int *d_edges, unsigned int no_of_edges) 
 {
 	unsigned int tid = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
 	if(tid<no_of_edges) {
-		int val=d_weight[tid];
+		unsigned int val=d_weight[tid];
 		val=val<<MOVEBITS;
 		val=val|d_edges[tid];
 		d_segmented_min_scan_input[tid]=val;
@@ -47,7 +47,7 @@ __global__ void AppendKernel_1(int *d_segmented_min_scan_input, int *d_weight, i
 ////////////////////////////////////////////////////////////////////////////////
 // Make the flag for Input to the segmented min scan, Runs for Edge Length
 ////////////////////////////////////////////////////////////////////////////////
-__global__ void ClearArray(unsigned int *d_array, int size) 
+__global__ void ClearArray(unsigned unsigned int *d_array, unsigned int size) 
 {
 	unsigned int tid = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
 	if(tid<size) {
@@ -58,11 +58,11 @@ __global__ void ClearArray(unsigned int *d_array, int size)
 ////////////////////////////////////////////////////////////////////////////////
 // Make the flag for Input to the segmented min scan, Runs for Vertex Length
 ////////////////////////////////////////////////////////////////////////////////
-__global__ void MakeFlag_3(unsigned int *d_edge_flag, int *d_vertex, int no_of_vertices) 
+__global__ void MakeFlag_3(unsigned int *d_edge_flag, unsigned int *d_vertex, unsigned int no_of_vertices) 
 {
 	unsigned int tid = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
 	if(tid<no_of_vertices) {
-		int pointingvertex = d_vertex[tid];
+		unsigned int pointingvertex = d_vertex[tid];
 		d_edge_flag[pointingvertex]=1;
 	}
 }
@@ -71,17 +71,17 @@ __global__ void MakeFlag_3(unsigned int *d_edge_flag, int *d_vertex, int no_of_v
 ////////////////////////////////////////////////////////////////////////////////
 // Make the Successor array, Runs for Vertex Length
 ////////////////////////////////////////////////////////////////////////////////
-__global__ void MakeSucessorArray(int *d_successor, int *d_vertex, int *d_segmented_min_scan_output, int no_of_vertices, int no_of_edges) 
+__global__ void MakeSucessorArray(unsigned int *d_successor, unsigned int *d_vertex, unsigned int *d_segmented_min_scan_output, unsigned int no_of_vertices, unsigned int no_of_edges) 
 {
 	unsigned int tid = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
 	if(tid<no_of_vertices) {
-		int end; // Result values always stored at end of each segment
+		unsigned int end; // Result values always stored at end of each segment
 		if(tid<no_of_vertices-1) {
 			end = d_vertex[tid+1]-1; // Get end of my segment
 		} else {
 			end = no_of_edges-1; // Last segment: end = last edge
 		}
-		int mask = pow(2.0,MOVEBITS)-1; // Mask to extract vertex ID MWOE
+		unsigned int mask = pow(2.0,MOVEBITS)-1; // Mask to extract vertex ID MWOE
 		d_successor[tid] = d_segmented_min_scan_output[end]&mask; // Get vertex part of each (weight|to_vertex_id) element
 	}
 }
@@ -89,12 +89,12 @@ __global__ void MakeSucessorArray(int *d_successor, int *d_vertex, int *d_segmen
 ////////////////////////////////////////////////////////////////////////////////
 // Remove Cycles Using Successor array, Runs for Vertex Length
 ////////////////////////////////////////////////////////////////////////////////
-__global__ void RemoveCycles(int *d_successor, int no_of_vertices) 
+__global__ void RemoveCycles(unsigned int *d_successor, unsigned int no_of_vertices) 
 {
 	unsigned int tid = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x; // TID: vertex ID
 	if(tid<no_of_vertices) {
-		int succ = d_successor[tid];
-		int nextsucc = d_successor[succ];
+		unsigned int succ = d_successor[tid];
+		unsigned int nextsucc = d_successor[succ];
 		if(tid == nextsucc) { //Found a Cycle
 			//Give the minimum one its own value, breaking the cycle and setting the Representative Vertices
 			if(tid < succ) {
@@ -106,63 +106,14 @@ __global__ void RemoveCycles(int *d_successor, int no_of_vertices)
 	}
 }
 
-
-////////////////////////////////////////////////////////////////////////////////
-//Pick Array is needed in order to write final edges, Runs for Edge Length
-////////////////////////////////////////////////////////////////////////////////
-__global__ void MakePickArray(int *d_pick_array, int *d_successor, int *d_vertex, unsigned int *d_old_uIDs, int no_of_vertices, int no_of_edges) 
-{
-	unsigned int tid = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
-	if(tid<no_of_edges) {
-		int u = d_old_uIDs[tid];
-		int end=0;
-		//if(u<no_of_vertices) {
-		if(u<(no_of_vertices-1)) {
-			end = d_vertex[u+1]-1;
-		} else {
-			end = no_of_edges-1;
-		}
-		
-		if(u!=d_successor[u]) {			//Normal Vertex Segment
-			d_pick_array[tid]=end;
-		} else {						//Representative Vertex Segment
-			d_pick_array[tid]=-1;		//Make sure this segment does not add any edge to final output
-		}
-		//}
-	}
-
-	/*int start,end;
-	if(tid<no_of_vertices-1)
-		{
-			start = d_vertex[tid];
-			end = d_vertex[tid+1];
-		}
-	else
-		{
-			start = d_vertex[tid];
-			end = no_of_edges;
-		}
-	int succ = d_successor[tid];
-	if(succ!=tid) //Normal Vertex Segment
-	{
-		for(int i=start;i<end;i++)
-			d_pick_array[i] = end-1;
-	}
-	else //Representative Vertex Segment
-	{
-		for(int i=start;i<end;i++)
-			d_pick_array[i] = -1; //Make sure this segment does not add any edge to final output
-	}*/
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 // Mark Selected Edges in the Output MST array, Runs for Edge Length
 ////////////////////////////////////////////////////////////////////////////////
-__global__ void MarkOutputEdges(int *d_pick_array, int *d_segmented_min_scan_input, int *d_segmented_min_scan_output, unsigned int *d_output_MST, unsigned int *d_edge_mapping, int no_of_edges) 
+__global__ void MarkOutputEdges(unsigned int *d_pick_array, unsigned int *d_segmented_min_scan_input, unsigned int *d_segmented_min_scan_output, unsigned int *d_output_MST, unsigned int *d_edge_mapping, unsigned int no_of_edges) 
 {
 	unsigned int tid = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
 	if(tid<no_of_edges) {
-		int index = d_pick_array[tid]; // Get index minimum weight outgoing edge of u
+		unsigned int index = d_pick_array[tid]; // Get index minimum weight outgoing edge of u
 		if(index>=0) {//Make sure only non-cycle making edges write to the final output
 			//Check me against the segment's selected edge, if I am that edge, then set me as part of output array
 			if(d_segmented_min_scan_input[tid] == d_segmented_min_scan_output[index]) {
@@ -174,7 +125,7 @@ __global__ void MarkOutputEdges(int *d_pick_array, int *d_segmented_min_scan_inp
 }
 
 
-__global__ void SuccToCopy(int *d_successor, int *d_successor_copy, int no_of_vertices)
+__global__ void SuccToCopy(unsigned int *d_successor, unsigned int *d_successor_copy, unsigned int no_of_vertices)
 {
 	unsigned int tid = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
 	if(tid<no_of_vertices) {
@@ -185,12 +136,12 @@ __global__ void SuccToCopy(int *d_successor, int *d_successor_copy, int no_of_ve
 ////////////////////////////////////////////////////////////////////////////////
 // Propagate Representative IDs by setting S(u)=S(S(u)), Runs for Vertex Length
 ////////////////////////////////////////////////////////////////////////////////
-__global__ void PropagateRepresentativeID(int *d_successor, int *d_successor_copy, bool *d_succchange, int no_of_vertices)
+__global__ void PropagateRepresentativeID(unsigned int *d_successor, unsigned int *d_successor_copy, bool *d_succchange, unsigned int no_of_vertices)
 {
 	unsigned int tid = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
 	if(tid<no_of_vertices) {
-		int succ = d_successor[tid];
-		int newsucc = d_successor[succ];
+		unsigned int succ = d_successor[tid];
+		unsigned int newsucc = d_successor[succ];
 		if(succ!=newsucc) { //Execution goes on
 			d_successor_copy[tid] = newsucc; //cannot have input and output in the same array!!!!!
 			*d_succchange=true;
@@ -198,7 +149,7 @@ __global__ void PropagateRepresentativeID(int *d_successor, int *d_successor_cop
 	}
 }
 
-__global__ void CopyToSucc(int *d_successor, int *d_successor_copy, int no_of_vertices)
+__global__ void CopyToSucc(unsigned int *d_successor, unsigned int *d_successor_copy, unsigned int no_of_vertices)
 {
 	unsigned int tid = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
 	if(tid<no_of_vertices)
@@ -209,7 +160,7 @@ __global__ void CopyToSucc(int *d_successor, int *d_successor_copy, int no_of_ve
 ////////////////////////////////////////////////////////////////////////////////
 // Append Vertex IDs with SuperVertex IDs, Runs for Vertex Length
 ////////////////////////////////////////////////////////////////////////////////
-__global__ void AppendVertexIDsForSplit(unsigned long long int *d_vertex_split, int *d_successor, int no_of_vertices)
+__global__ void AppendVertexIDsForSplit(unsigned long long int *d_vertex_split, unsigned int *d_successor, unsigned int no_of_vertices)
 {
 	unsigned int tid = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
 	if(tid<no_of_vertices) {
@@ -224,7 +175,7 @@ __global__ void AppendVertexIDsForSplit(unsigned long long int *d_vertex_split, 
 ////////////////////////////////////////////////////////////////////////////////
 // Mark New SupervertexID per vertex, Runs for Vertex Length
 ////////////////////////////////////////////////////////////////////////////////
-__global__ void MakeSuperVertexIDPerVertex(unsigned int *d_new_supervertexIDs, unsigned long long int *d_vertex_split, unsigned int *d_vertex_flag,int no_of_vertices)
+__global__ void MakeSuperVertexIDPerVertex(unsigned int *d_new_supervertexIDs, unsigned long long int *d_vertex_split, unsigned int *d_vertex_flag, unsigned int no_of_vertices)
 {
 	unsigned int tid = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
 	if(tid<no_of_vertices) {
@@ -237,7 +188,7 @@ __global__ void MakeSuperVertexIDPerVertex(unsigned int *d_new_supervertexIDs, u
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Copy New SupervertexID per vertex, resolving read after write inconsistancies, Runs for Vertex Length  // IMPORTANT! RAW
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
-__global__ void CopySuperVertexIDPerVertex(unsigned int *d_new_supervertexIDs, unsigned int *d_vertex_flag, int no_of_vertices)
+__global__ void CopySuperVertexIDPerVertex(unsigned int *d_new_supervertexIDs, unsigned int *d_vertex_flag, unsigned int no_of_vertices)
 {
 	unsigned int tid = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
 	if(tid<no_of_vertices) {
@@ -249,7 +200,7 @@ __global__ void CopySuperVertexIDPerVertex(unsigned int *d_new_supervertexIDs, u
 ////////////////////////////////////////////////////////////////////////////////
 // Make flag for Scan, assigning new ids to supervertices, Runs for Vertex Length
 ////////////////////////////////////////////////////////////////////////////////
-__global__ void MakeFlagForScan(unsigned int *d_vertex_flag, unsigned long long int *d_split_input,int no_of_vertices)
+__global__ void MakeFlagForScan(unsigned int *d_vertex_flag, unsigned long long int *d_split_input, unsigned int no_of_vertices)
 {
 	unsigned int tid = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
 	if(tid<no_of_vertices) {
@@ -269,12 +220,12 @@ __global__ void MakeFlagForScan(unsigned int *d_vertex_flag, unsigned long long 
 ////////////////////////////////////////////////////////////////////////////////
 // Make flag to assign old vertex ids, Runs for Vertex Length
 ////////////////////////////////////////////////////////////////////////////////
-__global__ void MakeFlagForUIds(unsigned int *d_edge_flag, int *d_vertex, int no_of_vertices)
+__global__ void MakeFlagForUIds(unsigned int *d_edge_flag, unsigned int *d_vertex, unsigned int no_of_vertices)
 {
 	unsigned int tid = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
 	if(tid<no_of_vertices) {
 		if(tid>0) {
-			int pointingvertex = d_vertex[tid];
+			unsigned int pointingvertex = d_vertex[tid];
 			d_edge_flag[pointingvertex]=1;
 		}
 	}
@@ -284,7 +235,7 @@ __global__ void MakeFlagForUIds(unsigned int *d_edge_flag, int *d_vertex, int no
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Copy Edge Array to somewhere to resolve read after write inconsistancies, Runs for Edge Length
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
-__global__ void CopyEdgeArray(int *d_edge, unsigned int *d_edge_mapping_copy, int no_of_edges)
+__global__ void CopyEdgeArray(unsigned int *d_edge, unsigned int *d_edge_mapping_copy, unsigned int no_of_edges)
 {
 	unsigned int tid = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
 	if(tid<no_of_edges)
@@ -294,7 +245,7 @@ __global__ void CopyEdgeArray(int *d_edge, unsigned int *d_edge_mapping_copy, in
 ////////////////////////////////////////////////////////////////////////////////
 // Remove self edges based on new supervertex ids, Runs for Edge Length
 ////////////////////////////////////////////////////////////////////////////////
-__global__ void RemoveSelfEdges(int *d_edge, unsigned int *d_old_uIDs, unsigned int *d_new_supervertexIDs, unsigned long long int *d_vertex_split_rank, unsigned int *d_edge_mapping_copy, int no_of_edges)
+__global__ void RemoveSelfEdges(unsigned int *d_edge, unsigned int *d_old_uIDs, unsigned int *d_new_supervertexIDs, unsigned long long int *d_vertex_split_rank, unsigned int *d_edge_mapping_copy, unsigned int no_of_edges)
 {
 	unsigned int tid = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
 	if(tid<no_of_edges) {
@@ -311,7 +262,7 @@ __global__ void RemoveSelfEdges(int *d_edge, unsigned int *d_old_uIDs, unsigned 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Copy Edge Array Back, resolving read after write inconsistancies, Runs for Edge Length
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
-__global__ void CopyEdgeArrayBack(int *d_edge, unsigned int *d_edge_mapping_copy, int no_of_edges)
+__global__ void CopyEdgeArrayBack(unsigned int *d_edge, unsigned int *d_edge_mapping_copy, unsigned int no_of_edges)
 {
 	unsigned int tid = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
 	if(tid<no_of_edges)
@@ -322,7 +273,7 @@ __global__ void CopyEdgeArrayBack(int *d_edge, unsigned int *d_edge_mapping_copy
 ////////////////////////////////////////////////////////////////////////////////
 // Append U,V,W for duplicate edge removal, Runs for Edge Length
 ////////////////////////////////////////////////////////////////////////////////
-__global__ void AppendForDuplicateEdgeRemoval(unsigned long long int *d_appended_uvw, int *d_edge, unsigned int *d_old_uIDs, int *d_weight, unsigned int *d_new_supervertexIDs, int no_of_edges)
+__global__ void AppendForDuplicateEdgeRemoval(unsigned long long int *d_appended_uvw, unsigned int *d_edge, unsigned int *d_old_uIDs, unsigned int *d_weight, unsigned int *d_new_supervertexIDs, unsigned int no_of_edges)
 {
 	unsigned int tid = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
 	if(tid<no_of_edges) {
@@ -352,7 +303,7 @@ __global__ void AppendForDuplicateEdgeRemoval(unsigned long long int *d_appended
 ////////////////////////////////////////////////////////////////////////////////
 // Mark the starting edge for each uv combination, Runs for Edge Length
 ////////////////////////////////////////////////////////////////////////////////
-__global__ void MarkEdgesUV(unsigned int *d_edge_flag, unsigned long long int *d_appended_uvw, unsigned int *d_size, int no_of_edges)
+__global__ void MarkEdgesUV(unsigned int *d_edge_flag, unsigned long long int *d_appended_uvw, unsigned int *d_size, unsigned int no_of_edges)
 {
 	unsigned int tid = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
 	if(tid<no_of_edges) {
@@ -380,10 +331,10 @@ __global__ void MarkEdgesUV(unsigned int *d_edge_flag, unsigned long long int *d
 ///////////////////////////////////////////////////////////////////////////////////////////////
 // Compact the edgelist and weight list, keep a mapping for each edge, Runs for d_size Length
 ///////////////////////////////////////////////////////////////////////////////////////////////
-__global__ void CompactEdgeList(int *d_edge, int *d_weight, 
+__global__ void CompactEdgeList(unsigned int *d_edge, unsigned int *d_weight, 
 								unsigned int *d_old_uIDs, unsigned int *d_edge_flag, unsigned long long int *d_appended_uvw,
-								int *d_pick_array, unsigned int *d_size, 
-								int *d_edge_list_size, int *d_vertex_list_size)
+								unsigned int *d_pick_array, unsigned int *d_size, 
+								unsigned int *d_edge_list_size, unsigned int *d_vertex_list_size)
 {
 	unsigned int tid = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
 	if(tid<*d_size) {
@@ -413,7 +364,7 @@ __global__ void CompactEdgeList(int *d_edge, int *d_weight,
 ////////////////////////////////////////////////////////////////////////////////
 //Copy the temporary array to the actual mapping array, Runs for Edge length
 ////////////////////////////////////////////////////////////////////////////////
-__global__ void CopyEdgeMap(unsigned int *d_edge_mapping, unsigned int *d_edge_mapping_copy, int no_of_edges)
+__global__ void CopyEdgeMap(unsigned int *d_edge_mapping, unsigned int *d_edge_mapping_copy, unsigned int no_of_edges)
 {
 	unsigned int tid = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
 	if(tid<no_of_edges)
@@ -423,7 +374,7 @@ __global__ void CopyEdgeMap(unsigned int *d_edge_mapping, unsigned int *d_edge_m
 ////////////////////////////////////////////////////////////////////////////////
 //Make Flag for Vertex List Compaction, Runs for Edge length
 ////////////////////////////////////////////////////////////////////////////////
-__global__ void MakeFlagForVertexList(int *d_pick_array, unsigned int *d_edge_flag, int no_of_edges)
+__global__ void MakeFlagForVertexList(unsigned int *d_pick_array, unsigned int *d_edge_flag, unsigned int no_of_edges)
 {
 	unsigned int tid = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
 	if(tid<no_of_edges) {
@@ -441,7 +392,7 @@ __global__ void MakeFlagForVertexList(int *d_pick_array, unsigned int *d_edge_fl
 ////////////////////////////////////////////////////////////////////////////////
 //Vertex List Compaction, Runs for Edge length
 ////////////////////////////////////////////////////////////////////////////////
-__global__ void MakeVertexList(int *d_vertex, int *d_pick_array, unsigned int *d_edge_flag,int no_of_edges)
+__global__ void MakeVertexList(unsigned int *d_vertex, unsigned int *d_pick_array, unsigned int *d_edge_flag, unsignedint no_of_edges)
 {
 	unsigned int tid = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
 	if(tid<no_of_edges) {
