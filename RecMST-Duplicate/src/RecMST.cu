@@ -111,11 +111,7 @@ unsigned int *d_edge_mapping_copy;
 unsigned int	*d_edge_list_size;
 unsigned int	*d_vertex_list_size;
 
-unsigned long long int *h_vertex_split_rank_test;	//Initializes d_vertex_split_rank with 0 1 2 ... no_of_vertices-1 for each iteration
 unsigned long long int *d_vertex_split;				//L, Input to the split function
-unsigned long long int *d_vertex_split_scratchmem;	//Scratch memory to the split function
-unsigned long long int *d_vertex_split_rank;		//Ranking arrary to the split function
-unsigned long long int *d_vertex_rank_scratchmem;	//Scratch memory to the split function
 
 // Hierarchy output
 int cur_hierarchy_size; // Size current hierarchy
@@ -329,7 +325,6 @@ void Init()
 	//Clear Output MST array
 	cudaMalloc( (void**) &d_succchange, sizeof(bool));
 	cudaMalloc( (void**) &d_vertex_split, sizeof(unsigned long long int)*no_of_vertices);
-	cudaMalloc( (void**) &d_vertex_split_scratchmem, sizeof(unsigned long long int)*no_of_vertices);
 	cudaMalloc( (void**) &d_vertex_flag, sizeof(unsigned int)*no_of_vertices);
 	cudaMalloc( (void**) &d_new_supervertexIDs, sizeof(unsigned int)*no_of_vertices);
 	cudaMalloc( (void**) &d_old_uIDs, sizeof(unsigned int)*no_of_edges);
@@ -340,11 +335,6 @@ void Init()
 	cudaMalloc( (void**) &d_edge_list_size, sizeof(unsigned int));
 	cudaMalloc( (void**) &d_vertex_list_size, sizeof(unsigned int));
 	
-	cudaMalloc( (void**) &d_vertex_split_rank, sizeof(unsigned long long int)*no_of_vertices);
-	cudaMalloc( (void**) &d_vertex_rank_scratchmem, sizeof(unsigned long long int)*no_of_vertices);
-	h_vertex_split_rank_test=(unsigned long long int*)malloc(sizeof(unsigned long long int)*no_of_vertices);
-	for(int i=0;i<no_of_vertices;i++)h_vertex_split_rank_test[i]=i;
-	cudaMemcpy( d_vertex_split_rank, h_vertex_split_rank_test, sizeof(unsigned long long int)*no_of_vertices, cudaMemcpyHostToDevice);
 }
 
 
@@ -371,10 +361,6 @@ void SetGridThreadLen(int number, int *num_of_blocks, int *num_of_threads_per_bl
 ////////////////////////////////////////////////
 void HPGMST()
 {
-	
-	//Reinitialize the ranking arrays
-	cudaMemcpy( d_vertex_split_rank, h_vertex_split_rank_test, sizeof(unsigned long long int)*no_of_vertices, cudaMemcpyHostToDevice);
-	
 	//Make both CUDA grids needed for execution, no_of_vertices and no_of_edges length sizes
 	int num_of_blocks, num_of_threads_per_block;
 
@@ -479,11 +465,10 @@ void HPGMST()
 	//    Append Vertex Ids with SuperVertexIDs
 	AppendVertexIDsForSplit<<< grid_vertexlen, threads_vertexlen, 0>>>(d_vertex_split, d_successor,no_of_vertices);
 
-
 	//9. Split L, create flag over split output and scan the flag to find new ids per vertex, store new ids in C.
     // 9.1 Split L using representative as key. In parallel using a split of O(V) with log(V) bit key size.
     //     split based on supervertex IDs using 64 bit version of split
-	sp.split(d_vertex_split, d_vertex_split_rank, d_vertex_split_scratchmem, d_vertex_rank_scratchmem, no_of_vertices, NO_OF_BITS_TO_SPLIT_ON, 0); 	// TODO: maybe can just use sort.
+	thrust::sort(thrust::device, d_vertex_split, d_vertex_split + no_of_edges);
 
 	// 9.2 Create flag for assigning new vertex IDs based on difference in supervertex IDs
 	//     first element not flagged so that can use simple sum for scan
@@ -507,7 +492,7 @@ void HPGMST()
 	//Remove Self Edges from the edge-list
 	// 11. Remove edge from edge-list if u, v have same supervertex id (remove self edges)
 	CopyEdgeArray<<< grid_edgelen, threads_edgelen, 0>>>(d_edge,d_edge_mapping_copy, no_of_edges); // for conflicts
-	RemoveSelfEdges<<< grid_edgelen, threads_edgelen, 0>>>(d_edge, d_old_uIDs, d_new_supervertexIDs, d_vertex_split_rank, d_edge_mapping_copy, no_of_edges);
+	RemoveSelfEdges<<< grid_edgelen, threads_edgelen, 0>>>(d_edge, d_old_uIDs, d_new_supervertexIDs, d_edge_mapping_copy, no_of_edges);
 	CopyEdgeArrayBack<<< grid_edgelen, threads_edgelen, 0>>>(d_edge,d_edge_mapping_copy, no_of_edges); // for conflicts
 
 
@@ -612,7 +597,6 @@ void FreeMem()
 	cudaFree(d_successor_copy);
 	cudaFree(d_succchange);
 	cudaFree(d_vertex_split);
-	cudaFree(d_vertex_split_scratchmem);
 	cudaFree(d_vertex_flag);
 	cudaFree(d_new_supervertexIDs);
 	cudaFree(d_old_uIDs);
@@ -620,14 +604,11 @@ void FreeMem()
 	cudaFree(d_edge_mapping_copy);
 	cudaFree(d_edge_list_size);
 	cudaFree(d_vertex_list_size);
-	cudaFree(d_vertex_split_rank);
-	cudaFree(d_vertex_rank_scratchmem);
 	cudaFree(d_appended_uvw);
 
 	free(h_edge);
 	free(h_vertex);
 	free(h_weight);
-	free(h_vertex_split_rank_test);
 }
 
 
