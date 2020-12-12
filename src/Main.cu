@@ -31,6 +31,8 @@ int main(int argc, char **argv)
     int32_t *VertexList, *BitEdgeList, *FlagList, *OutList, *NWE, *Successor, *Representative, *Vertex;
     edge *EdgeList;
 
+    int *flag;
+    cudaMallocManaged(&flag,numEdges*sizeof(int32_t));
     //Allocating memory
     cudaMallocManaged(&VertexList,numVertices*sizeof(int32_t));
     cudaMallocManaged(&FlagList,numVertices*sizeof(int32_t));
@@ -43,11 +45,10 @@ int main(int argc, char **argv)
     cudaMallocManaged(&Vertex,numVertices*sizeof(int32_t));
 
     int *Flag2;
-    cudaMallocManaged(&Flag2,numVertices*sizeof(int32_t));
+    cudaMallocManaged(&Flag2,numEdges*sizeof(int32_t));
     int *SuperVertexId;
     cudaMallocManaged(&SuperVertexId,numVertices*sizeof(int32_t));
-    int *flag;
-    cudaMallocManaged(&flag,numVertices*sizeof(int32_t));
+
     int *uid;
     cudaMallocManaged(&uid,numVertices*sizeof(int32_t));
     dim3 threadsPerBlock(32,32);
@@ -84,29 +85,65 @@ int main(int argc, char **argv)
     // Probably for the hierarchies paper we need to store the SuperVertex_Ids of every iteration
 
     int32_t tmp_V, tmp_Wt;
+    /*
     for(int i =0; i<numEdges; i++)
     {
         tmp_V = BitEdgeList[i]% (2 << 15);
         tmp_Wt = BitEdgeList[i]>>16;
         printf("EdgeListV:%d, EdgeListWt:%d, BitVertex:%d, BitWt:%d\n", EdgeList[i].Vertex, EdgeList[i].Weight, tmp_V, tmp_Wt);
-    }
+    }*/
 
     int numthreads = 1024;
     int numBlock = numVertices/numthreads;
-    printf("flag: ");
-    DidReduce = 1;
+
+    DidReduce = 1; //This should change depending on if we have the number of previous components same as the current number of components or not
+    int *UV, *W;
+    cudaMallocManaged(&UV,numEdges*sizeof(int64_t));
+    cudaMallocManaged(&W,numEdges*sizeof(int64_t));
+    int32_t *flag3;
+    cudaMallocManaged(&flag3,numEdges*sizeof(int32_t));
+
     while(DidReduce)
     {
         DidReduce = 0;
         //1. The graph creation step above takes care of this
 
-        //2.
-        MarkSegments<<<numBlock, numthreads>>>(flag, VertexList, numVertices);
+        //2. Mark the segments in the flag array
+        //TODO: This is not required for this implementation because vertexlist already has the segment information
+        ClearFlagArray<<<numBlock, numthreads>>>(flag, numEdges);
+        MarkSegments<<<numBlock, numthreads>>>(flag, VertexList, numEdges);
 
-        //Segmented min scan
-        SegmentedReduction(*context, VertexList, BitEdgeList, OutList, NWE, numEdges, numVertices);
-        FindSuccessorArray<<<numBlock,numthreads>>>(Successor, NWE, numVertices);
+        //3. Segmented min scan
+        SegmentedReduction(*context, VertexList, BitEdgeList, OutList, numEdges, numVertices);
 
+        //4. Find Successor array of each vertex
+        FindSuccessorArray<<<numBlock, numthreads>>>(Successor, VertexList, OutList, numVertices);
+
+        //5. Remove cycle making edges from NWE. But NWE is not used anywhere here??
+        RemoveCycles<<<numBlock, numthreads>>>(Successor, numVertices);
+
+        //Not sure why this is done
+        ClearFlagArray<<<numBlock, numthreads>>>(flag, numEdges);
+        MarkSegments<<<numBlock, numthreads>>>(flag, VertexList, numEdges);
+
+        cudaDeviceSynchronize(); //because PropagateRepresentative is on host
+        //C. Merging vertices and assigning IDs to supervertices
+        //7. Propagate representative vertex IDs using pointer doubling
+        PropagateRepresentativeVertices(Successor, numVertices);
+
+        //8. 9.
+        //TODO: Add code to clear up the flag2 array
+        ClearFlagArray<<<numBlock, numthreads>>>(Flag2, numEdges);
+        SortedSplit(Representative, Vertex, Successor, Flag2, numVertices);
+        CreateSuperVertexArray<<<numBlock,numthreads>>>(SuperVertexId, Vertex, Flag2, numVertices);
+        //RemoveSelfEdges<<<numBlock,numthreads>>>(BitEdgeList,numEdges, uid, SuperVertexId);
+
+        CreateUVWArray<<<numBlock,numthreads>>>(BitEdgeList, numEdges, uid, SuperVertexId, UV, W);
+
+        //int new_edge_size = SortUVW(UV, W, numEdges, flag3);
+
+        //int32_t *compact_locations;
+        //cudaMallocManaged(&compact_locations,new_edge_size*sizeof(int32_t));
     }
 
     /*

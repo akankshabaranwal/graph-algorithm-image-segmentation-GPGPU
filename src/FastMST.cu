@@ -11,6 +11,15 @@ using namespace mgpu;
 // Scan
 //https://moderngpu.github.io/faq.html
 
+__global__ void ClearFlagArray(int *flag, int numElements)
+{
+    int id = blockIdx.x*blockDim.x+threadIdx.x;
+    if(id<numElements)
+    {
+        flag[id] = 0;
+    }
+}
+
 __global__ void MarkSegments(int *flag, int *VertexList,int numElements)
 {
     int id = blockIdx.x*blockDim.x+threadIdx.x;
@@ -19,50 +28,50 @@ __global__ void MarkSegments(int *flag, int *VertexList,int numElements)
         flag[VertexList[id]] = 1;
     }
 }
-
+/*
 __global__ void CreateNWEArray(int32_t *NWE, int32_t *Out, int numSegments)
 {
     int id = blockIdx.x*blockDim.x+threadIdx.x;
     if (id < numSegments)
     {          NWE[id] = Out[id] % (2 << 15);
     }
-}
+}*/
 
-void SegmentedReduction(CudaContext& context, int32_t *flag, int32_t *a, int32_t *Out, int32_t *NWE, int numElements, int numSegs)
+void SegmentedReduction(CudaContext& context, int32_t *flag, int32_t *a, int32_t *Out, int numElements, int numSegs)
 {
+    //Segmented min scan
     SegReduceCsr(a, flag, numElements, numSegs, false, Out,(int32_t)INT_MAX, mgpu::minimum<int32_t>(),context);
-    cudaDeviceSynchronize();
+    //cudaDeviceSynchronize();
 
     //Create NWE array with the index of each minimum edge
-    int numthreads = 1024;
-    int numBlock = numSegs/numthreads;
-    CreateNWEArray<<<numBlock,numthreads>>>(NWE, Out, numSegs);
-    cudaError_t err = cudaGetLastError();
+    //int numthreads = 1024;
+    //int numBlock = numSegs/numthreads;
+    //CreateNWEArray<<<numBlock,numthreads>>>(NWE, Out, numSegs);
+    /*cudaError_t err = cudaGetLastError();
     err = cudaGetLastError();
     if ( err != cudaSuccess )
     {
         printf("CUDA Error in CreateNWEArray function call: %s\n", cudaGetErrorString(err));
-    }
+    }*/
     //cudaDeviceSynchronize();
-
 }
 
-__global__ void FindSuccessorArray(int32_t *Successor, int32_t *NWE, int numSegments)
+__global__ void FindSuccessorArray(int32_t *Successor, int32_t *VertexList, int32_t *Out, int numVertices)
 {
     int id = blockIdx.x*blockDim.x+threadIdx.x;
     int32_t min_edge_index;
 
-    if (id < numSegments)
-    {   min_edge_index = NWE[id]; //TODO: Check if this is correct. This will eliminate passing the Out array to this kernel
-        Successor[id] = NWE[min_edge_index];
+    if (id < numVertices)
+    {   min_edge_index = VertexList[id];
+        Successor[id] = Out[min_edge_index]%(2<<15);
     }
 }
 
-__global__ void RemoveCycles(int32_t *Successor, int numSegments)
+__global__ void RemoveCycles(int32_t *Successor, int numVertices)
 {
     int vertex = blockIdx.x*blockDim.x+threadIdx.x;
     int32_t successor_2;
-    if(vertex<numSegments)
+    if(vertex<numVertices)
     {
         successor_2 = Successor[Successor[vertex]];
         if(vertex == successor_2) //Cycle detected
@@ -76,7 +85,7 @@ __global__ void RemoveCycles(int32_t *Successor, int numSegments)
         }
     }
 }
-
+/*
 __global__ void PropagateParallel(int32_t *Successor, int numSegments, bool *change)
 {
     int id = blockIdx.x*blockDim.x+threadIdx.x;
@@ -91,20 +100,20 @@ __global__ void PropagateParallel(int32_t *Successor, int numSegments, bool *cha
         }
     }
     //TODO: How to return boolean change??
-}
+}*/
 
-void PropagateRepresentativeVertices(int *Successor, int numSegments)
+void PropagateRepresentativeVertices(int *Successor, int numVertices)
 {
     bool change =true;
     while(change)
     {
         change = false;
-        int numthreads = 1024;
-        int numBlock = numSegments/numthreads;
+        //int numthreads = 1024;
+        //int numBlock = numSegments/numthreads;
         //TODO: Is it worth to make this parallel? Repeat copy of 'change' between host and device??
-        //PropagateParallel<<<numBlock,numthreads>>>(Successor, numSegments, change);
+        //Try some scan to figure out value of change array after every kernel call?
         int32_t successor, successor_2;
-        for(int i=0; i<numSegments;i++)
+        for(int i=0; i<numVertices;i++)
         {
             successor = Successor[i];
             successor_2 = Successor[successor];
@@ -140,11 +149,11 @@ __global__ void CreateFlagArray(int *Representative, int *Vertex, int *Flag2, in
 }
 
 //https://thrust.github.io/doc/group__sorting_gabe038d6107f7c824cf74120500ef45ea.html#gabe038d6107f7c824cf74120500ef45ea
-void SortedSplit(int *Representative, int *Vertex, int *Successor, int *Flag2, int numSegments)
+void SortedSplit(int *Representative, int *Vertex, int *Successor, int *Flag2, int numVertices)
 {
     int numthreads = 1024;
-    int numBlock = numSegments/numthreads;
-    appendSuccessorArray<<<numBlock,numthreads>>>(Representative, Vertex, Successor, numSegments);
+    int numBlock = numVertices/numthreads;
+    appendSuccessorArray<<<numBlock,numthreads>>>(Representative, Vertex, Successor, numVertices);
     cudaError_t err = cudaGetLastError();
     err = cudaGetLastError();
     if ( err != cudaSuccess )
@@ -153,15 +162,15 @@ void SortedSplit(int *Representative, int *Vertex, int *Successor, int *Flag2, i
     }
     cudaDeviceSynchronize();
 
-    thrust::sort_by_key(thrust::host, Representative, Representative + numSegments, Vertex);
+    thrust::sort_by_key(thrust::host, Representative, Representative + numVertices, Vertex);
 
-    CreateFlagArray<<<numBlock,numthreads>>>(Representative, Vertex, Flag2, numSegments);
+    CreateFlagArray<<<numBlock,numthreads>>>(Representative, Vertex, Flag2, numVertices);
     //Scan to assign new vertex ids. Use exclusive scan. Run exclusive scan on the flag array
-    thrust::inclusive_scan(Flag2, Flag2 + numSegments, Flag2, thrust::plus<int>());
+    thrust::inclusive_scan(Flag2, Flag2 + numVertices, Flag2, thrust::plus<int>());
 }
 
 //TODO: The array names need to be verified
-__global__ void RemoveSelfEdges(int *SuperVertexId, int *Vertex, int *Flag2, int numSegments){
+__global__ void CreateSuperVertexArray(int *SuperVertexId, int *Vertex, int *Flag2, int numSegments){
     // Find supervertex id. Create a supervertex array for the original vertex ids
     int idx = blockIdx.x*blockDim.x+threadIdx.x;
     int32_t vertex, supervertex_id;
