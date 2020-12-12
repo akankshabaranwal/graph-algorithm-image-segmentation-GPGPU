@@ -47,7 +47,7 @@ __global__ void AppendKernel_1(unsigned int *d_segmented_min_scan_input, unsigne
 ////////////////////////////////////////////////////////////////////////////////
 // Make the flag for Input to the segmented min scan, Runs for Edge Length
 ////////////////////////////////////////////////////////////////////////////////
-__global__ void ClearArray(unsigned unsigned int *d_array, unsigned int size) 
+__global__ void ClearArray(unsigned int *d_array, unsigned int size) 
 {
 	unsigned int tid = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
 	if(tid<size) {
