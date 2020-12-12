@@ -27,5 +27,6 @@ void CreateUid(int *uid, int *flag, int numElements);
 __global__ void RemoveSelfEdges(int *BitEdgeList, int numEdges, int *uid, int *SuperVertexId);
 __global__ void CreateUVWArray(int *BitEdgeList, int numEdges, int *uid, int *SuperVertexId, int *UV, int *W);
 int SortUVW(int *UV, int *W, int numEdges, int *flag3);
+void CreateNewEdgeVertexList(int *newBitEdgeList, int *newVertexList, int *UV, int *W, int *flag3, int new_edge_size, int *flag4);
 
 #endif //FELZENSZWALB_FASTMST_H
