@@ -68,6 +68,9 @@ using namespace cv::cuda;
 
 #define CHANNEL_SIZE 3
 
+#include <sys/time.h>
+
+
 ////////////////////////////////////////////////
 // Variables
 ////////////////////////////////////////////////
@@ -106,8 +109,8 @@ unsigned long long int *d_appended_uvw;				//Appended u,v,w array for duplicate 
 
 unsigned int *d_size;								//Stores amount of edges
 unsigned int *d_edge_mapping_copy;
-unsigned int	*d_edge_list_size;
-unsigned int	*d_vertex_list_size;
+unsigned int *d_edge_list_size;
+unsigned int *d_vertex_list_size;
 
 unsigned long long int *d_vertex_split;				//L, Input to the split function
 
@@ -628,8 +631,16 @@ int main( int argc, char** argv) {
 		exit(1);
 	}
 
+	struct timeval t1, t2;
+	gettimeofday(&t1, 0);
 
 	ReadGraph(argv[1]);
+
+	cudaThreadSynchronize();
+	gettimeofday(&t2, 0);
+	double time = (1000000.0*(t2.tv_sec-t1.tv_sec) + t2.tv_usec-t1.tv_usec)/1000.0;
+	printf("Graph read & creation time:  %3.1f ms \n", time);
+
 	Init();
 	//printf("\n\n");
 
@@ -638,6 +649,9 @@ int main( int argc, char** argv) {
 	cutStartTimer( timer);*/
 	//Perform Our MST algorhtm
 	printf("start\n");
+	gettimeofday(&t1, 0);
+	
+
 	do
 	{
 	    HPGMST();
@@ -653,6 +667,10 @@ int main( int argc, char** argv) {
 	}
 	while(no_of_vertices>1);
 
+	cudaThreadSynchronize();
+	gettimeofday(&t2, 0);
+	double time = (1000000.0*(t2.tv_sec-t1.tv_sec) + t2.tv_usec-t1.tv_usec)/1000.0;
+	printf("Segmentation time:  %3.1f ms \n", time);
 
 	// Write back hierarchy output
 	// Generate random colors for segments
