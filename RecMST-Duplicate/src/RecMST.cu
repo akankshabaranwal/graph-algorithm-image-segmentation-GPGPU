@@ -276,10 +276,10 @@ void ReadGraph(char *filename) {
     no_of_cols = image.cols;
 
     // Apply gaussian filter
-    dev_image.upload(image);
+    /*dev_image.upload(image);
     Ptr<Filter> filter = createGaussianFilter(CV_8UC3, CV_8UC3, Size(5, 5), 1.0);
     filter->apply(dev_image, dev_output);
-    dev_output.download(output);
+    dev_output.download(output);*/
 
     cudaDeviceSynchronize();
 	gettimeofday(&t2, 0);
