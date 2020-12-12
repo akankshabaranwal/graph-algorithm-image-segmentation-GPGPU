@@ -475,17 +475,16 @@ void HPGMST()
 
 
 	// 8. Append successor array’s entries with its index to form a list, L. Representative left, vertex id right, 64 bit. TODO look into needed sizes
-	//    Important! L different order than in python code!
 	//    Append Vertex Ids with SuperVertexIDs
 	AppendVertexIDsForSplit<<< grid_vertexlen, threads_vertexlen, 0>>>(d_vertex_split, d_successor,no_of_vertices);
-	
+
 
 	//9. Split L, create flag over split output and scan the flag to find new ids per vertex, store new ids in C.
     // 9.1 Split L using representative as key. In parallel using a split of O(V) with log(V) bit key size.
     //     split based on supervertex IDs using 64 bit version of split
-	sp.split(d_vertex_split, d_vertex_split_rank, d_vertex_split_scratchmem, d_vertex_rank_scratchmem, no_of_vertices, NO_OF_BITS_TO_SPLIT_ON, 0); 	// TODO: maybe can just use sort.
+	// sp.split(d_vertex_split, d_vertex_split_rank, d_vertex_split_scratchmem, d_vertex_rank_scratchmem, no_of_vertices, NO_OF_BITS_TO_SPLIT_ON, 0); 	// TODO: maybe can just use sort.
+	thrust::sort(thrust::device, d_vertex_split, d_vertex_split + no_of_vertices);
 
-	
 
 	// 9.2 Create flag for assigning new vertex IDs based on difference in supervertex IDs
 	//     first element not flagged so that can use simple sum for scan
@@ -509,7 +508,7 @@ void HPGMST()
 	//Remove Self Edges from the edge-list
 	// 11. Remove edge from edge-list if u, v have same supervertex id (remove self edges)
 	CopyEdgeArray<<< grid_edgelen, threads_edgelen, 0>>>(d_edge,d_edge_mapping_copy, no_of_edges); // for conflicts
-	RemoveSelfEdges<<< grid_edgelen, threads_edgelen, 0>>>(d_edge, d_old_uIDs, d_new_supervertexIDs, d_vertex_split_rank, d_edge_mapping_copy, no_of_edges);
+	RemoveSelfEdges<<< grid_edgelen, threads_edgelen, 0>>>(d_edge, d_old_uIDs, d_new_supervertexIDs, d_edge_mapping_copy, no_of_edges);
 	CopyEdgeArrayBack<<< grid_edgelen, threads_edgelen, 0>>>(d_edge,d_edge_mapping_copy, no_of_edges); // for conflicts
 
 

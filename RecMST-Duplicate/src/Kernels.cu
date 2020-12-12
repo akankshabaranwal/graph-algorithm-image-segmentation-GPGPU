@@ -147,22 +147,24 @@ __global__ void AppendVertexIDsForSplit(unsigned long long int *d_vertex_split, 
 	unsigned int tid = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
 	if(tid<no_of_vertices) {
 		unsigned long long int val;
-		val = tid; // u
+		val = d_successor[tid]; // representative
 		val = val<<NO_OF_BITS_TO_SPLIT_ON;
-		val |= d_successor[tid]; // representative
+		val |= tid; // u
 		d_vertex_split[tid]=val;
 	}
 }
 
+
 ////////////////////////////////////////////////////////////////////////////////
 // Mark New SupervertexID per vertex, Runs for Vertex Length
 ////////////////////////////////////////////////////////////////////////////////
-__global__ void MakeSuperVertexIDPerVertex(unsigned int *d_new_supervertexIDs, unsigned long long int *d_vertex_split, unsigned int *d_vertex_flag, unsigned int no_of_vertices)
+__global__ void MakeSuperVertexIDPerVertex(unsigned int *d_new_supervertexIDs, unsigned long long int *d_vertex_split, unsigned int *d_vertex_flag,unsigned int no_of_vertices)
 {
 	unsigned int tid = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
-	if(tid<no_of_vertices) {
-		//unsigned long long int mask = pow(2.0,NO_OF_BITS_TO_SPLIT_ON)-1;
-		unsigned long long int vertexid = d_vertex_split[tid]>>NO_OF_BITS_TO_SPLIT_ON;
+	if(tid<no_of_vertices)
+	{
+		unsigned long long int mask = pow(2.0, NO_OF_BITS_TO_SPLIT_ON)-1;
+		unsigned long long int vertexid = d_vertex_split[tid]&mask;
 		d_vertex_flag[vertexid] = d_new_supervertexIDs[tid];
 	}
 }
@@ -182,22 +184,24 @@ __global__ void CopySuperVertexIDPerVertex(unsigned int *d_new_supervertexIDs, u
 ////////////////////////////////////////////////////////////////////////////////
 // Make flag for Scan, assigning new ids to supervertices, Runs for Vertex Length
 ////////////////////////////////////////////////////////////////////////////////
-__global__ void MakeFlagForScan(unsigned int *d_vertex_flag, unsigned long long int *d_split_input, unsigned int no_of_vertices)
+__global__ void MakeFlagForScan(unsigned int *d_vertex_flag, unsigned long long int *d_split_input,unsigned int no_of_vertices)
 {
 	unsigned int tid = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
-	if(tid<no_of_vertices) {
-		if(tid>0) {
-			unsigned long long int mask = pow(2.0,NO_OF_BITS_TO_SPLIT_ON)-1;
+	if(tid<no_of_vertices)
+	{
+		if(tid>0)
+		{
+			//unsigned long long int mask = pow(2.0,NO_OF_BITS_TO_SPLIT_ON)-1;
 			unsigned long long int val = d_split_input[tid-1];
-			unsigned long long int supervertexid_prev  = val&mask;
+			unsigned long long int supervertexid_prev  = val>>NO_OF_BITS_TO_SPLIT_ON;
 			val = d_split_input[tid];
-			unsigned long long int supervertexid  = val&mask;
-			if(supervertexid_prev!=supervertexid) {
+			unsigned long long int supervertexid  = val>>NO_OF_BITS_TO_SPLIT_ON;
+			if(supervertexid_prev!=supervertexid)
 				d_vertex_flag[tid]=1;
-			}
 		}
 	}
 }
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // Make flag to assign old vertex ids, Runs for Vertex Length
@@ -227,7 +231,7 @@ __global__ void CopyEdgeArray(unsigned int *d_edge, unsigned int *d_edge_mapping
 ////////////////////////////////////////////////////////////////////////////////
 // Remove self edges based on new supervertex ids, Runs for Edge Length
 ////////////////////////////////////////////////////////////////////////////////
-__global__ void RemoveSelfEdges(unsigned int *d_edge, unsigned int *d_old_uIDs, unsigned int *d_new_supervertexIDs, unsigned long long int *d_vertex_split_rank, unsigned int *d_edge_mapping_copy, unsigned int no_of_edges)
+__global__ void RemoveSelfEdges(unsigned int *d_edge, unsigned int *d_old_uIDs, unsigned int *d_new_supervertexIDs, unsigned int *d_edge_mapping_copy, unsigned int no_of_edges)
 {
 	unsigned int tid = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
 	if(tid<no_of_edges) {
