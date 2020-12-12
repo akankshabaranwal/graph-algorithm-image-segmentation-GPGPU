@@ -289,7 +289,7 @@ void ReadGraph(char *filename) {
 	cudaDeviceSynchronize();
 	gettimeofday(&t2, 0);
 	time = (1000000.0*(t2.tv_sec-t1.tv_sec) + t2.tv_usec-t1.tv_usec)/1000.0;
-	printf("Image to graph time:  %3.1f ms \n", time);
+	printf("Gaussian time:  %3.1f ms \n", time);
 
     // TODO: use dev_output for gaussian filter
 
@@ -310,7 +310,7 @@ void ReadGraph(char *filename) {
 	cudaDeviceSynchronize();
 	gettimeofday(&t2, 0);
 	time = (1000000.0*(t2.tv_sec-t1.tv_sec) + t2.tv_usec-t1.tv_usec)/1000.0;
-	printf("Image to graph time:  %3.1f ms \n", time);
+	printf("Graph creation time:  %3.1f ms \n", time);
 	
 	no_of_edges_orig = no_of_edges;
 
