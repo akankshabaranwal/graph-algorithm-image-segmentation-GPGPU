@@ -65,9 +65,27 @@ __global__ void RemoveCycles(int32_t *Successor, int numVertices)
     }
 }
 
-void PropagateRepresentativeVertices(int *Successor, int numVertices)
+__global__ void CopySuccessorToNewSuccessor(int *Successor, int *newSuccessor, int no_of_vertices)
 {
-    bool change =true;
+    unsigned int tid = blockIdx.x*blockDim.x + threadIdx.x;
+    if(tid<no_of_vertices)
+        newSuccessor[tid] = Successor[tid];
+}
+
+__global__ void PropagateRepresentativeVertices(int *Successor, int *newSuccessor, int numVertices, bool *change)
+{
+    unsigned int tid = blockIdx.x*blockDim.x + threadIdx.x;
+    if(tid<numVertices)
+    {
+        int32_t succ = Successor[tid];
+        int32_t newsucc = Successor[succ];
+        if(succ!=newsucc) //Execution goes on
+        {
+            newSuccessor[tid] = newsucc; //cannot have input and output in the same array!!!!!
+            *change=true;
+        }
+    }
+/*
     while(change)
     {
         change = false;
@@ -81,19 +99,31 @@ void PropagateRepresentativeVertices(int *Successor, int numVertices)
             if(successor!=successor_2)
             {
                 change=true;
-                Successor[i] = successor_2;
+                newSuccessor[i] = successor_2;
             }
         }
-    }
+    }*/
+}
+
+__global__ void CopyNewSuccessorToSuccessor(int *Successor, int *newSuccessor, int no_of_vertices)
+{
+    unsigned int tid = blockIdx.x*blockDim.x + threadIdx.x;
+    if(tid<no_of_vertices)
+        Successor[tid] = newSuccessor[tid];
 }
 
 __global__ void appendSuccessorArray(int *Representative, int *Vertex, int *Successor, int numVertices)
 {
-    int vertex = blockIdx.x*blockDim.x+threadIdx.x;
-    if(vertex<numVertices)
+    unsigned int vertex = blockIdx.x*blockDim.x+threadIdx.x;
+    printf("Vertices are %d\n", numVertices);
+    if(vertex<1999)
     {
         Representative[vertex] = Successor[vertex];
         Vertex[vertex] = vertex;
+        printf("Assign\n");
+    }else
+    {
+        printf("Not assigned\n");
     }
 }
 
@@ -110,19 +140,10 @@ __global__ void CreateFlagArray(int *Representative, int *Vertex, int *Flag2, in
     }
 }
 
-//https://thrust.github.io/doc/group__sorting_gabe038d6107f7c824cf74120500ef45ea.html#gabe038d6107f7c824cf74120500ef45ea
 void SortedSplit(int *Representative, int *Vertex, int *Successor, int *Flag2, int numVertices)
 {
     int numthreads = 1024;
     int numBlock = numVertices/numthreads;
-    appendSuccessorArray<<<numBlock,numthreads>>>(Representative, Vertex, Successor, numVertices);
-    cudaError_t err = cudaGetLastError();
-    err = cudaGetLastError();
-    if ( err != cudaSuccess )
-    {
-        printf("CUDA Error in appendSuccessorArray function call: %s\n", cudaGetErrorString(err));
-    }
-    cudaDeviceSynchronize();
 
     //TODO: Make this run on device
     thrust::sort_by_key(thrust::host, Representative, Representative + numVertices, Vertex);
@@ -170,7 +191,6 @@ __global__ void RemoveSelfEdges(int *BitEdgeList, int numEdges, int *uid, int *S
     }
 }
 
-
 //12 Removing duplicate edges
 //Instead of UVW array create separate U, V, W array.
 __global__ void CreateUVWArray(int *BitEdgeList, int numEdges, int *uid, int *SuperVertexId, int *UV, int *W)
@@ -203,6 +223,13 @@ int SortUVW(int *UV, int *W, int numEdges, int *flag3)
 {
     //12.2
     thrust::sort_by_key(thrust::host, UV, UV + numEdges, W);
+  /*  printf("Printing UVW array: ");
+    for(int i = 0; i< numEdges;i++)
+    {
+        printf("%d, ", UV[i]);
+    }
+    printf("\n");*/
+
     //12.3
     //Initialize F3 array
     int new_edge_size = numEdges;
@@ -217,7 +244,7 @@ int SortUVW(int *UV, int *W, int numEdges, int *flag3)
         supervertexid_u = UV[i]>>16;
         supervertexid_v = UV[i]%(2<<15);
 
-        if((supervertexid_u!=INT_MAX) and (supervertexid_v!=INT_MAX))
+        if((supervertexid_u!=INT_MAX) and (supervertexid_v!=INT_MAX) and (UV[i]!=INT_MAX))
         {
             if((prev_supervertexid_u !=supervertexid_v) || (prev_supervertexid_v!=supervertexid_v))
             {
@@ -227,31 +254,11 @@ int SortUVW(int *UV, int *W, int numEdges, int *flag3)
             {
                 flag3[i] = 0;
                 new_edge_size = min(new_edge_size, i); // Basically we are setting new_edge_size to the last index wherever the value is not max.
-                //FIXME: For this to work the while marking the edges you need to set it as infinity instead of -1.
             }
         }
     }
     return new_edge_size;
 }
-
-/*
-__global__ void createInParallel(int *newBitEdgeList, int *newVertexList, int *compact_locations, int new_edge_size, int *flag3, int *UV, int *W)
-{
-    int idx = blockIdx.x*blockDim.x+threadIdx.x;
-    int32_t supervertex_id_u, supervertex_id_v, edge_weight;
-    int new_location;
-
-    if(idx < new_edge_size)
-    {
-        if(flag3[idx]){
-            supervertex_id_u = UV[idx]>>15;
-            supervertex_id_v = UV[idx]%(2<<15);
-            edge_weight = W[idx];
-            new_location = compact_locations [idx];
-            if()
-        }
-    }
-}*/
 
 //FIXME: The create flag array kernel calls are redundant. Replace them with a single kernel.
 __global__ void CreateFlag4Array(int *Representative, int *Flag4, int numSegments)
@@ -282,7 +289,7 @@ __global__ void CreateNewVertexList(int *newVertexList, int *Flag4, int new_E_si
 }
 
 //Create new edge list and vertex list
-void CreateNewEdgeVertexList(int *newBitEdgeList, int *newVertexList, int *UV, int *W, int *flag3, int new_edge_size, int *flag4)
+int CreateNewEdgeVertexList(int *newBitEdgeList, int *newVertexList, int *UV, int *W, int *flag3, int new_edge_size, int *flag4)
 {
     //Check if this can be parallelized? can we move the min (new_edge_size) part to somewhere before?
     int32_t supervertex_id_u, supervertex_id_v;
@@ -294,16 +301,13 @@ void CreateNewEdgeVertexList(int *newBitEdgeList, int *newVertexList, int *UV, i
 
     //TODO: You can rename flag3 to compact_locations, so this way you dont need 2 arrays
     thrust::inclusive_scan(flag3, flag3 + new_edge_size, compact_locations, thrust::plus<int>());
-    //TODO: Check if New_E_Size and New V Size would be <= Number of 1s in the flag array??
     //FIXME: Need to allocate memory for newBitEdgeList and newVertexList appropriately.
-    //TODO: Check if we can just override the variables here and dont need to repeatedly create BitEdgeList and vertexList
+
     int new_E_size = 0;
     int new_V_size =0;
-    //expand_u is not the same as newVertexList. newVertexList will get created later
 
     int *expand_u;
     cudaMallocManaged(&expand_u, new_edge_size * sizeof(int32_t));
-    // FIXME: Need to find a way to get newEdgeListLength and newVertexListLength in parallel
 
     int edge_weight;
     int new_location;
@@ -338,7 +342,11 @@ void CreateNewEdgeVertexList(int *newBitEdgeList, int *newVertexList, int *UV, i
     int numthreads = 1024;
     int numBlock = new_E_size/numthreads;
     CreateFlag4Array<<<numBlock, numthreads>>>(expand_u, flag4, new_E_size);
-    //Can this flag4 array creation be skipped?? Can we directly use the index while creating the expand_u array?
+    cudaDeviceSynchronize();
 
+    //Can this flag4 array creation be skipped?? Can we directly use the index while creating the expand_u array?
     CreateNewVertexList<<<numBlock, numthreads>>>(newVertexList, flag4, new_E_size, expand_u);
+    cudaDeviceSynchronize();
+
+    return new_V_size;
 }

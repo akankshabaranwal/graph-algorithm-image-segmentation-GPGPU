@@ -17,16 +17,17 @@ __global__ void MarkSegments(int *flag, int *VertexList,int numElements);
 void SegmentedReduction(CudaContext& context, int32_t *flag, int32_t *a, int32_t *Out, int numElements, int numSegs);
 __global__ void FindSuccessorArray(int32_t *Successor, int32_t *VertexList, int32_t *Out, int numSegments);
 __global__ void RemoveCycles(int32_t *Successor, int numVertices);
-void PropagateRepresentativeVertices(int *Successor, int numVertices);
 
-//Maybe these functions are not required??
+__global__ void CopySuccessorToNewSuccessor(int *Successor, int *newSuccessor, int no_of_vertices);
+__global__ void PropagateRepresentativeVertices(int *Successor, int *newSuccessor, int numVertices, bool *change);
+__global__ void CopyNewSuccessorToSuccessor(int *Successor, int *newSuccessor, int no_of_vertices);
+__global__ void appendSuccessorArray(int *Representative, int *Vertex, int *Successor, int numVertices);
 void SortedSplit(int *Representative, int *Vertex, int *Successor, int *Flag2, int numVertices);
 __global__ void CreateSuperVertexArray(int *SuperVertexId, int *Vertex, int *Flag2, int numSegments);
-__global__ void RemoveSelfEdges(int *SuperVertexId, int *Vertex, int *Flag2, int numSegments);
 void CreateUid(int *uid, int *flag, int numElements);
 __global__ void RemoveSelfEdges(int *BitEdgeList, int numEdges, int *uid, int *SuperVertexId);
 __global__ void CreateUVWArray(int *BitEdgeList, int numEdges, int *uid, int *SuperVertexId, int *UV, int *W);
 int SortUVW(int *UV, int *W, int numEdges, int *flag3);
-void CreateNewEdgeVertexList(int *newBitEdgeList, int *newVertexList, int *UV, int *W, int *flag3, int new_edge_size, int *flag4);
+int CreateNewEdgeVertexList(int *newBitEdgeList, int *newVertexList, int *UV, int *W, int *flag3, int new_edge_size, int *flag4);
 
 #endif //FELZENSZWALB_FASTMST_H
