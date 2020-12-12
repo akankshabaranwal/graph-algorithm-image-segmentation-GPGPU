@@ -280,6 +280,7 @@ void ReadGraph(char *filename) {
     Ptr<Filter> filter = createGaussianFilter(CV_8UC3, CV_8UC3, Size(5, 5), 1.0);
     filter->apply(dev_image, dev_output);
     dev_output.download(output);
+    dev_output = dev_image;
 
     // Get graph parameters
 	no_of_vertices = image.rows * image.cols;
