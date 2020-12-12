@@ -75,8 +75,8 @@ int *d_edge;										// Starts as h_edge
 int *d_vertex;										// starts as h_vertex
 int *d_weight;										// starts as h_weight
 
-int *d_segmented_min_scan_input;					//X, Input to the Segmented Min Scan, appended array of weights and edge IDs
-int *d_segmented_min_scan_output;					//Output of the Segmented Min Scan, minimum weight outgoing edge as (weight|to_vertex_id elements) can be found at end of each segment
+long *d_segmented_min_scan_input;					//X, Input to the Segmented Min Scan, appended array of weights and edge IDs
+long *d_segmented_min_scan_output;					//Output of the Segmented Min Scan, minimum weight outgoing edge as (weight|to_vertex_id elements) can be found at end of each segment
 unsigned int *d_edge_flag;							//Flag for the segmented min scan
 unsigned int *d_edge_flag_thrust;					//NEW! Flag for the segmented min scan in thrust Needs to be 000111222 instead of 100100100
 unsigned int *d_vertex_flag;						//F2, Flag for the scan input for supervertex ID generation
