@@ -75,8 +75,8 @@ int *d_edge;										// Starts as h_edge
 int *d_vertex;										// starts as h_vertex
 int *d_weight;										// starts as h_weight
 
-long *d_segmented_min_scan_input;					//X, Input to the Segmented Min Scan, appended array of weights and edge IDs
-long *d_segmented_min_scan_output;					//Output of the Segmented Min Scan, minimum weight outgoing edge as (weight|to_vertex_id elements) can be found at end of each segment
+unsigned long *d_segmented_min_scan_input;					//X, Input to the Segmented Min Scan, appended array of weights and edge IDs
+unsigned long *d_segmented_min_scan_output;					//Output of the Segmented Min Scan, minimum weight outgoing edge as (weight|to_vertex_id elements) can be found at end of each segment
 unsigned int *d_edge_flag;							//Flag for the segmented min scan
 unsigned int *d_edge_flag_thrust;					//NEW! Flag for the segmented min scan in thrust Needs to be 000111222 instead of 100100100
 unsigned int *d_vertex_flag;						//F2, Flag for the scan input for supervertex ID generation
@@ -301,8 +301,8 @@ void Init()
 	printf("Graph Copied to Device\n");
 
 	//Allocate memory for other arrays
-	cudaMalloc( (void**) &d_segmented_min_scan_input, sizeof(long)*no_of_edges);
-	cudaMalloc( (void**) &d_segmented_min_scan_output, sizeof(long)*no_of_edges);
+	cudaMalloc( (void**) &d_segmented_min_scan_input, sizeof(unsigned long)*no_of_edges);
+	cudaMalloc( (void**) &d_segmented_min_scan_output, sizeof(unsigned long)*no_of_edges);
 	cudaMalloc( (void**) &d_edge_flag, sizeof(unsigned int)*no_of_edges);
 	cudaMalloc( (void**) &d_edge_flag_thrust, sizeof(unsigned int)*no_of_edges);
 	cudaMalloc( (void**) &d_pick_array, sizeof(unsigned int)*no_of_edges);
@@ -404,7 +404,7 @@ void HPGMST()
 
 	// Min inclusive segmented scan on ints from start to end.
 	thrust::equal_to<unsigned int> binaryPred;
-	thrust::minimum<long> binaryOp;
+	thrust::minimum<unsigned long> binaryOp;
 	thrust::inclusive_scan_by_key(thrust::device, d_edge_flag_thrust, d_edge_flag_thrust + no_of_edges, d_segmented_min_scan_input, d_segmented_min_scan_output, binaryPred, binaryOp);
 
 	//printXArr(d_segmented_min_scan_output, no_of_edges);
