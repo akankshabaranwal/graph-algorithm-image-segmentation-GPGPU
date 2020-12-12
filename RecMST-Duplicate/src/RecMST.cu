@@ -279,7 +279,7 @@ void ReadGraph(char *filename) {
 
 	// Scale down to real size
 	h_edge = (int*) realloc(h_edge, no_of_edges * sizeof(int));
-	h_weight = (int*) realloc(h_edge, no_of_edges * sizeof(int));
+	h_weight = (int*) realloc(h_weight, no_of_edges * sizeof(int));
 
 	printf("Image read successfully into graph with %d vertices and %d edges\n", no_of_vertices, no_of_edges);
 }
@@ -704,8 +704,7 @@ int main( int argc, char** argv) {
 	    hierarchy_levels.push_back(cur_hierarchy);
 	    hierarchy_level_sizes.push_back(cur_hierarchy_size);
 	    
-	    printf("it\n");
-	    break;
+	    printf("%d\n", no_of_vertices);
 	}
 	while(no_of_vertices>1);
 
