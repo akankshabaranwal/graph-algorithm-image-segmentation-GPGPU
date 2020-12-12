@@ -273,16 +273,23 @@ void ReadGraph(char *filename) {
     no_of_rows = image.rows;
     no_of_cols = image.cols;
 
+    gettimeofday(&t2, 0);
+	double time = (1000000.0*(t2.tv_sec-t1.tv_sec) + t2.tv_usec-t1.tv_usec)/1000.0;
+	printf("Read time:  %3.1f ms \n", time);
+
+	gettimeofday(&t1, 0);
+
     // Apply gaussian filter
     dev_image.upload(image);
     Ptr<Filter> filter = createGaussianFilter(CV_8UC3, CV_8UC3, Size(5, 5), 1.0);
     filter->apply(dev_image, dev_output);
     dev_output.download(output);
 
-    cudaDeviceSynchronize();
+	
+	cudaDeviceSynchronize();
 	gettimeofday(&t2, 0);
-	double time = (1000000.0*(t2.tv_sec-t1.tv_sec) + t2.tv_usec-t1.tv_usec)/1000.0;
-	printf("Read + gaussian time:  %3.1f ms \n", time);
+	time = (1000000.0*(t2.tv_sec-t1.tv_sec) + t2.tv_usec-t1.tv_usec)/1000.0;
+	printf("Image to graph time:  %3.1f ms \n", time);
 
     // TODO: use dev_output for gaussian filter
 
