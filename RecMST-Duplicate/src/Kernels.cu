@@ -106,24 +106,6 @@ __global__ void RemoveCycles(unsigned int *d_successor, unsigned int no_of_verti
 	}
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// Mark Selected Edges in the Output MST array, Runs for Edge Length
-////////////////////////////////////////////////////////////////////////////////
-__global__ void MarkOutputEdges(unsigned int *d_pick_array, unsigned int *d_segmented_min_scan_input, unsigned int *d_segmented_min_scan_output, unsigned int *d_output_MST, unsigned int *d_edge_mapping, unsigned int no_of_edges) 
-{
-	unsigned int tid = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
-	if(tid<no_of_edges) {
-		unsigned int index = d_pick_array[tid]; // Get index minimum weight outgoing edge of u
-		if(index>=0) {//Make sure only non-cycle making edges write to the final output
-			//Check me against the segment's selected edge, if I am that edge, then set me as part of output array
-			if(d_segmented_min_scan_input[tid] == d_segmented_min_scan_output[index]) {
-				unsigned int edgeid = d_edge_mapping[tid];
-				d_output_MST[edgeid]=1;//I am selected edge, mark me in the output array
-			}
-		}
-	}
-}
-
 
 __global__ void SuccToCopy(unsigned int *d_successor, unsigned int *d_successor_copy, unsigned int no_of_vertices)
 {
@@ -392,7 +374,7 @@ __global__ void MakeFlagForVertexList(unsigned int *d_pick_array, unsigned int *
 ////////////////////////////////////////////////////////////////////////////////
 //Vertex List Compaction, Runs for Edge length
 ////////////////////////////////////////////////////////////////////////////////
-__global__ void MakeVertexList(unsigned int *d_vertex, unsigned int *d_pick_array, unsigned int *d_edge_flag, unsignedint no_of_edges)
+__global__ void MakeVertexList(unsigned int *d_vertex, unsigned int *d_pick_array, unsigned int *d_edge_flag, unsigned int no_of_edges)
 {
 	unsigned int tid = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
 	if(tid<no_of_edges) {
