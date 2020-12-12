@@ -402,7 +402,7 @@ void HPGMST()
     // Normally 8-10 bit for weight, 20-22 bits for ID. Because of 32 bit limitation CUDPP scan primitive, TODO: probably not relevant anymore
 	//Append in Parallel on the Device itself, call the append kernel
 	AppendKernel_1<<< grid_edgelen, threads_edgelen, 0>>>(d_segmented_min_scan_input, d_weight, d_edge, no_of_edges);
-	
+
 	// d_edge_flag = F
 	//Create the Flag needed for segmented min scan operation, similar operation will also be used at other places
 	ClearArray<<< grid_edgelen, threads_edgelen, 0>>>( d_edge_flag, no_of_edges );
@@ -614,6 +614,7 @@ void FreeMem()
 	cudaFree(d_edge);
 	cudaFree(d_vertex);
 	cudaFree(d_weight);
+	printf("here\n");
 	cudaFree(d_segmented_min_scan_input);
 	cudaFree(d_segmented_min_scan_output);
 	cudaFree(d_edge_flag);
