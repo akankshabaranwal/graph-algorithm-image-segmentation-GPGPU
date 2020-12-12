@@ -614,9 +614,10 @@ void FreeMem()
 	cudaFree(d_edge);
 	cudaFree(d_vertex);
 	cudaFree(d_weight);
-	printf("here\n");
 	cudaFree(d_segmented_min_scan_input);
 	cudaFree(d_segmented_min_scan_output);
+		printf("here\n");
+
 	cudaFree(d_edge_flag);
 	cudaFree(d_pick_array);
 	cudaFree(d_successor);
