@@ -264,6 +264,11 @@ void ReadGraph(char *filename) {
 	Mat image, output;				// Released automatically
     GpuMat dev_image, dev_output; 	// Released automatically
 
+    struct timeval t1, t2;
+	gettimeofday(&t1, 0);
+
+	no_of_edges = ImagetoGraphSerial(image);
+	
     // Read image
     image = imread(filename, IMREAD_COLOR);
     printf("Size of image obtained is: Rows: %d, Columns: %d, Pixels: %d\n", image.rows, image.cols, image.rows * image.cols);
@@ -275,6 +280,11 @@ void ReadGraph(char *filename) {
     Ptr<Filter> filter = createGaussianFilter(CV_8UC3, CV_8UC3, Size(5, 5), 1.0);
     filter->apply(dev_image, dev_output);
     dev_output.download(output);
+
+    cudaDeviceSynchronize();
+	gettimeofday(&t2, 0);
+	double time = (1000000.0*(t2.tv_sec-t1.tv_sec) + t2.tv_usec-t1.tv_usec)/1000.0;
+	printf("Read + gaussian time:  %3.1f ms \n", time);
 
     // TODO: use dev_output for gaussian filter
 
@@ -288,14 +298,13 @@ void ReadGraph(char *filename) {
 	h_edge = (unsigned int*) malloc (sizeof(unsigned int)*no_of_edges);
 	h_weight = (unsigned int*) malloc (sizeof(unsigned int)*no_of_edges);
 
-	struct timeval t1, t2;
 	gettimeofday(&t1, 0);
 
 	no_of_edges = ImagetoGraphSerial(image);
 	
 	cudaDeviceSynchronize();
 	gettimeofday(&t2, 0);
-	double time = (1000000.0*(t2.tv_sec-t1.tv_sec) + t2.tv_usec-t1.tv_usec)/1000.0;
+	time = (1000000.0*(t2.tv_sec-t1.tv_sec) + t2.tv_usec-t1.tv_usec)/1000.0;
 	printf("Image to graph time:  %3.1f ms \n", time);
 	
 	no_of_edges_orig = no_of_edges;
