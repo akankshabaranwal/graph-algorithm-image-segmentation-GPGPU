@@ -92,8 +92,8 @@ int *d_edge;										// Starts as h_edge
 int *d_vertex;										// starts as h_vertex
 int *d_weight;										// starts as h_weight
 
-unsigned long long int *d_segmented_min_scan_input;					//X, Input to the Segmented Min Scan, appended array of weights and edge IDs
-unsigned long long int *d_segmented_min_scan_output;					//Output of the Segmented Min Scan, minimum weight outgoing edge as (weight|to_vertex_id elements) can be found at end of each segment
+int *d_segmented_min_scan_input;					//X, Input to the Segmented Min Scan, appended array of weights and edge IDs
+int *d_segmented_min_scan_output;					//Output of the Segmented Min Scan, minimum weight outgoing edge as (weight|to_vertex_id elements) can be found at end of each segment
 unsigned int *d_edge_flag;							//Flag for the segmented min scan
 unsigned int *d_edge_flag_thrust;					//NEW! Flag for the segmented min scan in thrust Needs to be 000111222 instead of 100100100
 unsigned int *d_vertex_flag;						//F2, Flag for the scan input for supervertex ID generation
@@ -214,7 +214,7 @@ int dissimilarity(Mat image, int row1, int col1, int row2, int col2) {
     Point3_<uchar>* u = image.ptr<Point3_<uchar> >(row1,col1);
     Point3_<uchar>* v = image.ptr<Point3_<uchar> >(row2,col2);
     double distance = sqrt(pow((u->x - v->x), 2) + pow((u->y - v->y), 2) + pow((u->z - v->z), 2));
-    return (int) round(8 * distance); // TODO: maybe map to larger interval for better accuracy
+    return (int) round(distance); // TODO: maybe map to larger interval for better accuracy
 }
 
 
@@ -318,8 +318,8 @@ void Init()
 	printf("Graph Copied to Device\n");
 
 	//Allocate memory for other arrays
-	cudaMalloc( (void**) &d_segmented_min_scan_input, sizeof(unsigned long long int)*no_of_edges);
-	cudaMalloc( (void**) &d_segmented_min_scan_output, sizeof(unsigned long long int)*no_of_edges);
+	cudaMalloc( (void**) &d_segmented_min_scan_input, sizeof(int)*no_of_edges);
+	cudaMalloc( (void**) &d_segmented_min_scan_output, sizeof(int)*no_of_edges);
 	cudaMalloc( (void**) &d_edge_flag, sizeof(unsigned int)*no_of_edges);
 	cudaMalloc( (void**) &d_edge_flag_thrust, sizeof(unsigned int)*no_of_edges);
 	cudaMalloc( (void**) &d_pick_array, sizeof(unsigned int)*no_of_edges);
@@ -421,7 +421,7 @@ void HPGMST()
 
 	// Min inclusive segmented scan on ints from start to end.
 	thrust::equal_to<unsigned int> binaryPred;
-	thrust::minimum<unsigned long long int> binaryOp;
+	thrust::minimum<int> binaryOp;
 	thrust::inclusive_scan_by_key(thrust::device, d_edge_flag_thrust, d_edge_flag_thrust + no_of_edges, d_segmented_min_scan_input, d_segmented_min_scan_output, binaryPred, binaryOp);
 
 	//printXArr(d_segmented_min_scan_output, no_of_edges);

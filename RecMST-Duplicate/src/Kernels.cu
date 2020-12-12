@@ -22,7 +22,7 @@
 #ifndef _KERNELS_H_
 #define _KERNELS_H_
 
-#define MOVEBITS 26 						// Amount of bits in X for vertex ID
+#define MOVEBITS 22 						// Amount of bits in X for vertex ID
 #define NO_OF_BITS_TO_SPLIT_ON 32			// Amount of bits for L split (32 bits one vertex, 32 other)
 #define NO_OF_BITS_MOVED_FOR_VERTEX_IDS 24
 #define NO_OF_BITS_TO_SPLIT_ON_UVW 64
@@ -33,7 +33,7 @@
 ////////////////////////////////////////////////////////////////////////////////////////////
 // Append the Weight And Vertex ID into segmented min scan input array, Runs for Edge Length
 ////////////////////////////////////////////////////////////////////////////////////////////
-__global__ void AppendKernel_1(unsigned long long int *d_segmented_min_scan_input, int *d_weight, int *d_edges, int no_of_edges) 
+__global__ void AppendKernel_1(int *d_segmented_min_scan_input, int *d_weight, int *d_edges, int no_of_edges) 
 {
 	unsigned int tid = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
 	if(tid<no_of_edges) {
@@ -71,7 +71,7 @@ __global__ void MakeFlag_3(unsigned int *d_edge_flag, int *d_vertex, int no_of_v
 ////////////////////////////////////////////////////////////////////////////////
 // Make the Successor array, Runs for Vertex Length
 ////////////////////////////////////////////////////////////////////////////////
-__global__ void MakeSucessorArray(int *d_successor, int *d_vertex, unsigned long long int *d_segmented_min_scan_output, int no_of_vertices, int no_of_edges) 
+__global__ void MakeSucessorArray(int *d_successor, int *d_vertex, int *d_segmented_min_scan_output, int no_of_vertices, int no_of_edges) 
 {
 	unsigned int tid = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
 	if(tid<no_of_vertices) {
@@ -158,7 +158,7 @@ __global__ void MakePickArray(int *d_pick_array, int *d_successor, int *d_vertex
 ////////////////////////////////////////////////////////////////////////////////
 // Mark Selected Edges in the Output MST array, Runs for Edge Length
 ////////////////////////////////////////////////////////////////////////////////
-__global__ void MarkOutputEdges(int *d_pick_array, unsigned long long int *d_segmented_min_scan_input, unsigned long long int *d_segmented_min_scan_output, unsigned int *d_output_MST, unsigned int *d_edge_mapping, int no_of_edges) 
+__global__ void MarkOutputEdges(int *d_pick_array, int *d_segmented_min_scan_input, int *d_segmented_min_scan_output, unsigned int *d_output_MST, unsigned int *d_edge_mapping, int no_of_edges) 
 {
 	unsigned int tid = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
 	if(tid<no_of_edges) {
