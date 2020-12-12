@@ -301,8 +301,8 @@ void Init()
 	printf("Graph Copied to Device\n");
 
 	//Allocate memory for other arrays
-	cudaMalloc( (void**) &d_segmented_min_scan_input, sizeof(int)*no_of_edges);
-	cudaMalloc( (void**) &d_segmented_min_scan_output, sizeof(int)*no_of_edges);
+	cudaMalloc( (void**) &d_segmented_min_scan_input, sizeof(long)*no_of_edges);
+	cudaMalloc( (void**) &d_segmented_min_scan_output, sizeof(long)*no_of_edges);
 	cudaMalloc( (void**) &d_edge_flag, sizeof(unsigned int)*no_of_edges);
 	cudaMalloc( (void**) &d_edge_flag_thrust, sizeof(unsigned int)*no_of_edges);
 	cudaMalloc( (void**) &d_pick_array, sizeof(unsigned int)*no_of_edges);
@@ -404,7 +404,7 @@ void HPGMST()
 
 	// Min inclusive segmented scan on ints from start to end.
 	thrust::equal_to<unsigned int> binaryPred;
-	thrust::minimum<int> binaryOp;
+	thrust::minimum<long> binaryOp;
 	thrust::inclusive_scan_by_key(thrust::device, d_edge_flag_thrust, d_edge_flag_thrust + no_of_edges, d_segmented_min_scan_input, d_segmented_min_scan_output, binaryPred, binaryOp);
 
 	//printXArr(d_segmented_min_scan_output, no_of_edges);
