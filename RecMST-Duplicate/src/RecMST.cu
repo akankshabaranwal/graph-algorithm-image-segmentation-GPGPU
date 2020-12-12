@@ -214,7 +214,7 @@ int dissimilarity(Mat image, int row1, int col1, int row2, int col2) {
     Point3_<uchar>* u = image.ptr<Point3_<uchar> >(row1,col1);
     Point3_<uchar>* v = image.ptr<Point3_<uchar> >(row2,col2);
     double distance = sqrt(pow((u->x - v->x), 2) + pow((u->y - v->y), 2) + pow((u->z - v->z), 2));
-    return (int) round(distance); // TODO: maybe map to larger interval for better accuracy
+    return (int) round(8 * distance); // TODO: maybe map to larger interval for better accuracy
 }
 
 

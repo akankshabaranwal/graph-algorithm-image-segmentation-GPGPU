@@ -22,7 +22,7 @@
 #ifndef _KERNELS_H_
 #define _KERNELS_H_
 
-#define MOVEBITS 22 						// Amount of bits in X for vertex ID
+#define MOVEBITS 26 						// Amount of bits in X for vertex ID
 #define NO_OF_BITS_TO_SPLIT_ON 32			// Amount of bits for L split (32 bits one vertex, 32 other)
 #define NO_OF_BITS_MOVED_FOR_VERTEX_IDS 24
 #define NO_OF_BITS_TO_SPLIT_ON_UVW 64
