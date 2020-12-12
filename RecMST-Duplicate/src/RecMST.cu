@@ -288,7 +288,16 @@ void ReadGraph(char *filename) {
 	h_edge = (unsigned int*) malloc (sizeof(unsigned int)*no_of_edges);
 	h_weight = (unsigned int*) malloc (sizeof(unsigned int)*no_of_edges);
 
+	struct timeval t1, t2;
+	gettimeofday(&t1, 0);
+
 	no_of_edges = ImagetoGraphSerial(image);
+	
+	cudaDeviceSynchronize();
+	gettimeofday(&t2, 0);
+	double time = (1000000.0*(t2.tv_sec-t1.tv_sec) + t2.tv_usec-t1.tv_usec)/1000.0;
+	printf("Image to graph time:  %3.1f ms \n", time);
+	
 	no_of_edges_orig = no_of_edges;
 
 	// Scale down to real size
@@ -635,7 +644,7 @@ int main( int argc, char** argv) {
 	gettimeofday(&t1, 0);
 
 	ReadGraph(argv[1]);
-	
+
 	cudaDeviceSynchronize();
 	gettimeofday(&t2, 0);
 	double time = (1000000.0*(t2.tv_sec-t1.tv_sec) + t2.tv_usec-t1.tv_usec)/1000.0;
