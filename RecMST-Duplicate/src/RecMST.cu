@@ -280,7 +280,8 @@ void ReadGraph(char *filename) {
     Ptr<Filter> filter = createGaussianFilter(CV_8UC3, CV_8UC3, Size(5, 5), 1.0);
     filter->apply(dev_image, dev_output);
     dev_output.download(output);
-    dev_output = dev_image;
+
+    // TODO: use dev_output for gaussian filter
 
     // Get graph parameters
 	no_of_vertices = image.rows * image.cols;
@@ -401,21 +402,21 @@ void HPGMST()
     // Normally 8-10 bit for weight, 20-22 bits for ID. Because of 32 bit limitation CUDPP scan primitive, TODO: probably not relevant anymore
 	//Append in Parallel on the Device itself, call the append kernel
 	AppendKernel_1<<< grid_edgelen, threads_edgelen, 0>>>(d_segmented_min_scan_input, d_weight, d_edge, no_of_edges);
-
+	cudaDeviceSynchronize();
 	// d_edge_flag = F
 	//Create the Flag needed for segmented min scan operation, similar operation will also be used at other places
 	ClearArray<<< grid_edgelen, threads_edgelen, 0>>>( d_edge_flag, no_of_edges );
-
+	cudaDeviceSynchronize();
 
 	// 2. Divide the edge-list, E, into segments with 1 indicating the start of each segment and 0 otherwise, store this in flag array F.
 	// Mark the segments for the segmented min scan
 	MakeFlag_3<<< grid_vertexlen, threads_vertexlen, 0>>>( d_edge_flag, d_vertex, no_of_vertices);
-
+	cudaDeviceSynchronize();
 
 	// 3. Perform segmented min scan on X with F indicating segments to find minimum outgoing edge-index per vertex. Min can be found at end of each segment after scan // DONE: change to thrust
 	// Prepare key vector for thrust
 	thrust::inclusive_scan(thrust::device, d_edge_flag, d_edge_flag + no_of_edges, d_edge_flag_thrust);
-
+	cudaDeviceSynchronize();
 	//printf("X:\n");
 	//printUIntArr(d_edge_flag, no_of_edges);
 	//printXArr(d_segmented_min_scan_input, no_of_edges);
@@ -428,18 +429,18 @@ void HPGMST()
 	//printXArr(d_segmented_min_scan_output, no_of_edges);
 	//printf("\n");
 
-
+	cudaDeviceSynchronize();
 	/*
 	 * B. Finding and removing cycles
 	 */
 
 	// 4. Find the successor of each vertex and add to successor array, S.
 	MakeSucessorArray<<< grid_vertexlen, threads_vertexlen, 0>>>(d_successor, d_vertex, d_segmented_min_scan_output, no_of_vertices, no_of_edges);
-
+	cudaDeviceSynchronize();
 
 	// 5. Remove cycle making edges using S, and identify representatives vertices.
 	RemoveCycles<<< grid_vertexlen, threads_vertexlen, 0>>>(d_successor,no_of_vertices);
-
+	cudaDeviceSynchronize();
 
 	/*
 	 * Can possibly be moved in future once remove pick array stuff
@@ -450,13 +451,13 @@ void HPGMST()
 	// Set F[0] = 0. F is the same as previous F but first element is 0 instead of 1
 	ClearArray<<< grid_edgelen, threads_edgelen, 0>>>( d_edge_flag, no_of_edges );
 	MakeFlagForUIds<<< grid_vertexlen, threads_vertexlen, 0>>>(d_edge_flag, d_vertex,no_of_vertices); 
-
+	cudaDeviceSynchronize();
 	// 10.2 Create vector indicating source vertex u for each edge // DONE: change to thrust
 	thrust::inclusive_scan(thrust::device, d_edge_flag, d_edge_flag + no_of_edges, d_old_uIDs);
 
 	//printf("Expanded U:\n");
 	//printUIntArr(d_old_uIDs, no_of_edges);
-
+	cudaDeviceSynchronize();
 
 	/*
 	 * C. Merging vertices and assigning IDs to supervertices
@@ -474,6 +475,7 @@ void HPGMST()
 		CopyToSucc<<< grid_vertexlen, threads_vertexlen, 0>>>(d_successor, d_successor_copy, no_of_vertices); // for conflicts
 
 		cudaMemcpy( &succchange, d_succchange, sizeof(bool), cudaMemcpyDeviceToHost);
+		cudaDeviceSynchronize();
 	}
 	while(succchange);
 
@@ -482,23 +484,23 @@ void HPGMST()
 	//    Important! L different order than in python code!
 	//    Append Vertex Ids with SuperVertexIDs
 	AppendVertexIDsForSplit<<< grid_vertexlen, threads_vertexlen, 0>>>(d_vertex_split, d_successor,no_of_vertices);
-
+	cudaDeviceSynchronize();
 
 	//9. Split L, create flag over split output and scan the flag to find new ids per vertex, store new ids in C.
     // 9.1 Split L using representative as key. In parallel using a split of O(V) with log(V) bit key size.
     //     split based on supervertex IDs using 64 bit version of split
 	sp.split(d_vertex_split, d_vertex_split_rank, d_vertex_split_scratchmem, d_vertex_rank_scratchmem, no_of_vertices, NO_OF_BITS_TO_SPLIT_ON, 0); 	// TODO: maybe can just use sort.
-
+	cudaDeviceSynchronize();
 	// 9.2 Create flag for assigning new vertex IDs based on difference in supervertex IDs
 	//     first element not flagged so that can use simple sum for scan
 	ClearArray<<< grid_vertexlen, threads_vertexlen, 0>>>( d_vertex_flag, no_of_vertices);
 	MakeFlagForScan<<< grid_vertexlen, threads_vertexlen, 0>>>(d_vertex_flag, d_vertex_split, no_of_vertices);
- 
+ 	cudaDeviceSynchronize();
 	// 9.3 Scan flag to assign new IDs to supervertices, Using a scan on O(V) elements // DONE: change to thrust
 	//printf("New supervertex ids:\n");
 	thrust::inclusive_scan(thrust::device, d_vertex_flag, d_vertex_flag + no_of_vertices, d_new_supervertexIDs);
 	//printUIntArr(d_new_supervertexIDs, no_of_vertices);
-
+	cudaDeviceSynchronize();
 
 	/*
 	 * D. Removing self edges
@@ -507,13 +509,13 @@ void HPGMST()
 	// 10.1 Create mapping from each original vertex ID to its new supervertex ID so we can lookup supervertex IDs directly
 	MakeSuperVertexIDPerVertex<<< grid_vertexlen, threads_vertexlen, 0>>>(d_new_supervertexIDs, d_vertex_split, d_vertex_flag, no_of_vertices);
 	CopySuperVertexIDPerVertex<<< grid_vertexlen, threads_vertexlen, 0>>>(d_new_supervertexIDs, d_vertex_flag, no_of_vertices); // for concurrent access problems
-	
+	cudaDeviceSynchronize();
 	//Remove Self Edges from the edge-list
 	// 11. Remove edge from edge-list if u, v have same supervertex id (remove self edges)
 	CopyEdgeArray<<< grid_edgelen, threads_edgelen, 0>>>(d_edge,d_edge_mapping_copy, no_of_edges); // for conflicts
 	RemoveSelfEdges<<< grid_edgelen, threads_edgelen, 0>>>(d_edge, d_old_uIDs, d_new_supervertexIDs, d_vertex_split_rank, d_edge_mapping_copy, no_of_edges);
 	CopyEdgeArrayBack<<< grid_edgelen, threads_edgelen, 0>>>(d_edge,d_edge_mapping_copy, no_of_edges); // for conflicts
-
+	cudaDeviceSynchronize();
 
 	/*
 	 * D. Removing duplicate edges. This is not mandatory, however, reduces the edge-list size significantly. You may choose to use it once in the initial 
@@ -524,19 +526,19 @@ void HPGMST()
 	// 12. Remove the largest duplicate edges using split over new u,v and w.
 	// 12.1 Append supervertex ids of u and v along with weight w into single 64 bit array (u 24 bit, v 24 bit, w 16 bit)
 	AppendForDuplicateEdgeRemoval<<< grid_edgelen, threads_edgelen, 0>>>(d_appended_uvw, d_edge, d_old_uIDs, d_weight,d_new_supervertexIDs, no_of_edges);
-
+	cudaDeviceSynchronize();
 	//12.2 Split the array using {u,v) as the key. Pick First distinct (u,v) entry as the edge, nullify others
 	//     You may also replace the split with sort, but we could not find a 64-bit sort.
 	// sp.split(d_appended_uvw, d_edge_rank, d_edge_split_scratchmem, d_edge_rank_scratchmem, no_of_edges, NO_OF_BITS_TO_SPLIT_ON_UVW, 0);
 	thrust::sort(thrust::device, d_appended_uvw, d_appended_uvw + no_of_edges); // TODO: check
-	
+		cudaDeviceSynchronize();
 	//Pick the first distinct (u,v) combination, mark these edges and compact
 	// 12.3 Create flag indicating smallest edges, 0 for larger duplicates
 	ClearArray<<< grid_edgelen, threads_edgelen, 0>>>( d_edge_flag, no_of_edges ); // d_edge_flag = F3
 	unsigned int dsize=no_of_edges; //just make sure
 	cudaMemcpy( d_size, &dsize, sizeof(unsigned int), cudaMemcpyHostToDevice);
 	MarkEdgesUV<<< grid_edgelen, threads_edgelen, 0>>>(d_edge_flag, d_appended_uvw, d_size, no_of_edges);
-
+	cudaDeviceSynchronize();
 	//printf("UVW:");
 	//printUVWArr(d_appended_uvw, no_of_edges);
 	//printUIntArr(d_edge_flag, no_of_edges);
@@ -547,7 +549,7 @@ void HPGMST()
 	// 13. Compact and create new edge and weight list
 	// 13.1 Scan the flag array to know where to write the value in new edge and weight lists // DONE: change to thrust
 	thrust::inclusive_scan(thrust::device, d_edge_flag, d_edge_flag + no_of_edges, d_old_uIDs);
-
+	cudaDeviceSynchronize();
 	// NEW! Maybe not needed. Make sure new locations start from 0 instead of 1. TODO: can be done more efficient in case works
 	thrust::transform(thrust::device,
 				  d_old_uIDs,
@@ -555,7 +557,7 @@ void HPGMST()
                   thrust::make_constant_iterator(1),
                   d_old_uIDs,
                   thrust::minus<unsigned int>());
-
+	cudaDeviceSynchronize();
 	//printf("Write positions:");
 
 	//******************************************************************************************
@@ -568,30 +570,30 @@ void HPGMST()
 	int negative=0;
 	cudaMemcpy( d_edge_list_size, &negative, sizeof( int), cudaMemcpyHostToDevice);
 	cudaMemcpy( d_vertex_list_size, &negative, sizeof( int), cudaMemcpyHostToDevice);
-	
+		cudaDeviceSynchronize();
 	//Compact the edge and weight lists
 	unsigned int validsize=0;
 	cudaMemcpy( &validsize, d_size, sizeof(unsigned int), cudaMemcpyDeviceToHost);
-
+	cudaDeviceSynchronize();
 	//Make a new grid for valid entries in the d_edge_flag array
 	SetGridThreadLen(validsize, &num_of_blocks, &num_of_threads_per_block);
 	dim3 grid_validsizelen(num_of_blocks, 1, 1);
 	dim3 threads_validsizelen(num_of_threads_per_block, 1, 1);
-
+	cudaDeviceSynchronize();
 	// 13.2 Compact and create new edge and weight list
 	//      Reusing d_pick_array for storing the u ids
 	CompactEdgeList<<< grid_validsizelen, threads_validsizelen, 0>>>(d_edge, d_weight, d_old_uIDs, d_edge_flag, d_appended_uvw, d_pick_array, d_size, d_edge_list_size, d_vertex_list_size);
-
+	cudaDeviceSynchronize();
 	// 14. Build the vertex list from the newly formed edge list
 	ClearArray<<< grid_edgelen, threads_edgelen, 0>>>( d_edge_flag, no_of_edges);
 	ClearArray<<< grid_vertexlen, threads_vertexlen, 0>>>((unsigned int*)d_vertex, no_of_vertices);
-
+cudaDeviceSynchronize();
 	//14.1 Create flag based on difference in u on the new edge list (based on diffference of u ids)
 	MakeFlagForVertexList<<< grid_edgelen, threads_edgelen, 0>>>(d_pick_array, d_edge_flag, no_of_edges); // d_edge_flag = F4
-
+	cudaDeviceSynchronize();
 	// 14.2 Build the vertex list from the newly formed edge list
 	MakeVertexList<<< grid_edgelen, threads_edgelen, 0>>>(d_vertex, d_pick_array, d_edge_flag, no_of_edges);
-	
+	cudaDeviceSynchronize();
 	cur_hierarchy_size = no_of_vertices;
 	cudaMemcpy( &no_of_edges, d_edge_list_size, sizeof(int), cudaMemcpyDeviceToHost);
 	cudaMemcpy( &no_of_vertices, d_vertex_list_size, sizeof(int), cudaMemcpyDeviceToHost);
