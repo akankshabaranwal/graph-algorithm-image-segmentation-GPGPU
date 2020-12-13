@@ -64,6 +64,8 @@ int main(int argc, char **argv)
     int *flag4; //Same as F4. New flag for creating vertex list. Assigning the new ids.
     cudaMallocManaged(&flag4, numEdges * sizeof(int));
 
+    bool *change;
+    cudaMallocManaged(&change, sizeof(bool));
     //FIXME: Make this initialization run in parallel?
     //TODO: Figure out if this initialization is required??
     for(int i =0;i<numEdges;i++)
@@ -138,14 +140,18 @@ int main(int argc, char **argv)
         //7. Propagate representative vertex IDs using pointer doubling
 
         cudaDeviceSynchronize(); //because PropagateRepresentative is on host
-        bool change;
-
+        //bool change;
+        *change = true;
         //Code copied
-        do{
+        /*do{
+            *change=false;
             CopySuccessorToNewSuccessor<<<numBlock, numthreads>>>(Successor, newSuccessor, numVertices);
-            PropagateRepresentativeVertices<<<numBlock, numthreads>>>(Successor, newSuccessor, numVertices, &change);
+            cudaDeviceSynchronize();
+            PropagateRepresentativeVertices<<<numBlock, numthreads>>>(Successor, newSuccessor, numVertices, change);
+            cudaDeviceSynchronize();
             CopyNewSuccessorToSuccessor<<<numBlock, numthreads>>>(Successor, newSuccessor, numVertices);
-        }while(change);
+            cudaDeviceSynchronize();
+        }while(change);*/
 
         cudaDeviceSynchronize();
         printf("\n After propagating representative vertices printing Successor Array: \n");
@@ -154,7 +160,7 @@ int main(int argc, char **argv)
             printf("%d ,", Successor[i]);
         }
         //8, 9 Append appendSuccessorArray
-        appendSuccessorArray<<<numBlock,numthreads>>>(Representative, Vertex, Successor, numVertices);
+        appendSuccessorArray<<<numBlock, numthreads>>>(Representative, Vertex, Successor, numVertices);
         cudaDeviceSynchronize();
         printf("\n Representative array \n");
         for(int i =0; i< 1000; i++)
@@ -168,9 +174,8 @@ int main(int argc, char **argv)
         }
         //cudaDeviceSynchronize();
         //9. Create F2, Assign new IDs based on Flag2 array
-        //SortedSplit(Representative, Vertex, Successor, Flag2, numVertices);
+        SortedSplit(Representative, Vertex, Successor, Flag2, numVertices);
         //cudaDeviceSynchronize();
-        thrust::sort_by_key(thrust::host, Representative, Representative + numVertices, Vertex);
         printf("\n Sorted representative array \n");
         for(int i =0; i< 1000; i++)
         {

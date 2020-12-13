@@ -72,20 +72,10 @@ __global__ void CopySuccessorToNewSuccessor(int *Successor, int *newSuccessor, i
         newSuccessor[tid] = Successor[tid];
 }
 
-__global__ void PropagateRepresentativeVertices(int *Successor, int *newSuccessor, int numVertices, bool *change)
+void PropagateRepresentativeVertices(int *Successor, int *newSuccessor, int numVertices)
 {
-    unsigned int tid = blockIdx.x*blockDim.x + threadIdx.x;
-    if(tid<numVertices)
-    {
-        int32_t succ = Successor[tid];
-        int32_t newsucc = Successor[succ];
-        if(succ!=newsucc) //Execution goes on
-        {
-            newSuccessor[tid] = newsucc; //cannot have input and output in the same array!!!!!
-            *change=true;
-        }
-    }
-/*
+    bool change;
+    change = true;
     while(change)
     {
         change = false;
@@ -102,7 +92,7 @@ __global__ void PropagateRepresentativeVertices(int *Successor, int *newSuccesso
                 newSuccessor[i] = successor_2;
             }
         }
-    }*/
+    }
 }
 
 __global__ void CopyNewSuccessorToSuccessor(int *Successor, int *newSuccessor, int no_of_vertices)
@@ -115,15 +105,11 @@ __global__ void CopyNewSuccessorToSuccessor(int *Successor, int *newSuccessor, i
 __global__ void appendSuccessorArray(int *Representative, int *Vertex, int *Successor, int numVertices)
 {
     unsigned int vertex = blockIdx.x*blockDim.x+threadIdx.x;
-    printf("Vertices are %d\n", numVertices);
-    if(vertex<1999)
+
+    if(vertex<numVertices)
     {
         Representative[vertex] = Successor[vertex];
         Vertex[vertex] = vertex;
-        printf("Assign\n");
-    }else
-    {
-        printf("Not assigned\n");
     }
 }
 
@@ -146,7 +132,7 @@ void SortedSplit(int *Representative, int *Vertex, int *Successor, int *Flag2, i
     int numBlock = numVertices/numthreads;
 
     //TODO: Make this run on device
-    thrust::sort_by_key(thrust::host, Representative, Representative + numVertices, Vertex);
+    thrust::sort_by_key(thrust::host, Vertex, Vertex + numVertices, Representative);
 
     CreateFlagArray<<<numBlock,numthreads>>>(Representative, Vertex, Flag2, numVertices);
     //Scan to assign new vertex ids. Use exclusive scan. Run exclusive scan on the flag array

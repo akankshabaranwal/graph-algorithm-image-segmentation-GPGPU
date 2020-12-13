@@ -19,7 +19,7 @@ __global__ void FindSuccessorArray(int32_t *Successor, int32_t *VertexList, int3
 __global__ void RemoveCycles(int32_t *Successor, int numVertices);
 
 __global__ void CopySuccessorToNewSuccessor(int *Successor, int *newSuccessor, int no_of_vertices);
-__global__ void PropagateRepresentativeVertices(int *Successor, int *newSuccessor, int numVertices, bool *change);
+void PropagateRepresentativeVertices(int *Successor, int *newSuccessor, int numVertices, bool *change);
 __global__ void CopyNewSuccessorToSuccessor(int *Successor, int *newSuccessor, int no_of_vertices);
 __global__ void appendSuccessorArray(int *Representative, int *Vertex, int *Successor, int numVertices);
 void SortedSplit(int *Representative, int *Vertex, int *Successor, int *Flag2, int numVertices);
