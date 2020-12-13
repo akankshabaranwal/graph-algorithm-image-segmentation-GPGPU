@@ -290,7 +290,7 @@ void ReadGraph(char *filename) {
     GaussianBlur(image, blurred, Size(5, 5), 1.0);
 
 	
-	cudaDeviceSynchronize();
+	//cudaDeviceSynchronize();
 	gettimeofday(&t2, 0);
 	time = (1000000.0*(t2.tv_sec-t1.tv_sec) + t2.tv_usec-t1.tv_usec)/1000.0;
 	printf("Gaussian time:  %3.1f ms \n", time);
@@ -311,7 +311,7 @@ void ReadGraph(char *filename) {
 
 	no_of_edges = ImagetoGraphSerial(blurred);
 	
-	cudaDeviceSynchronize();
+	//cudaDeviceSynchronize();
 	gettimeofday(&t2, 0);
 	time = (1000000.0*(t2.tv_sec-t1.tv_sec) + t2.tv_usec-t1.tv_usec)/1000.0;
 	printf("Graph creation time:  %3.1f ms \n", time);
