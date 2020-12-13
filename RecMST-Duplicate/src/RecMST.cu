@@ -82,11 +82,6 @@ unsigned int no_of_vertices_orig;							//Original number of vertices graph (con
 unsigned int no_of_edges;									//Current graph sizes
 unsigned int no_of_edges_orig;								//Original number of edges graph (constant)
 
-//Graph held in these variables at the host end
-unsigned int *h_edge;										//Original E (end vertex index each edge)
-unsigned int *h_vertex;										//Original V (start index edges for each vertex)
-unsigned int *h_weight;										//Original W (weight each edge)
-
 //Graph held in these variables at the device end
 unsigned int *d_edge;										// Starts as h_edge
 unsigned int *d_vertex;										// starts as h_vertex
@@ -228,52 +223,6 @@ unsigned int dissimilarity(Mat image, int row1, int col1, int row2, int col2) {
     return (unsigned int) round(distance); // TODO: maybe map to larger interval for better accuracy
 }
 
-
-int ImagetoGraphSerial(Mat image) {
-    
-	int cur_edge_idx, cur_vertex_idx, left_node, right_node, bottom_node, top_node;
-    cur_edge_idx = 0;
-
-    for(int i=0; i<image.rows; i++) {
-        for(int j=0; j<image.cols; j++) {
-            left_node = i * image.cols + j - 1;
-            right_node = i * image.cols + j + 1;
-            bottom_node = (i+1) * image.cols + j;
-            top_node = (i - 1) * image.cols + j;
-
-            //Add the index for VertexList
-            cur_vertex_idx = i * image.cols + j;
-            h_vertex[cur_vertex_idx] = cur_edge_idx;
-
-            if (j > 0) {
-            	h_edge[cur_edge_idx] = left_node;
-            	h_weight[cur_edge_idx] = dissimilarity(image, i, j, i, j - 1);
-                cur_edge_idx++;
-            }
-
-            if (j < image.cols - 1) {
-                h_edge[cur_edge_idx] = right_node;
-                h_weight[cur_edge_idx] = dissimilarity(image, i, j, i, j + 1);
-                cur_edge_idx++;
-            }
-
-            if (i < image.rows - 1) {
-                h_edge[cur_edge_idx] = bottom_node;
-                h_weight[cur_edge_idx] = dissimilarity(image, i, j, i+1, j);
-                cur_edge_idx++;
-            }
-
-            if (i > 0) {
-                h_edge[cur_edge_idx] = top_node;
-                h_weight[cur_edge_idx] = dissimilarity(image, i, j, i-1, j);
-                cur_edge_idx++;
-            }
-        }
-    }
-
-    return cur_edge_idx;
-}
-
 ////////////////////////////////////////////////
 // Allocate and Initialize Arrays
 ////////////////////////////////////////////////
@@ -284,8 +233,6 @@ void Init()
 	cudaMalloc( (void**) &d_edge, sizeof(unsigned int)*no_of_edges);
 	cudaMalloc( (void**) &d_vertex, sizeof(unsigned int)*no_of_vertices);
 	cudaMalloc( (void**) &d_weight, sizeof(unsigned int)*no_of_edges);
-	cudaMemcpy( d_edge, h_edge, sizeof(unsigned int)*no_of_edges, cudaMemcpyHostToDevice);
-	cudaMemcpy( d_vertex, h_vertex, sizeof(unsigned int)*no_of_vertices, cudaMemcpyHostToDevice);
 	cudaMemcpy( d_weight, h_weight, sizeof(unsigned int)*no_of_edges, cudaMemcpyHostToDevice);
 	printf("Graph Copied to Device\n");
 
@@ -657,10 +604,6 @@ void FreeMem()
 	cudaFree(d_edge_list_size);
 	cudaFree(d_vertex_list_size);
 	cudaFree(d_appended_uvw);
-
-	free(h_edge);
-	free(h_vertex);
-	free(h_weight);
 }
 
 
