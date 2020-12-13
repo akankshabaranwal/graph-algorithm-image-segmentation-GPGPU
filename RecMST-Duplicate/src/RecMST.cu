@@ -669,7 +669,7 @@ int main( int argc, char** argv) {
 	char *component_colours = (char *) malloc(no_of_vertices_orig * CHANNEL_SIZE * sizeof(char));
 	get_component_colours(component_colours, no_of_vertices_orig);
 
-	char *output = (char*) malloc(no_of_rows*no_of_rows*CHANNEL_SIZE*sizeof(char));
+	char *output = (char*) malloc(no_of_rows*no_of_cols*CHANNEL_SIZE*sizeof(char));
 
 	unsigned int* prev_level_component = (unsigned int*)malloc(sizeof(unsigned int)*no_of_vertices_orig);
 	for (int i = 0; i < no_of_rows; i++) {
