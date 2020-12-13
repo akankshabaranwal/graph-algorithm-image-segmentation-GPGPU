@@ -72,7 +72,7 @@ int main(int argc, char **argv)
     filter->apply(dev_image, dev_output);
 
     // Segmentation
-    char *segmented_img = compute_segments(dev_output.cudaPtr(), image.rows, image.cols, dev_output.step);
+    char *segmented_img = compute_segments(dev_output.cudaPtr(), image.rows, image.cols, dev_output.step, options.useCPU);
 
     std::chrono::high_resolution_clock::time_point end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> time_span = std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
