@@ -1,0 +1,19 @@
+//
+// Created by gyorgy on 13/12/2020.
+//
+
+#ifndef FELZENSWALB_OPTIONS_H
+#define FELZENSWALB_OPTIONS_H
+
+
+class Options
+{
+public:
+    bool useCPU = false;
+    bool show = false;
+    std::string inFile = "data/beach.png";
+    std::string outFile = "segmented.png";
+};
+
+
+#endif //FELZENSWALB_OPTIONS_H
