@@ -15,13 +15,16 @@ void printUsage() {
     puts("\t-o: Path to output file (default: segmented.png)");
     puts("\t-c: Use host side kernel launches instead of dynamic parallelism");
     puts("\t-s: Show the generated images");
+    puts("\t-w: Number of iterations to perform during warmup");
+    puts("\t-s: Number of iterations to perform during benchmarking");
+    exit(1);
 }
 
 const Options handleParams(int argc, char **argv) {
     Options options = Options();
     for(;;)
     {
-        switch(getopt(argc, argv, "ci:o:hs")) // note the colon (:) to indicate that 'b' has a parameter and is not a switch
+        switch(getopt(argc, argv, "chsi:o:w:b:"))
         {
             case 'c': {
                 options.useCPU = true;
@@ -39,6 +42,14 @@ const Options handleParams(int argc, char **argv) {
                 options.outFile = std::string(optarg);
                 continue;
             }
+            case 'w': {
+                options.warmupIterations = atoi(optarg);
+                continue;
+            }
+            case 'b': {
+                options.benchmarkIterations = atoi(optarg);
+                continue;
+            }
             case '?':
             case 'h':
             default : {
@@ -53,42 +64,56 @@ const Options handleParams(int argc, char **argv) {
     return options;
 }
 
+char *segment_wrapper(cv::Mat image, Options options, bool isBenchmarking) {
+    char *img;
+    cv::Ptr<cv::cuda::Filter> filter;
+    cv::cuda::GpuMat dev_image, dev_output;
+    std::chrono::high_resolution_clock::time_point start, end;
+
+    // Start timer
+    start = std::chrono::high_resolution_clock::now();
+
+    // Gaussian blur
+    dev_image.upload(image);
+    filter = cv::cuda::createGaussianFilter(CV_8UC3, CV_8UC3, cv::Size(5, 5), 1.0);
+    filter->apply(dev_image, dev_output);
+
+    // Segmentation
+    img = compute_segments(dev_output.cudaPtr(), image.rows, image.cols, dev_output.step, options.useCPU);
+
+    // Stop timer
+    end = std::chrono::high_resolution_clock::now();
+
+    auto time_span = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+    if (isBenchmarking) std::cout << time_span.count() << std::endl;
+    return img;
+}
+
 int main(int argc, char **argv)
 {
     const Options options = handleParams(argc, argv);
 
-    cv::Mat image;
+    cv::Mat image = imread(options.inFile, cv::IMREAD_COLOR);
+    std::cout << image.rows * image.cols << std::endl;
 
-    image = imread(options.inFile, cv::IMREAD_COLOR);
-    std::cout << "Computing on: " << image.rows << "x" << image.cols << std::endl;
+    char *segmented_img;
 
-    // Start timer
-    std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
+    // Warm up
+    for (int i = 0; i < options.warmupIterations; ++i) {
+        segmented_img = segment_wrapper(image, options, false);
+    }
 
-    // Gaussian blur
-    cv::cuda::GpuMat dev_image, dev_output;
-    dev_image.upload(image);
-    cv::Ptr<cv::cuda::Filter> filter = cv::cuda::createGaussianFilter(CV_8UC3, CV_8UC3, cv::Size(5, 5), 1.0);
-    filter->apply(dev_image, dev_output);
-
-    // Segmentation
-    char *segmented_img = compute_segments(dev_output.cudaPtr(), image.rows, image.cols, dev_output.step, options.useCPU);
-
-    std::chrono::high_resolution_clock::time_point end = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> time_span = std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
-
-    std::cout << "Segmentation time: " << time_span.count() << " s" << std::endl;
+    // Benchmark
+    for (int i = 0; i < options.benchmarkIterations; ++i) {
+        segmented_img = segment_wrapper(image, options, true);
+    }
 
     cv::Mat output_img = cv::Mat(image.rows, image.cols, CV_8UC3, segmented_img);
     imwrite(options.outFile, output_img);
 
     if (options.show) {
-        cv::Mat output;
-        dev_output.download(output);
         namedWindow("Source Image", cv::WINDOW_NORMAL);
         imshow("Source Image", image);
-        namedWindow("After Blur (CUDA)", cv::WINDOW_NORMAL);
-        imshow("After Blur (CUDA)", output);
         namedWindow("Segmented", cv::WINDOW_NORMAL);
         imshow("Segmented", output_img);
         cv::waitKey();

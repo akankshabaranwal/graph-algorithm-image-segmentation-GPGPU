@@ -487,6 +487,20 @@ char *compute_segments(void *input, uint x, uint y, size_t pitch, bool use_cpu) 
     }
     checkErrors("segment()");
 
+    // Free everything we can
+    cudaFree(edges);
+    checkErrors("Free edges");
+    cudaFree(min_edges);
+    checkErrors("Free min_edges");
+    cudaFree(wrappers);
+    checkErrors("Free min_edge_wrappers");
+    cudaFree(num_components);
+    checkErrors("Free num_components");
+    cudaFree(did_change);
+    checkErrors("Free did_change");
+    cudaFree(sources);
+    checkErrors("Free sources");
+
     // Setup random colours for components
     dim3 decode_threads;
     dim3 decode_blocks;
@@ -498,7 +512,6 @@ char *compute_segments(void *input, uint x, uint y, size_t pitch, bool use_cpu) 
         decode_blocks.x = num_vertices / 1024 + 1;
     }
 
-    //char component_colours[num_vertices * CHANNEL_SIZE];
     char *component_colours = (char *) malloc(num_vertices * CHANNEL_SIZE * sizeof(char));
     get_component_colours(component_colours, num_vertices);
     char *component_colours_dev;
@@ -512,13 +525,9 @@ char *compute_segments(void *input, uint x, uint y, size_t pitch, bool use_cpu) 
     cudaDeviceSynchronize();
     checkErrors("decode()");
 
-    // Clean up matrix
+    // Free rest
     cudaFree(vertices);
     checkErrors("Free vertices");
-    cudaFree(edges);
-    checkErrors("Free edges");
-    cudaFree(min_edges);
-    checkErrors("Free min_edges");
     cudaFree(component_colours_dev);
     checkErrors("Free component_colours_dev");
 
