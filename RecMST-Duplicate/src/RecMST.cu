@@ -233,7 +233,6 @@ void Init()
 	cudaMalloc( (void**) &d_edge, sizeof(unsigned int)*no_of_edges);
 	cudaMalloc( (void**) &d_vertex, sizeof(unsigned int)*no_of_vertices);
 	cudaMalloc( (void**) &d_weight, sizeof(unsigned int)*no_of_edges);
-	cudaMemcpy( d_weight, h_weight, sizeof(unsigned int)*no_of_edges, cudaMemcpyHostToDevice);
 	printf("Graph Copied to Device\n");
 
 	//Allocate memory for other arrays
