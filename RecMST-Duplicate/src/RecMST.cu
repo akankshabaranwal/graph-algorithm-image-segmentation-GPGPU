@@ -202,6 +202,23 @@ void printUInt(unsigned int *d_val) {
 }
 
 ////////////////////////////////////////////////
+// Helper function to set the grid sizes
+////////////////////////////////////////////////
+void SetGridThreadLen(int number, int *num_of_blocks, int *num_of_threads_per_block)
+{
+	*num_of_blocks = 1;
+	*num_of_threads_per_block = number;
+
+	//Make execution Parameters according to the number of nodes
+	//Distribute threads across multiple Blocks if necessary
+	if(number>MAX_THREADS_PER_BLOCK)
+	{
+		*num_of_blocks = (int)ceil(number/(double)MAX_THREADS_PER_BLOCK); 
+		*num_of_threads_per_block = MAX_THREADS_PER_BLOCK; 
+	}
+}
+
+////////////////////////////////////////////////
 // Read the Graph in our format (Compressed adjacency list)
 ////////////////////////////////////////////////
 unsigned int dissimilarity(Mat image, int row1, int col1, int row2, int col2) {
@@ -257,99 +274,6 @@ int ImagetoGraphSerial(Mat image) {
     return cur_edge_idx;
 }
 
-// ! TODO: init some of needed memory before reading for cuda
-void ReadGraph(char *filename) {
-
-	Mat image, output;				// Released automatically
-   	GpuMat dev_image, d_blurred;; 	// Released automatically
-
-    struct timeval t1, t2;
-	gettimeofday(&t1, 0);
-	
-    // Read image
-    image = imread(filename, IMREAD_COLOR);
-    printf("Size of image obtained is: Rows: %d, Columns: %d, Pixels: %d\n", image.rows, image.cols, image.rows * image.cols);
-    no_of_rows = image.rows;
-    no_of_cols = image.cols;
-
-    gettimeofday(&t2, 0);
-	double time = (1000000.0*(t2.tv_sec-t1.tv_sec) + t2.tv_usec-t1.tv_usec)/1000.0;
-	printf("Read time:  %3.1f ms \n", time);
-
-	gettimeofday(&t1, 0);
-
-    // Apply gaussian filter (done on CPU because GPU turned out to be slower)
-    dev_image.upload(image);
-    filter = cv::cuda::createGaussianFilter(CV_8UC3, CV_8UC3, cv::Size(5, 5), 1.0);
-    filter->apply(dev_image, d_blurred);
-	
-	cudaDeviceSynchronize();
-	gettimeofday(&t2, 0);
-	time = (1000000.0*(t2.tv_sec-t1.tv_sec) + t2.tv_usec-t1.tv_usec)/1000.0;
-	printf("Gaussian time:  %3.1f ms \n", time);
-
-
-	gettimeofday(&t1, 0);
-
-    // Get graph parameters
-	no_of_vertices = no_of_rows * no_of_cols;
-	no_of_vertices_orig = no_of_vertices;
-	no_of_edges = 8 + 6 * (no_of_cols - 2) + 6 * (no_of_rows - 2) + 4 * (no_of_cols - 2) * (no_of_rows - 2);
-
-	Init();
-
-	dim3 encode_threads;
-    dim3 encode_blocks;
-    if (num_vertices < 1024) {
-        encode_threads.x = no_of_rows;
-        encode_threads.y = no_of_cols;
-        encode_blocks.x = 1;
-        encode_blocks.y = 1;
-    } else {
-        encode_threads.x = 32;
-        encode_threads.y = 32;
-        encode_blocks.x = x / 32 + 1;
-        encode_blocks.y = y / 32 + 1;
-    }
-    size_t pitch = d_blurred.step;
-
-    int num_of_blocks, num_of_threads_per_block;
-
-	SetGridThreadLen(no_of_cols, &num_of_blocks, &num_of_threads_per_block);
-	dim3 grid_row(num_of_blocks, 1, 1);
-	dim3 threads_row(num_of_threads_per_block, 1, 1);
-
-	SetGridThreadLen(no_of_rows, &num_of_blocks, &num_of_threads_per_block);
-	dim3 grid_col(num_of_blocks, 1, 1);
-	dim3 threads_col(num_of_threads_per_block, 1, 1);
-
-    dim3 grid_corner(1, 1, 1);
-	dim3 threads_corner(4, 1, 1);
-
-    // Inner graph
-    createInnerGraphKernel<<< encode_blocks, encode_threads>>>(d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
-
-    // Outer graph
-   	createFirstRowGraphKernel<<< grid_row, threads_row, 0>>>(d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
-   	createLastRowGraphKernel<<< grid_row, threads_row, 0>>>(d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
-
-   	createFirstColumnGraphKernel<<< grid_col, threads_col, 0>>>(d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
-   	createLastColumnGraphKernel<<< grid_col, threads_col, 0>>>(d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
-
-    // Corners
-	createCornerGraphKernel<<< grid_corner, threads_corner, 0>>>(d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
-	
-	cudaDeviceSynchronize();
-	gettimeofday(&t2, 0);
-	time = (1000000.0*(t2.tv_sec-t1.tv_sec) + t2.tv_usec-t1.tv_usec)/1000.0;
-	printf("Graph creation time:  %3.1f ms \n", time);
-	
-	no_of_edges_orig = no_of_edges;
-
-	printf("Image read successfully into graph with %d vertices and %d edges\n", no_of_vertices, no_of_edges);
-}
-
-
 ////////////////////////////////////////////////
 // Allocate and Initialize Arrays
 ////////////////////////////////////////////////
@@ -390,21 +314,97 @@ void Init()
 }
 
 
-////////////////////////////////////////////////
-// Helper function to set the grid sizes
-////////////////////////////////////////////////
-void SetGridThreadLen(int number, int *num_of_blocks, int *num_of_threads_per_block)
-{
-	*num_of_blocks = 1;
-	*num_of_threads_per_block = number;
+// ! TODO: init some of needed memory before reading for cuda
+void ReadGraph(char *filename) {
 
-	//Make execution Parameters according to the number of nodes
-	//Distribute threads across multiple Blocks if necessary
-	if(number>MAX_THREADS_PER_BLOCK)
-	{
-		*num_of_blocks = (int)ceil(number/(double)MAX_THREADS_PER_BLOCK); 
-		*num_of_threads_per_block = MAX_THREADS_PER_BLOCK; 
-	}
+	Mat image, output;				// Released automatically
+   	GpuMat dev_image, d_blurred;; 	// Released automatically
+   	cv::Ptr<cv::cuda::Filter> filter;
+
+    struct timeval t1, t2;
+	gettimeofday(&t1, 0);
+	
+    // Read image
+    image = imread(filename, IMREAD_COLOR);
+    printf("Size of image obtained is: Rows: %d, Columns: %d, Pixels: %d\n", image.rows, image.cols, image.rows * image.cols);
+    no_of_rows = image.rows;
+    no_of_cols = image.cols;
+
+    gettimeofday(&t2, 0);
+	double time = (1000000.0*(t2.tv_sec-t1.tv_sec) + t2.tv_usec-t1.tv_usec)/1000.0;
+	printf("Read time:  %3.1f ms \n", time);
+
+	gettimeofday(&t1, 0);
+
+    // Apply gaussian filter (done on CPU because GPU turned out to be slower)
+    dev_image.upload(image);
+    filter = cv::cuda::createGaussianFilter(CV_8UC3, CV_8UC3, cv::Size(5, 5), 1.0);
+    filter->apply(dev_image, d_blurred);
+	
+	cudaDeviceSynchronize();
+	gettimeofday(&t2, 0);
+	time = (1000000.0*(t2.tv_sec-t1.tv_sec) + t2.tv_usec-t1.tv_usec)/1000.0;
+	printf("Gaussian time:  %3.1f ms \n", time);
+
+
+	gettimeofday(&t1, 0);
+
+    // Get graph parameters
+	no_of_vertices = no_of_rows * no_of_cols;
+	no_of_vertices_orig = no_of_vertices;
+	no_of_edges = 8 + 6 * (no_of_cols - 2) + 6 * (no_of_rows - 2) + 4 * (no_of_cols - 2) * (no_of_rows - 2);
+
+	Init();
+
+	dim3 encode_threads;
+    dim3 encode_blocks;
+    if (no_of_vertices < 1024) {
+        encode_threads.x = no_of_rows;
+        encode_threads.y = no_of_cols;
+        encode_blocks.x = 1;
+        encode_blocks.y = 1;
+    } else {
+        encode_threads.x = 32;
+        encode_threads.y = 32;
+        encode_blocks.x = x / 32 + 1;
+        encode_blocks.y = y / 32 + 1;
+    }
+    size_t pitch = d_blurred.step;
+
+    int num_of_blocks, num_of_threads_per_block;
+
+	SetGridThreadLen(no_of_cols, &num_of_blocks, &num_of_threads_per_block);
+	dim3 grid_row(num_of_blocks, 1, 1);
+	dim3 threads_row(num_of_threads_per_block, 1, 1);
+
+	SetGridThreadLen(no_of_rows, &num_of_blocks, &num_of_threads_per_block);
+	dim3 grid_col(num_of_blocks, 1, 1);
+	dim3 threads_col(num_of_threads_per_block, 1, 1);
+
+    dim3 grid_corner(1, 1, 1);
+	dim3 threads_corner(4, 1, 1);
+
+    // Inner graph
+    createInnerGraphKernel<<< encode_blocks, encode_threads>>>((unsigned char) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
+
+    // Outer graph
+   	createFirstRowGraphKernel<<< grid_row, threads_row, 0>>>((unsigned char) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
+   	createLastRowGraphKernel<<< grid_row, threads_row, 0>>>((unsigned char) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
+
+   	createFirstColumnGraphKernel<<< grid_col, threads_col, 0>>>((unsigned char) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
+   	createLastColumnGraphKernel<<< grid_col, threads_col, 0>>>((unsigned char) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
+
+    // Corners
+	createCornerGraphKernel<<< grid_corner, threads_corner, 0>>>((unsigned char) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
+	
+	cudaDeviceSynchronize();
+	gettimeofday(&t2, 0);
+	time = (1000000.0*(t2.tv_sec-t1.tv_sec) + t2.tv_usec-t1.tv_usec)/1000.0;
+	printf("Graph creation time:  %3.1f ms \n", time);
+	
+	no_of_edges_orig = no_of_edges;
+
+	printf("Image read successfully into graph with %d vertices and %d edges\n", no_of_vertices, no_of_edges);
 }
 
 
