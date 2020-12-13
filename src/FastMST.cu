@@ -13,19 +13,25 @@ using namespace mgpu;
 
 __global__ void ClearFlagArray(int *flag, int numElements)
 {
-    int id = blockIdx.x*blockDim.x+threadIdx.x;
-    if(id<numElements)
+    //int id = blockIdx.x*blockDim.x+threadIdx.x;
+    unsigned int tidx = blockIdx.x*blockDim.x+threadIdx.x;
+    unsigned int num_threads = gridDim.x * blockDim.x;
+
+    for (uint idx = tidx; idx < numElements; idx += num_threads)
     {
-        flag[id] = 0;
+        flag[idx] = 0;
     }
 }
 
 __global__ void MarkSegments(int *flag, int *VertexList,int numElements)
 {
-    int id = blockIdx.x*blockDim.x+threadIdx.x;
-    if(id<numElements)
+    //int id = blockIdx.x*blockDim.x+threadIdx.x;
+    unsigned int tidx = blockIdx.x*blockDim.x+threadIdx.x;
+    unsigned int num_threads = gridDim.x * blockDim.x;
+
+    for (uint idx = tidx; idx < numElements; idx += num_threads)
     {
-        flag[VertexList[id]] = 1;
+        flag[VertexList[idx]] = 1;
     }
 }
 
@@ -37,34 +43,39 @@ void SegmentedReduction(CudaContext& context, int32_t *flag, int32_t *a, int32_t
 
 __global__ void FindSuccessorArray(int32_t *Successor, int32_t *VertexList, int32_t *Out, int numVertices)
 {
-    int id = blockIdx.x*blockDim.x+threadIdx.x;
+    //int id = blockIdx.x*blockDim.x+threadIdx.x;
     int32_t min_edge_index;
+    unsigned int tidx = blockIdx.x*blockDim.x+threadIdx.x;
+    unsigned int num_threads = gridDim.x * blockDim.x;
 
-    if (id < numVertices)
-    {   min_edge_index = VertexList[id];
-        Successor[id] = Out[min_edge_index]%(2<<15);
+    for (uint idx = tidx; idx < numVertices; idx += num_threads)
+    {   min_edge_index = VertexList[idx];
+        Successor[idx] = Out[min_edge_index]%(2<<15);
     }
 }
 
 __global__ void RemoveCycles(int32_t *Successor, int numVertices)
 {
-    int vertex = blockIdx.x*blockDim.x+threadIdx.x;
+    //int vertex = blockIdx.x*blockDim.x+threadIdx.x;
+    unsigned int tidx = blockIdx.x*blockDim.x+threadIdx.x;
+    unsigned int num_threads = gridDim.x * blockDim.x;
     int32_t successor_2;
-    if(vertex<numVertices)
+
+    for (uint idx = tidx; idx < numVertices; idx += num_threads)
     {
-        successor_2 = Successor[Successor[vertex]];
-        if(vertex == successor_2) //Cycle detected
+        successor_2 = Successor[Successor[idx]];
+        if(idx == successor_2) //Cycle detected
         {
-            if(vertex < successor_2)
-                Successor[vertex] = vertex;
+            if(idx < successor_2)
+                Successor[idx] = idx;
             else
             {
-                Successor[Successor[vertex]] = Successor[vertex];
+                Successor[Successor[idx]] = Successor[idx];
             }
         }
     }
 }
-
+/*
 __global__ void CopySuccessorToNewSuccessor(int *Successor, int *newSuccessor, int no_of_vertices)
 {
     unsigned int tid = blockIdx.x*blockDim.x + threadIdx.x;
@@ -72,7 +83,7 @@ __global__ void CopySuccessorToNewSuccessor(int *Successor, int *newSuccessor, i
         newSuccessor[tid] = Successor[tid];
 }
 
-void PropagateRepresentativeVertices(int *Successor, int *newSuccessor, int numVertices)
+void PropagateRepresentativeVertices(int32_t *Successor, int *newSuccessor, int numVertices)
 {
     bool change;
     change = true;
@@ -95,58 +106,74 @@ void PropagateRepresentativeVertices(int *Successor, int *newSuccessor, int numV
     }
 }
 
-__global__ void CopyNewSuccessorToSuccessor(int *Successor, int *newSuccessor, int no_of_vertices)
+__global__ void CopyNewSuccessorToSuccessor(int32_t *Successor, int32_t *newSuccessor, int no_of_vertices)
 {
     unsigned int tid = blockIdx.x*blockDim.x + threadIdx.x;
     if(tid<no_of_vertices)
         Successor[tid] = newSuccessor[tid];
 }
+*/
 
-__global__ void appendSuccessorArray(int *Representative, int *Vertex, int *Successor, int numVertices)
+__global__ void appendSuccessorArray(int32_t *Representative, int32_t *VertexIds, int32_t *Successor, int numVertices)
 {
-    unsigned int vertex = blockIdx.x*blockDim.x+threadIdx.x;
-
-    if(vertex<numVertices)
+    //TODO: Need to fix all kernels with this
+    // Should access be thread wise or block wise??
+    int32_t tidx = blockIdx.x*blockDim.x+threadIdx.x;
+    int32_t num_threads = gridDim.x * blockDim.x;
+    //printf("numThreads: %d", num_threads);
+    for (uint idx = tidx; idx < numVertices; idx += num_threads)
     {
-        Representative[vertex] = Successor[vertex];
-        Vertex[vertex] = vertex;
+        //L[idx] = Successor[idx]*(2<<15)+idx;
+        Representative[idx] = Successor[idx];
+        VertexIds[idx] = idx;
+        //Vertex Li1 = L[i]% (2 << 15);
+        //Representative Li0 = L[i]>>16;
     }
 }
 
-__global__ void CreateFlagArray(int *Representative, int *Vertex, int *Flag2, int numSegments)
+__global__ void CreateFlag2Array(int32_t *Representative, int *Flag2, int numSegments)
 {
-    int vertex = blockIdx.x*blockDim.x+threadIdx.x;
+    //int idx = blockIdx.x*blockDim.x+threadIdx.x;
     Flag2[0]=0;
-    if((vertex<numSegments)&&(vertex>0))
+    int32_t L0, L1;
+    int32_t tidx = blockIdx.x*blockDim.x+threadIdx.x;
+    int32_t num_threads = gridDim.x * blockDim.x;
+
+    for (uint idx = tidx+1; idx < numSegments; idx += num_threads)
     {
-        if(Representative[vertex] != Representative[vertex-1])
-            Flag2[vertex]=1;
+        L0  = Representative[idx-1];
+        L1 = Representative[idx];
+        if(L1!= L0)
+            Flag2[idx]=1;
         else
-            Flag2[vertex]=0;
+            Flag2[idx]=0;
     }
 }
 
-void SortedSplit(int *Representative, int *Vertex, int *Successor, int *Flag2, int numVertices)
+void SortedSplit(int32_t *Representative, int32_t *VertexIds, int32_t *Successor, int *Flag2, int numVertices)
 {
     int numthreads = 1024;
     int numBlock = numVertices/numthreads;
-
+    printf("Calling sorted split number of vertices are:%d ", numVertices);
     //TODO: Make this run on device
-    thrust::sort_by_key(thrust::host, Vertex, Vertex + numVertices, Representative);
-
-    CreateFlagArray<<<numBlock,numthreads>>>(Representative, Vertex, Flag2, numVertices);
+    thrust::sort_by_key(thrust::device, Representative, Representative + numVertices, VertexIds);
+    CreateFlag2Array<<<numBlock, numthreads>>>(Representative, Flag2, numVertices);
     //Scan to assign new vertex ids. Use exclusive scan. Run exclusive scan on the flag array
     thrust::inclusive_scan(Flag2, Flag2 + numVertices, Flag2, thrust::plus<int>());
 }
 
 //TODO: The array names need to be verified
-__global__ void CreateSuperVertexArray(int *SuperVertexId, int *Vertex, int *Flag2, int numVertices){
+__global__ void CreateSuperVertexArray(int *SuperVertexId, int *VertexIds, int *Flag2, int numVertices){
     // Find supervertex id. Create a supervertex array for the original vertex ids
-    int idx = blockIdx.x*blockDim.x+threadIdx.x;
+    //int idx = blockIdx.x*blockDim.x+threadIdx.x;
     int32_t vertex, supervertex_id;
-    if(idx < numVertices)
+
+    int32_t tidx = blockIdx.x*blockDim.x+threadIdx.x;
+    int32_t num_threads = gridDim.x * blockDim.x;
+    //printf("numThreads: %d", num_threads);
+    for (uint idx = tidx; idx < numVertices; idx += num_threads)
     {
-        vertex = Vertex[idx];
+        vertex = VertexIds[idx];
         supervertex_id = Flag2[idx];
         SuperVertexId[vertex] = supervertex_id;
     }
@@ -160,9 +187,13 @@ void CreateUid(int *uid, int *flag, int numElements)
 
 //11 Removing self edges
 __global__ void RemoveSelfEdges(int *BitEdgeList, int numEdges, int *uid, int *SuperVertexId)
-{   int idx = blockIdx.x*blockDim.x+threadIdx.x;
+{  // int idx = blockIdx.x*blockDim.x+threadIdx.x;
     int32_t supervertexid_u, supervertexid_v, id_u, id_v;
-    if(idx<numEdges)
+
+    int32_t tidx = blockIdx.x*blockDim.x+threadIdx.x;
+    int32_t num_threads = gridDim.x * blockDim.x;
+
+    for (uint idx = tidx; idx < numEdges; idx += num_threads)
     {
         id_u = uid[idx];
         supervertexid_u = SuperVertexId[id_u];
@@ -179,12 +210,15 @@ __global__ void RemoveSelfEdges(int *BitEdgeList, int numEdges, int *uid, int *S
 
 //12 Removing duplicate edges
 //Instead of UVW array create separate U, V, W array.
-__global__ void CreateUVWArray(int *BitEdgeList, int numEdges, int *uid, int *SuperVertexId, int *UV, int *W)
+__global__ void CreateUVWArray(int *BitEdgeList, int numEdges, int *uid, int32_t *SuperVertexId, int *UV, int *W)
 {
-    int idx = blockIdx.x*blockDim.x+threadIdx.x; //Index for accessing Edge
+    //int idx = blockIdx.x*blockDim.x+threadIdx.x; //Index for accessing Edge
     int32_t id_u, id_v, edge_weight;
     int32_t supervertexid_u, supervertexid_v;
-    if(idx < numEdges)
+    int32_t tidx = blockIdx.x*blockDim.x+threadIdx.x;
+    int32_t num_threads = gridDim.x * blockDim.x;
+
+    for (uint idx = tidx; idx < numEdges; idx += num_threads)
     {
         id_u = uid[idx];
         id_v =  BitEdgeList[idx]% (2 << 15);  //TODO: Check if this is correct
@@ -208,16 +242,29 @@ __global__ void CreateUVWArray(int *BitEdgeList, int numEdges, int *uid, int *Su
 int SortUVW(int *UV, int *W, int numEdges, int *flag3)
 {
     //12.2
-    thrust::sort_by_key(thrust::host, UV, UV + numEdges, W);
-  /*  printf("Printing UVW array: ");
-    for(int i = 0; i< numEdges;i++)
+    printf("Printing UVW Before Sorted array: ");
+    for(int i = 0; i< 2000;i++)
     {
         printf("%d, ", UV[i]);
     }
-    printf("\n");*/
-
+    printf("\n");
+    thrust::sort_by_key(thrust::device, UV, UV + numEdges, W);
+    cudaDeviceSynchronize();
+    printf("Printing UVW Sorted array: ");
+    for(int i = 0; i< 2000;i++)
+    {
+        printf("%d, ", UV[i]);
+    }
+    printf("\n");
+    for(int i = 58000; i< 60000;i++)
+    {
+        printf("%d, ", UV[i]);
+    }
+    printf("\n");
     //12.3
     //Initialize F3 array
+    cudaDeviceSynchronize();
+
     int new_edge_size = numEdges;
     int32_t prev_supervertexid_u, prev_supervertexid_v, supervertexid_u, supervertexid_v;
     // TODO: Check how to replace the min(newEdges part so that this can be parallelized.
@@ -229,7 +276,7 @@ int SortUVW(int *UV, int *W, int numEdges, int *flag3)
 
         supervertexid_u = UV[i]>>16;
         supervertexid_v = UV[i]%(2<<15);
-
+        flag3[i] = 0;
         if((supervertexid_u!=INT_MAX) and (supervertexid_v!=INT_MAX) and (UV[i]!=INT_MAX))
         {
             if((prev_supervertexid_u !=supervertexid_v) || (prev_supervertexid_v!=supervertexid_v))

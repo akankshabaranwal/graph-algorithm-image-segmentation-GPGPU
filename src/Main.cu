@@ -9,7 +9,8 @@
 using namespace cv;
 using namespace cv::cuda;
 using namespace mgpu;
-
+// TODO: Add the error handling code from:
+//  http://cuda-programming.blogspot.com/2013/01/vector-addition-in-cuda-cuda-cc-program.html
 int main(int argc, char **argv)
 {
     Mat image, output;
@@ -28,7 +29,7 @@ int main(int argc, char **argv)
     int numEdges= (image.rows)*(image.cols)*4;
 
     //Convert image to graph
-    int32_t *VertexList, *BitEdgeList, *FlagList, *OutList, *NWE, *Successor, *newSuccessor, *Representative, *Vertex;
+    int32_t *VertexList, *BitEdgeList, *FlagList, *OutList, *NWE, *Successor, *newSuccessor, *L, *Representative, *VertexIds;
     edge *EdgeList;
 
     int *flag;
@@ -43,8 +44,9 @@ int main(int argc, char **argv)
     cudaMallocManaged(&Successor,numVertices*sizeof(int32_t));
     cudaMallocManaged(&newSuccessor,numVertices*sizeof(int32_t));
 
+    cudaMallocManaged(&L,numVertices*sizeof(int32_t));
     cudaMallocManaged(&Representative,numVertices*sizeof(int32_t));
-    cudaMallocManaged(&Vertex,numVertices*sizeof(int32_t));
+    cudaMallocManaged(&VertexIds,numVertices*sizeof(int32_t));
 
     int *Flag2;
     cudaMallocManaged(&Flag2,numEdges*sizeof(int32_t));
@@ -159,60 +161,145 @@ int main(int argc, char **argv)
         {
             printf("%d ,", Successor[i]);
         }
+        printf("\n After propagating representative vertices printing Successor Array: \n");
+
+        for(int i =59000; i< 60000; i++)
+        {
+            printf("%d ,", Successor[i]);
+        }
+
         //8, 9 Append appendSuccessorArray
-        appendSuccessorArray<<<numBlock, numthreads>>>(Representative, Vertex, Successor, numVertices);
+        appendSuccessorArray<<<numBlock, numthreads>>>(Representative, VertexIds, Successor, numVertices);
         cudaDeviceSynchronize();
+
         printf("\n Representative array \n");
         for(int i =0; i< 1000; i++)
         {
             printf("%d ,", Representative[i]);
         }
+
+        printf("\n Representative array \n");
+        for(int i =59000; i< 60000; i++)
+        {
+            printf("%d ,", Representative[i]);
+        }
+
         printf("\n Vertex \n");
         for(int i =0; i< 1000; i++)
         {
-            printf("%d ,", Vertex[i]);
+            printf("%d ,", VertexIds[i]);
         }
+
         //cudaDeviceSynchronize();
         //9. Create F2, Assign new IDs based on Flag2 array
-        SortedSplit(Representative, Vertex, Successor, Flag2, numVertices);
-        //cudaDeviceSynchronize();
+        cudaDeviceSynchronize();
+        //thrust::sort_by_key(thrust::host, VertexIds, VertexIds + numVertices, Representative);
+        //thrust::sort_by_key(thrust::host, Representative, Representative + numVertices, VertexIds);
+        SortedSplit(Representative, VertexIds, Successor, Flag2, numVertices);
+        cudaDeviceSynchronize();
+
         printf("\n Sorted representative array \n");
         for(int i =0; i< 1000; i++)
         {
             printf("%d ,", Representative[i]);
         }
+
+        printf("\n Sorted Representative array \n");
+        for(int i =59000; i< 60000; i++)
+        {
+            printf("%d ,", Representative[i]);
+        }
+
+        printf("\n Sorted Vertex Labels \n");
+        for(int i =0; i< 1000; i++)
+        {
+            printf("%d ,", VertexIds[i]);
+        }
+
         printf("Flag\n");
-        for(int i =0; i< 6000; i++)
+        for(int i =0; i< 2000; i++)
         {
             printf("%d ,", Flag2[i]);
         }
+        printf("Flag\n");
+        for(int i =58000; i< 60000; i++)
+        {
+            printf("%d ,", Flag2[i]);
+        }
+
         //D. Finding the Supervertex ids and storing it in an array
-        //CreateSuperVertexArray<<<numBlock,numthreads>>>(SuperVertexId, Vertex, Flag2, numVertices);
-        //cudaDeviceSynchronize();
+        CreateSuperVertexArray<<<numBlock,numthreads>>>(SuperVertexId, VertexIds, Flag2, numVertices);
+        cudaDeviceSynchronize();
+        printf("\n SuperVertexIds\n");
+        for(int i =0; i< 2000; i++)
+        {
+            printf("%d ,", SuperVertexId[i]);
+        }
+
+        printf("\n SuperVertexId\n");
+        for(int i =58000; i< 60000; i++)
+        {
+            printf("%d ,", SuperVertexId[i]);
+        }
 
         //Create UID array. 10.2
-        //CreateUid(uid, flag, numVertices);
-        //cudaDeviceSynchronize();
+        CreateUid(uid, flag, numVertices); //Isnt this same as the vertex list??
+        cudaDeviceSynchronize();
+
+        printf("\n Uid\n");
+        for(int i =0; i< 2000; i++)
+        {
+            printf("%d ,", uid[i]);
+        }
+
+        printf("\n Uid\n");
+        for(int i =58000; i< 60000; i++)
+        {
+            printf("%d ,", uid[i]);
+        }
 
         //11. Removing self edges
-        //RemoveSelfEdges<<<numBlock,numthreads>>>(BitEdgeList,numEdges, uid, SuperVertexId);
-        //cudaDeviceSynchronize();
+        RemoveSelfEdges<<<numBlock,numthreads>>>(BitEdgeList,numEdges, uid, SuperVertexId);
+        cudaDeviceSynchronize();
+
+        printf("\n SuperVertex\n");
+        for(int i =0; i< 2000; i++)
+        {
+            printf("%d ,", SuperVertexId[i]);
+        }
+
+        printf("\n SuperVertex\n");
+        for(int i =58000; i< 60000; i++)
+        {
+            printf("%d ,", SuperVertexId[i]);
+        }
 
         //E 12.
-        //CreateUVWArray<<<numBlock,numthreads>>>(BitEdgeList, numEdges, uid, SuperVertexId, UV, W);
-        //cudaDeviceSynchronize();
-        //printf("Printing UVW array: ");
-        //for(int i = 0; i< 1000;i++)
-        //{
-        //    printf("%d, ", UV[i]);
-        //}
-        //printf("\n");
-        //int new_edge_size = SortUVW(UV, W, numEdges, flag3);
-
+        CreateUVWArray<<<numBlock,numthreads>>>(BitEdgeList, numEdges, uid, SuperVertexId, UV, W);
+        cudaDeviceSynchronize();
+        printf("\n Printing UVW array: ");
+        for(int i = 0; i< 1000;i++)
+        {
+            printf("%d, ", UV[i]);
+        }
+        printf("\n");
+        int new_edge_size = SortUVW(UV, W, numEdges, flag3);
+        cudaDeviceSynchronize();
+        printf("\n Printing UVW array: ");
+        for(int i = 0; i< 1000;i++)
+        {
+            printf("%d, ", UV[i]);
+        }
+        printf("\n");
+        printf("\n Printing UVW array: ");
+        for(int i = 59000; i< 60000;i++)
+        {
+            printf("%d, ", UV[i]);
+        }/*
         //flag3 could be renamed to compact location
         //numVertices = CreateNewEdgeVertexList(BitEdgeList, VertexList, UV, W, flag3, new_edge_size, flag4);
         //numEdges = new_edge_size; //This is incorrect. Need to return new_E_size as well
-        //printf("\n numVertices: %d numEdges %d", numVertices, numEdges);
+        //printf("\n numVertices: %d numEdges %d", numVertices, numEdges);*/
         numVertices = 1;
 
     }
