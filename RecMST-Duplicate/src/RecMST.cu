@@ -30,7 +30,7 @@ Vertex ID bit size:
 
 
 1. Segmented min scan: 10 bit weight, 22 bit ID
-   -> Change to long long 12 bit weight, 26 bit ID + add last 20 bit of ID to weight for tiebreaking cycles
+   -> Change to long long 12 bit weight, 26 bit ID
 8. List L: 32 bit vertex ID left, 32 bit vertex ID right
    -> keep same
 12. UVW: u.id 24 bit, v.id 24 bit, weight 16 bit
@@ -208,7 +208,7 @@ void printUInt(unsigned int *d_val) {
 unsigned int dissimilarity(Mat image, int row1, int col1, int row2, int col2) {
     Point3_<uchar>* u = image.ptr<Point3_<uchar> >(row1,col1);
     Point3_<uchar>* v = image.ptr<Point3_<uchar> >(row2,col2);
-    double distance = sqrt(pow((u->x - v->x), 2) + pow((u->y - v->y), 2) + pow((u->z - v->z), 2));
+    double distance = 2 * sqrt(pow((u->x - v->x), 2) + pow((u->y - v->y), 2) + pow((u->z - v->z), 2));
     return (unsigned int) round(distance); // TODO: maybe map to larger interval for better accuracy
 }
 
