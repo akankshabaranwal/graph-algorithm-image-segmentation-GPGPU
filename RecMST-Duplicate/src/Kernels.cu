@@ -22,10 +22,9 @@
 #ifndef _KERNELS_H_
 #define _KERNELS_H_
 
-#define MOVEBITS 22 						// Amount of bits in X for vertex ID
+#define MOVEBITS 26 						// Amount of bits in X for vertex ID
 #define NO_OF_BITS_TO_SPLIT_ON 32			// Amount of bits for L split (32 bits one vertex, 32 other)
-#define NO_OF_BITS_MOVED_FOR_VERTEX_IDS 24
-#define NO_OF_BITS_TO_SPLIT_ON_UVW 64
+#define NO_OF_BITS_MOVED_FOR_VERTEX_IDS 26
 #define MAX_THREADS_PER_BLOCK 1024 // IMPORTANT TO SET CORRECTLY
 #define INF 10000000
 
@@ -33,11 +32,11 @@
 ////////////////////////////////////////////////////////////////////////////////////////////
 // Append the Weight And Vertex ID into segmented min scan input array, Runs for Edge Length
 ////////////////////////////////////////////////////////////////////////////////////////////
-__global__ void AppendKernel_1(unsigned int *d_segmented_min_scan_input, unsigned int *d_weight, unsigned int *d_edges, unsigned int no_of_edges) 
+__global__ void AppendKernel_1(unsigned long long int *d_segmented_min_scan_input, unsigned int *d_weight, unsigned int *d_edges, unsigned int no_of_edges) 
 {
 	unsigned int tid = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
 	if(tid<no_of_edges) {
-		unsigned int val=d_weight[tid];
+		unsigned long long int val=d_weight[tid];
 		val=val<<MOVEBITS;
 		val=val|d_edges[tid];
 		d_segmented_min_scan_input[tid]=val;
@@ -71,7 +70,7 @@ __global__ void MakeFlag_3(unsigned int *d_edge_flag, unsigned int *d_vertex, un
 ////////////////////////////////////////////////////////////////////////////////
 // Make the Successor array, Runs for Vertex Length
 ////////////////////////////////////////////////////////////////////////////////
-__global__ void MakeSucessorArray(unsigned int *d_successor, unsigned int *d_vertex, unsigned int *d_segmented_min_scan_output, unsigned int no_of_vertices, unsigned int no_of_edges) 
+__global__ void MakeSucessorArray(unsigned int *d_successor, unsigned int *d_vertex, unsigned long long int *d_segmented_min_scan_output, unsigned int no_of_vertices, unsigned int no_of_edges) 
 {
 	unsigned int tid = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
 	if(tid<no_of_vertices) {
@@ -81,7 +80,7 @@ __global__ void MakeSucessorArray(unsigned int *d_successor, unsigned int *d_ver
 		} else {
 			end = no_of_edges-1; // Last segment: end = last edge
 		}
-		unsigned int mask = pow(2.0,MOVEBITS)-1; // Mask to extract vertex ID MWOE
+		unsigned long long int mask = pow(2.0,MOVEBITS)-1; // Mask to extract vertex ID MWOE
 		d_successor[tid] = d_segmented_min_scan_output[end]&mask; // Get vertex part of each (weight|to_vertex_id) element
 	}
 }

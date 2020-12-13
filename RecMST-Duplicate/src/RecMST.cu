@@ -30,9 +30,9 @@ Vertex ID bit size:
 
 
 1. Segmented min scan: 10 bit weight, 22 bit ID
-   -> Change to long long 12 bit weight, 26 bit ID
+   -> Change to long long 12 bit weight, 26 bit ID DONE
 8. List L: 32 bit vertex ID left, 32 bit vertex ID right
-   -> keep same
+   -> keep same DONE
 12. UVW: u.id 24 bit, v.id 24 bit, weight 16 bit
    -> Change to u.id 26 bit, v.id 26 bit, weight 12 bit
 ************************************************************************************/
@@ -94,8 +94,8 @@ unsigned int *d_edge;										// Starts as h_edge
 unsigned int *d_vertex;										// starts as h_vertex
 unsigned int *d_weight;										// starts as h_weight
 
-unsigned int *d_segmented_min_scan_input;					//X, Input to the Segmented Min Scan, appended array of weights and edge IDs
-unsigned int *d_segmented_min_scan_output;					//Output of the Segmented Min Scan, minimum weight outgoing edge as (weight|to_vertex_id elements) can be found at end of each segment
+unsigned long long int *d_segmented_min_scan_input;					//X, Input to the Segmented Min Scan, appended array of weights and edge IDs
+unsigned long long int *d_segmented_min_scan_output;					//Output of the Segmented Min Scan, minimum weight outgoing edge as (weight|to_vertex_id elements) can be found at end of each segment
 unsigned int *d_edge_flag;							//Flag for the segmented min scan
 unsigned int *d_edge_flag_thrust;					//NEW! Flag for the segmented min scan in thrust Needs to be 000111222 instead of 100100100
 unsigned int *d_vertex_flag;						//F2, Flag for the scan input for supervertex ID generation
@@ -281,11 +281,7 @@ void ReadGraph(char *filename) {
 
 	gettimeofday(&t1, 0);
 
-    /*// Apply gaussian filter
-    dev_image.upload(image);
-    Ptr<Filter> filter = createGaussianFilter(CV_8UC3, CV_8UC3, Size(5, 5), 1.0);
-    filter->apply(dev_image, dev_output);
-    dev_output.download(output);*/
+    // Apply gaussian filter (done on CPU because GPU turned out to be slower)
     blurred = image.clone();
     GaussianBlur(image, blurred, Size(5, 5), 1.0);
 
@@ -342,8 +338,8 @@ void Init()
 	printf("Graph Copied to Device\n");
 
 	//Allocate memory for other arrays
-	cudaMalloc( (void**) &d_segmented_min_scan_input, sizeof(unsigned int)*no_of_edges);
-	cudaMalloc( (void**) &d_segmented_min_scan_output, sizeof(unsigned int)*no_of_edges);
+	cudaMalloc( (void**) &d_segmented_min_scan_input, sizeof(unsigned long long int)*no_of_edges);
+	cudaMalloc( (void**) &d_segmented_min_scan_output, sizeof(unsigned long long int)*no_of_edges);
 	cudaMalloc( (void**) &d_edge_flag, sizeof(unsigned int)*no_of_edges);
 	cudaMalloc( (void**) &d_edge_flag_thrust, sizeof(unsigned int)*no_of_edges);
 	cudaMalloc( (void**) &d_pick_array, sizeof(unsigned int)*no_of_edges);
@@ -408,7 +404,7 @@ void HPGMST()
 	 */
 
 	// 1. Append weight w and outgoing vertex v per edge into a single array, X.
-    // Normally 8-10 bit for weight, 20-22 bits for ID. Because of 32 bit limitation CUDPP scan primitive, TODO: probably not relevant anymore
+    // 12 bit for weight, 26 bits for ID.
 	//Append in Parallel on the Device itself, call the append kernel
 	AppendKernel_1<<< grid_edgelen, threads_edgelen, 0>>>(d_segmented_min_scan_input, d_weight, d_edge, no_of_edges);
 
@@ -432,7 +428,7 @@ void HPGMST()
 
 	// Min inclusive segmented scan on ints from start to end.
 	thrust::equal_to<unsigned int> binaryPred;
-	thrust::minimum<unsigned int> binaryOp;
+	thrust::minimum<unsigned long long int> binaryOp;
 	thrust::inclusive_scan_by_key(thrust::device, d_edge_flag_thrust, d_edge_flag_thrust + no_of_edges, d_segmented_min_scan_input, d_segmented_min_scan_output, binaryPred, binaryOp);
 
 	//printXArr(d_segmented_min_scan_output, no_of_edges);
@@ -663,7 +659,6 @@ int main( int argc, char** argv) {
 
 	ReadGraph(argv[1]);
 
-	cudaDeviceSynchronize();
 	gettimeofday(&t2, 0);
 	double time = (1000000.0*(t2.tv_sec-t1.tv_sec) + t2.tv_usec-t1.tv_usec)/1000.0;
 	printf("Graph read & creation time:  %3.1f ms \n", time);
