@@ -73,8 +73,6 @@ using namespace cv::cuda;
 ////////////////////////////////////////////////
 // Variables
 ////////////////////////////////////////////////
-GpuMat d_blurred;
-
 unsigned int no_of_rows;										// Number of rows in image
 unsigned int no_of_cols;										// Number of columns in image
 
@@ -263,7 +261,7 @@ int ImagetoGraphSerial(Mat image) {
 void ReadGraph(char *filename) {
 
 	Mat image, output;				// Released automatically
-   	GpuMat dev_image, dev_output; 	// Released automatically
+   	GpuMat dev_image, d_blurred;; 	// Released automatically
 
     struct timeval t1, t2;
 	gettimeofday(&t1, 0);
@@ -303,8 +301,8 @@ void ReadGraph(char *filename) {
 	dim3 encode_threads;
     dim3 encode_blocks;
     if (num_vertices < 1024) {
-        encode_threads.x = x;
-        encode_threads.y = y;
+        encode_threads.x = no_of_rows;
+        encode_threads.y = no_of_cols;
         encode_blocks.x = 1;
         encode_blocks.y = 1;
     } else {
@@ -313,7 +311,7 @@ void ReadGraph(char *filename) {
         encode_blocks.x = x / 32 + 1;
         encode_blocks.y = y / 32 + 1;
     }
-    size_t pitch = dev_output.step;
+    size_t pitch = d_blurred.step;
 
     int num_of_blocks, num_of_threads_per_block;
 
@@ -329,17 +327,17 @@ void ReadGraph(char *filename) {
 	dim3 threads_corner(4, 1, 1);
 
     // Inner graph
-    createInnerGraphKernel<<< encode_blocks, encode_threads>>>(dev_output.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
+    createInnerGraphKernel<<< encode_blocks, encode_threads>>>(d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
 
     // Outer graph
-   	createFirstRowGraphKernel<<< grid_row, threads_row, 0>>>(dev_output.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
-   	createLastRowGraphKernel<<< grid_row, threads_row, 0>>>(dev_output.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
+   	createFirstRowGraphKernel<<< grid_row, threads_row, 0>>>(d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
+   	createLastRowGraphKernel<<< grid_row, threads_row, 0>>>(d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
 
-   	createFirstColumnGraphKernel<<< grid_col, threads_col, 0>>>(dev_output.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
-   	createLastColumnGraphKernel<<< grid_col, threads_col, 0>>>(dev_output.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
+   	createFirstColumnGraphKernel<<< grid_col, threads_col, 0>>>(d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
+   	createLastColumnGraphKernel<<< grid_col, threads_col, 0>>>(d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
 
     // Corners
-	createCornerGraphKernel<<< grid_corner, threads_corner, 0>>>(dev_output.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
+	createCornerGraphKernel<<< grid_corner, threads_corner, 0>>>(d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
 	
 	cudaDeviceSynchronize();
 	gettimeofday(&t2, 0);

@@ -68,6 +68,7 @@ __global__ void createCornerGraphKernel(unsigned char *image, unsigned int *d_ve
     	unsigned char other_r;
     	unsigned char other_g;
     	unsigned char other_b;
+    	unsigned int other_img_idx;
     	double distance;
 
     	unsigned long cur_vertex_idx = row * no_of_cols + col;
@@ -75,7 +76,7 @@ __global__ void createCornerGraphKernel(unsigned char *image, unsigned int *d_ve
 
     	// Left node
     	if (tid == 1 || tid == 3) {
-    		d_edges[write_offset] = left_node;
+    		d_edge[write_offset] = left_node;
 
 	    	other_img_idx = row * pitch + (col - 1) * CHANNEL_SIZE;
 	        other_r = image[other_img_idx];
@@ -87,7 +88,7 @@ __global__ void createCornerGraphKernel(unsigned char *image, unsigned int *d_ve
     	
     	// Right node
     	if (tid == 0 || tid == 2) {
-    		d_edges[write_offset+1] = right_node;
+    		d_edge[write_offset+1] = right_node;
 
 	        other_img_idx = row * pitch + (col + 1) * CHANNEL_SIZE;
 	        other_r = image[other_img_idx];
@@ -100,7 +101,7 @@ __global__ void createCornerGraphKernel(unsigned char *image, unsigned int *d_ve
 
     	// Top node
     	if (tid == 2 || tid == 3) {
-    		d_edges[write_offset+2] = top_node;
+    		d_edge[write_offset+2] = top_node;
 
 	        other_img_idx = (row-1) * pitch + col * CHANNEL_SIZE;
 	        other_r = image[other_img_idx];
@@ -113,7 +114,7 @@ __global__ void createCornerGraphKernel(unsigned char *image, unsigned int *d_ve
 
     	// Bottom node
     	if (tid == 0 || tid == 1) {
-    		 d_edges[write_offset+3] = bottom_node;
+    		d_edge[write_offset+3] = bottom_node;
 
 	        other_img_idx = (row+1) * pitch + col * CHANNEL_SIZE;
 	        other_r = image[other_img_idx];
@@ -146,13 +147,14 @@ __global__ void createFirstRowGraphKernel(unsigned char *image, unsigned int *d_
     	unsigned char other_r;
     	unsigned char other_g;
     	unsigned char other_b;
+    	unsigned int other_img_idx;
     	double distance;
 
     	unsigned long cur_vertex_idx = row * no_of_cols + col;
         d_vertex[cur_vertex_idx] = write_offset;
 
     	// Left node
-    	d_edges[write_offset] = left_node;
+    	d_edge[write_offset] = left_node;
 
     	other_img_idx = row * pitch + (col - 1) * CHANNEL_SIZE;
         other_r = image[other_img_idx];
@@ -162,7 +164,7 @@ __global__ void createFirstRowGraphKernel(unsigned char *image, unsigned int *d_
     	d_weight[write_offset] = (unsigned int) round(distance);
 
     	// Right node
-        d_edges[write_offset+1] = right_node;
+        d_edge[write_offset+1] = right_node;
 
         other_img_idx = row * pitch + (col + 1) * CHANNEL_SIZE;
         other_r = image[other_img_idx];
@@ -172,7 +174,7 @@ __global__ void createFirstRowGraphKernel(unsigned char *image, unsigned int *d_
     	d_weight[write_offset+1] = (unsigned int) round(distance);
 
     	// Bottom node
-        d_edges[write_offset+2] = bottom_node;
+        d_edge[write_offset+2] = bottom_node;
 
         other_img_idx = (row+1) * pitch + col * CHANNEL_SIZE;
         other_r = image[other_img_idx];
@@ -206,13 +208,14 @@ __global__ void createLastRowGraphKernel(unsigned char *image, unsigned int *d_v
     	unsigned char other_r;
     	unsigned char other_g;
     	unsigned char other_b;
+    	unsigned int other_img_idx;
     	double distance;
 
     	unsigned long cur_vertex_idx = row * no_of_cols + col;
         d_vertex[cur_vertex_idx] = write_offset;
 
     	// Left node
-    	d_edges[write_offset] = left_node;
+    	d_edge[write_offset] = left_node;
 
     	other_img_idx = row * pitch + (col - 1) * CHANNEL_SIZE;
         other_r = image[other_img_idx];
@@ -222,7 +225,7 @@ __global__ void createLastRowGraphKernel(unsigned char *image, unsigned int *d_v
     	d_weight[write_offset] = (unsigned int) round(distance);
 
     	// Right node
-        d_edges[write_offset+1] = right_node;
+        d_edge[write_offset+1] = right_node;
 
         other_img_idx = row * pitch + (col + 1) * CHANNEL_SIZE;
         other_r = image[other_img_idx];
@@ -232,7 +235,7 @@ __global__ void createLastRowGraphKernel(unsigned char *image, unsigned int *d_v
     	d_weight[write_offset+1] = (unsigned int) round(distance);
 
     	// Top node
-        d_edges[write_offset+2] = top_node;
+        d_edge[write_offset+2] = top_node;
 
         other_img_idx = (row-1) * pitch + col * CHANNEL_SIZE;
         other_r = image[other_img_idx];
@@ -265,13 +268,14 @@ __global__ void createFirstColumnGraphKernel(unsigned char *image, unsigned int 
     	unsigned char other_r;
     	unsigned char other_g;
     	unsigned char other_b;
+    	unsigned int other_img_idx;
     	double distance;
 
     	unsigned long cur_vertex_idx = row * no_of_cols + col;
         d_vertex[cur_vertex_idx] = write_offset;
 
     	// Right node
-        d_edges[write_offset] = right_node;
+        d_edge[write_offset] = right_node;
 
         other_img_idx = row * pitch + (col + 1) * CHANNEL_SIZE;
         other_r = image[other_img_idx];
@@ -281,7 +285,7 @@ __global__ void createFirstColumnGraphKernel(unsigned char *image, unsigned int 
     	d_weight[write_offset] = (unsigned int) round(distance);
 
     	// Top node
-        d_edges[write_offset+1] = top_node;
+        d_edge[write_offset+1] = top_node;
 
         other_img_idx = (row-1) * pitch + col * CHANNEL_SIZE;
         other_r = image[other_img_idx];
@@ -291,7 +295,7 @@ __global__ void createFirstColumnGraphKernel(unsigned char *image, unsigned int 
     	d_weight[write_offset+1] = (unsigned int) round(distance);
 
     	// Bottom node
-        d_edges[write_offset+2] = bottom_node;
+        d_edge[write_offset+2] = bottom_node;
 
         other_img_idx = (row+1) * pitch + col * CHANNEL_SIZE;
         other_r = image[other_img_idx];
@@ -326,13 +330,14 @@ __global__ void createLastColumnGraphKernel(unsigned char *image, unsigned int *
     	unsigned char other_r;
     	unsigned char other_g;
     	unsigned char other_b;
+    	unsigned int other_img_idx;
     	double distance;
 
     	unsigned long cur_vertex_idx = row * no_of_cols + col;
         d_vertex[cur_vertex_idx] = write_offset;
 
     	// Left node
-    	d_edges[write_offset] = left_node;
+    	d_edge[write_offset] = left_node;
 
     	other_img_idx = row * pitch + (col - 1) * CHANNEL_SIZE;
         other_r = image[other_img_idx];
@@ -342,7 +347,7 @@ __global__ void createLastColumnGraphKernel(unsigned char *image, unsigned int *
     	d_weight[write_offset] = (unsigned int) round(distance);
 
     	// Top node
-        d_edges[write_offset+1] = top_node;
+        d_edge[write_offset+1] = top_node;
 
         other_img_idx = (row-1) * pitch + col * CHANNEL_SIZE;
         other_r = image[other_img_idx];
@@ -352,7 +357,7 @@ __global__ void createLastColumnGraphKernel(unsigned char *image, unsigned int *
     	d_weight[write_offset+1] = (unsigned int) round(distance);
 
     	// Bottom node
-        d_edges[write_offset+2] = bottom_node;
+        d_edge[write_offset+2] = bottom_node;
 
         other_img_idx = (row+1) * pitch + col * CHANNEL_SIZE;
         other_r = image[other_img_idx];
@@ -387,13 +392,14 @@ __global__ void createInnerGraphKernel(unsigned char *image, unsigned int *d_ver
     	unsigned char other_r;
     	unsigned char other_g;
     	unsigned char other_b;
+    	unsigned int other_img_idx;
     	double distance;
 
     	unsigned long cur_vertex_idx = row * no_of_cols + col;
         d_vertex[cur_vertex_idx] = write_offset;
 
     	// Left node
-    	d_edges[write_offset] = left_node;
+    	d_edge[write_offset] = left_node;
 
     	other_img_idx = row * pitch + (col - 1) * CHANNEL_SIZE;
         other_r = image[other_img_idx];
@@ -403,7 +409,7 @@ __global__ void createInnerGraphKernel(unsigned char *image, unsigned int *d_ver
     	d_weight[write_offset] = (unsigned int) round(distance);
 
     	// Right node
-        d_edges[write_offset+1] = right_node;
+        d_edge[write_offset+1] = right_node;
 
         other_img_idx = row * pitch + (col + 1) * CHANNEL_SIZE;
         other_r = image[other_img_idx];
@@ -413,7 +419,7 @@ __global__ void createInnerGraphKernel(unsigned char *image, unsigned int *d_ver
     	d_weight[write_offset+1] = (unsigned int) round(distance);
 
     	// Top node
-        d_edges[write_offset+2] = top_node;
+        d_edge[write_offset+2] = top_node;
 
         other_img_idx = (row-1) * pitch + col * CHANNEL_SIZE;
         other_r = image[other_img_idx];
@@ -423,7 +429,7 @@ __global__ void createInnerGraphKernel(unsigned char *image, unsigned int *d_ver
     	d_weight[write_offset+2] = (unsigned int) round(distance);
 
     	// Bottom node
-        d_edges[write_offset+3] = bottom_node;
+        d_edge[write_offset+3] = bottom_node;
 
         other_img_idx = (row+1) * pitch + col * CHANNEL_SIZE;
         other_r = image[other_img_idx];
