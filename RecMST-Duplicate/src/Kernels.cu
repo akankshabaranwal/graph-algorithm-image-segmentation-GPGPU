@@ -27,6 +27,412 @@
 #define NO_OF_BITS_MOVED_FOR_VERTEX_IDS 26
 #define MAX_THREADS_PER_BLOCK 1024 // IMPORTANT TO SET CORRECTLY
 #define INF 10000000
+#define CHANNEL_SIZE 3
+#define SCALE 1
+
+////////////////////////////////////////////////////////////////////////////////////////////
+// Graph creation kernels
+////////////////////////////////////////////////////////////////////////////////////////////
+__global__ void createCornerGraphKernel(unsigned char *image, unsigned int *d_vertex, unsigned int *d_edge, unsigned int *d_weight, unsigned int no_of_rows, unsigned int no_of_cols, size_t pitch) 
+{
+	unsigned int tid = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
+	if (tid < 4) {
+		unsigned int row = 0;
+		unsigned int col = 0;
+		unsigned int write_offset = 0;
+
+		if (tid == 1) {
+			col = no_of_cols - 1;
+			write_offset = 3 * (no_of_cols - 1) - 1;
+		}
+		if (tid == 2) {
+			row = no_of_rows - 1;
+			write_offset = 4 + 6 * (no_of_rows-2) + 3 * (no_of_cols-2) + 4 * (no_of_rows-2) * (no_of_cols-2);
+		}
+		if (tid == 3) {
+			col = no_of_cols - 1;
+			row = no_of_rows - 1;
+			write_offset = 6 + 6 * (no_of_rows-2) + 6 * (no_of_cols-2) + 4 * (no_of_rows-2) * (no_of_cols-2);
+		}
+
+		unsigned int left_node = row * no_of_cols + col - 1;
+        unsigned int right_node = row * no_of_cols + col + 1;
+        unsigned int top_node = (row - 1) * no_of_cols + col;
+        unsigned int bottom_node = (row+1) * no_of_cols + col;
+
+      	unsigned int this_img_idx = row * pitch + col * CHANNEL_SIZE;
+    	unsigned char this_r = image[this_img_idx];
+    	unsigned char this_g = image[this_img_idx + 1];
+    	unsigned char this_b = image[this_img_idx + 2];
+
+    	unsigned char other_r;
+    	unsigned char other_g;
+    	unsigned char other_b;
+    	double distance;
+
+    	unsigned long cur_vertex_idx = row * no_of_cols + col;
+        d_vertex[cur_vertex_idx] = write_offset;
+
+    	// Left node
+    	if (tid == 1 || tid == 3) {
+    		d_edges[write_offset] = left_node;
+
+	    	other_img_idx = row * pitch + (col - 1) * CHANNEL_SIZE;
+	        other_r = image[other_img_idx];
+	        other_g = image[other_img_idx + 1];
+	        other_b = image[other_img_idx + 2];
+	    	distance = SCALE * sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
+	    	d_weight[write_offset] = (unsigned int) round(distance);
+    	}
+    	
+    	// Right node
+    	if (tid == 0 || tid == 2) {
+    		d_edges[write_offset+1] = right_node;
+
+	        other_img_idx = row * pitch + (col + 1) * CHANNEL_SIZE;
+	        other_r = image[other_img_idx];
+	        other_g = image[other_img_idx + 1];
+	        other_b = image[other_img_idx + 2];
+	    	distance = SCALE * sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
+	    	d_weight[write_offset+1] = (unsigned int) round(distance);
+    	}
+       
+
+    	// Top node
+    	if (tid == 2 || tid == 3) {
+    		d_edges[write_offset+2] = top_node;
+
+	        other_img_idx = (row-1) * pitch + col * CHANNEL_SIZE;
+	        other_r = image[other_img_idx];
+	        other_g = image[other_img_idx + 1];
+	        other_b = image[other_img_idx + 2];
+	    	distance = SCALE * sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
+	    	d_weight[write_offset+2] = (unsigned int) round(distance);
+    	}
+        
+
+    	// Bottom node
+    	if (tid == 0 || tid == 1) {
+    		 d_edges[write_offset+3] = bottom_node;
+
+	        other_img_idx = (row+1) * pitch + col * CHANNEL_SIZE;
+	        other_r = image[other_img_idx];
+	        other_g = image[other_img_idx + 1];
+	        other_b = image[other_img_idx + 2];
+	    	distance = SCALE * sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
+	    	d_weight[write_offset+3] = (unsigned int) round(distance);
+    	}
+	}
+}
+
+
+__global__ void createFirstRowGraphKernel(unsigned char *image, unsigned int *d_vertex, unsigned int *d_edge, unsigned int *d_weight, unsigned int no_of_rows, unsigned int no_of_cols, size_t pitch) 
+{
+	unsigned int row = 0;
+	unsigned int col = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
+
+    if (col > 0 && col < no_of_cols) {
+    	unsigned int left_node = row * no_of_cols + col - 1;
+        unsigned int right_node = row * no_of_cols + col + 1;
+        unsigned int bottom_node = (row+1) * no_of_cols + col;
+
+      	unsigned int this_img_idx = row * pitch + col * CHANNEL_SIZE;
+    	unsigned char this_r = image[this_img_idx];
+    	unsigned char this_g = image[this_img_idx + 1];
+    	unsigned char this_b = image[this_img_idx + 2];
+
+    	unsigned int write_offset = 2 + (col-1) * 3;
+
+    	unsigned char other_r;
+    	unsigned char other_g;
+    	unsigned char other_b;
+    	double distance;
+
+    	unsigned long cur_vertex_idx = row * no_of_cols + col;
+        d_vertex[cur_vertex_idx] = write_offset;
+
+    	// Left node
+    	d_edges[write_offset] = left_node;
+
+    	other_img_idx = row * pitch + (col - 1) * CHANNEL_SIZE;
+        other_r = image[other_img_idx];
+        other_g = image[other_img_idx + 1];
+        other_b = image[other_img_idx + 2];
+    	distance = SCALE * sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
+    	d_weight[write_offset] = (unsigned int) round(distance);
+
+    	// Right node
+        d_edges[write_offset+1] = right_node;
+
+        other_img_idx = row * pitch + (col + 1) * CHANNEL_SIZE;
+        other_r = image[other_img_idx];
+        other_g = image[other_img_idx + 1];
+        other_b = image[other_img_idx + 2];
+    	distance = SCALE * sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
+    	d_weight[write_offset+1] = (unsigned int) round(distance);
+
+    	// Bottom node
+        d_edges[write_offset+2] = bottom_node;
+
+        other_img_idx = (row+1) * pitch + col * CHANNEL_SIZE;
+        other_r = image[other_img_idx];
+        other_g = image[other_img_idx + 1];
+        other_b = image[other_img_idx + 2];
+    	distance = SCALE * sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
+    	d_weight[write_offset+2] = (unsigned int) round(distance);
+    }
+}
+
+__global__ void createLastRowGraphKernel(unsigned char *image, unsigned int *d_vertex, unsigned int *d_edge, unsigned int *d_weight, unsigned int no_of_rows, unsigned int no_of_cols, size_t pitch) 
+{
+	unsigned int row = no_of_rows-1;;
+    unsigned int col = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
+
+    if (col > 0 && col < no_of_cols) {
+    	unsigned int left_node = row * no_of_cols + col - 1;
+        unsigned int right_node = row * no_of_cols + col + 1;
+        unsigned int top_node = (row - 1) * no_of_cols + col;
+
+      	unsigned int this_img_idx = row * pitch + col * CHANNEL_SIZE;
+    	unsigned char this_r = image[this_img_idx];
+    	unsigned char this_g = image[this_img_idx + 1];
+    	unsigned char this_b = image[this_img_idx + 2];
+
+    	unsigned int first_row_offset = 4 + 3 * (no_of_cols-2);
+    	unsigned int extra_cur_row_offset = 3 + (row-1) * (6 + 4 * (no_of_cols-2));
+    	unsigned int extra_cur_col_offset = 3 * (col-1);
+    	unsigned int write_offset = first_row_offset + extra_cur_row_offset + extra_cur_col_offset;
+
+    	unsigned char other_r;
+    	unsigned char other_g;
+    	unsigned char other_b;
+    	double distance;
+
+    	unsigned long cur_vertex_idx = row * no_of_cols + col;
+        d_vertex[cur_vertex_idx] = write_offset;
+
+    	// Left node
+    	d_edges[write_offset] = left_node;
+
+    	other_img_idx = row * pitch + (col - 1) * CHANNEL_SIZE;
+        other_r = image[other_img_idx];
+        other_g = image[other_img_idx + 1];
+        other_b = image[other_img_idx + 2];
+    	distance = SCALE * sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
+    	d_weight[write_offset] = (unsigned int) round(distance);
+
+    	// Right node
+        d_edges[write_offset+1] = right_node;
+
+        other_img_idx = row * pitch + (col + 1) * CHANNEL_SIZE;
+        other_r = image[other_img_idx];
+        other_g = image[other_img_idx + 1];
+        other_b = image[other_img_idx + 2];
+    	distance = SCALE * sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
+    	d_weight[write_offset+1] = (unsigned int) round(distance);
+
+    	// Top node
+        d_edges[write_offset+2] = top_node;
+
+        other_img_idx = (row-1) * pitch + col * CHANNEL_SIZE;
+        other_r = image[other_img_idx];
+        other_g = image[other_img_idx + 1];
+        other_b = image[other_img_idx + 2];
+    	distance = SCALE * sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
+    	d_weight[write_offset+2] = (unsigned int) round(distance);
+    }
+}
+
+__global__ void createFirstColumnGraphKernel(unsigned char *image, unsigned int *d_vertex, unsigned int *d_edge, unsigned int *d_weight, unsigned int no_of_rows, unsigned int no_of_cols, size_t pitch) 
+{
+	unsigned int row = blockDim.x * blockIdx.x + threadIdx.x;
+    unsigned int col = 0;
+
+    if (row > 0 && row < no_of_rows) {
+        unsigned int right_node = row * no_of_cols + col + 1;
+        unsigned int top_node = (row - 1) * no_of_cols + col;
+        unsigned int bottom_node = (row+1) * no_of_cols + col;
+
+      	unsigned int this_img_idx = row * pitch + col * CHANNEL_SIZE;
+    	unsigned char this_r = image[this_img_idx];
+    	unsigned char this_g = image[this_img_idx + 1];
+    	unsigned char this_b = image[this_img_idx + 2];
+
+    	unsigned int first_row_offset = 4 + 3 * (no_of_cols-2);
+    	unsigned int extra_cur_row_offset = (row-1) * (6 + 4 * (no_of_cols-2));
+    	unsigned int write_offset = first_row_offset + extra_cur_row_offset;
+
+    	unsigned char other_r;
+    	unsigned char other_g;
+    	unsigned char other_b;
+    	double distance;
+
+    	unsigned long cur_vertex_idx = row * no_of_cols + col;
+        d_vertex[cur_vertex_idx] = write_offset;
+
+    	// Right node
+        d_edges[write_offset] = right_node;
+
+        other_img_idx = row * pitch + (col + 1) * CHANNEL_SIZE;
+        other_r = image[other_img_idx];
+        other_g = image[other_img_idx + 1];
+        other_b = image[other_img_idx + 2];
+    	distance = SCALE * sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
+    	d_weight[write_offset] = (unsigned int) round(distance);
+
+    	// Top node
+        d_edges[write_offset+1] = top_node;
+
+        other_img_idx = (row-1) * pitch + col * CHANNEL_SIZE;
+        other_r = image[other_img_idx];
+        other_g = image[other_img_idx + 1];
+        other_b = image[other_img_idx + 2];
+    	distance = SCALE * sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
+    	d_weight[write_offset+1] = (unsigned int) round(distance);
+
+    	// Bottom node
+        d_edges[write_offset+2] = bottom_node;
+
+        other_img_idx = (row+1) * pitch + col * CHANNEL_SIZE;
+        other_r = image[other_img_idx];
+        other_g = image[other_img_idx + 1];
+        other_b = image[other_img_idx + 2];
+    	distance = SCALE * sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
+    	d_weight[write_offset+2] = (unsigned int) round(distance);
+    }
+}
+
+__global__ void createLastColumnGraphKernel(unsigned char *image, unsigned int *d_vertex, unsigned int *d_edge, unsigned int *d_weight, unsigned int no_of_rows, unsigned int no_of_cols, size_t pitch) 
+{
+	unsigned int row = blockDim.x * blockIdx.x + threadIdx.x;
+    unsigned int col = no_of_cols - 1;
+
+    if (row > 0 && col > 0 && row < no_of_rows && col < no_of_cols) {
+    	unsigned int left_node = row * no_of_cols + col - 1;
+        unsigned int right_node = row * no_of_cols + col + 1;
+        unsigned int top_node = (row - 1) * no_of_cols + col;
+        unsigned int bottom_node = (row+1) * no_of_cols + col;
+
+      	unsigned int this_img_idx = row * pitch + col * CHANNEL_SIZE;
+    	unsigned char this_r = image[this_img_idx];
+    	unsigned char this_g = image[this_img_idx + 1];
+    	unsigned char this_b = image[this_img_idx + 2];
+
+    	unsigned int first_row_offset = 4 + 3 * (no_of_cols-2);
+    	unsigned int extra_cur_row_offset = 3 + (row-1) * (6 + 4 * (no_of_cols-2));
+    	unsigned int extra_cur_col_offset = 4 * (col-1);
+    	unsigned int write_offset = first_row_offset + extra_cur_row_offset + extra_cur_col_offset;
+
+    	unsigned char other_r;
+    	unsigned char other_g;
+    	unsigned char other_b;
+    	double distance;
+
+    	unsigned long cur_vertex_idx = row * no_of_cols + col;
+        d_vertex[cur_vertex_idx] = write_offset;
+
+    	// Left node
+    	d_edges[write_offset] = left_node;
+
+    	other_img_idx = row * pitch + (col - 1) * CHANNEL_SIZE;
+        other_r = image[other_img_idx];
+        other_g = image[other_img_idx + 1];
+        other_b = image[other_img_idx + 2];
+    	distance = SCALE * sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
+    	d_weight[write_offset] = (unsigned int) round(distance);
+
+    	// Top node
+        d_edges[write_offset+1] = top_node;
+
+        other_img_idx = (row-1) * pitch + col * CHANNEL_SIZE;
+        other_r = image[other_img_idx];
+        other_g = image[other_img_idx + 1];
+        other_b = image[other_img_idx + 2];
+    	distance = SCALE * sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
+    	d_weight[write_offset+1] = (unsigned int) round(distance);
+
+    	// Bottom node
+        d_edges[write_offset+2] = bottom_node;
+
+        other_img_idx = (row+1) * pitch + col * CHANNEL_SIZE;
+        other_r = image[other_img_idx];
+        other_g = image[other_img_idx + 1];
+        other_b = image[other_img_idx + 2];
+    	distance = SCALE * sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
+    	d_weight[write_offset+2] = (unsigned int) round(distance);
+    }
+}
+
+__global__ void createInnerGraphKernel(unsigned char *image, unsigned int *d_vertex, unsigned int *d_edge, unsigned int *d_weight, unsigned int no_of_rows, unsigned int no_of_cols, size_t pitch) 
+{
+	unsigned int row = blockDim.x * blockIdx.x + threadIdx.x;
+    unsigned int col = blockDim.y * blockIdx.y + threadIdx.y;
+
+    if (row > 0 && col > 0 && row < no_of_rows && col < no_of_cols) {
+    	unsigned int left_node = row * no_of_cols + col - 1;
+        unsigned int right_node = row * no_of_cols + col + 1;
+        unsigned int top_node = (row - 1) * no_of_cols + col;
+        unsigned int bottom_node = (row+1) * no_of_cols + col;
+
+      	unsigned int this_img_idx = row * pitch + col * CHANNEL_SIZE;
+    	unsigned char this_r = image[this_img_idx];
+    	unsigned char this_g = image[this_img_idx + 1];
+    	unsigned char this_b = image[this_img_idx + 2];
+
+    	unsigned int first_row_offset = 4 + 3 * (no_of_cols-2);
+    	unsigned int extra_cur_row_offset = 3 + (row-1) * (6 + 4 * (no_of_cols-2));
+    	unsigned int extra_cur_col_offset = 4 * (col-1);
+    	unsigned int write_offset = first_row_offset + extra_cur_row_offset + extra_cur_col_offset;
+
+    	unsigned char other_r;
+    	unsigned char other_g;
+    	unsigned char other_b;
+    	double distance;
+
+    	unsigned long cur_vertex_idx = row * no_of_cols + col;
+        d_vertex[cur_vertex_idx] = write_offset;
+
+    	// Left node
+    	d_edges[write_offset] = left_node;
+
+    	other_img_idx = row * pitch + (col - 1) * CHANNEL_SIZE;
+        other_r = image[other_img_idx];
+        other_g = image[other_img_idx + 1];
+        other_b = image[other_img_idx + 2];
+    	distance = SCALE * sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
+    	d_weight[write_offset] = (unsigned int) round(distance);
+
+    	// Right node
+        d_edges[write_offset+1] = right_node;
+
+        other_img_idx = row * pitch + (col + 1) * CHANNEL_SIZE;
+        other_r = image[other_img_idx];
+        other_g = image[other_img_idx + 1];
+        other_b = image[other_img_idx + 2];
+    	distance = SCALE * sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
+    	d_weight[write_offset+1] = (unsigned int) round(distance);
+
+    	// Top node
+        d_edges[write_offset+2] = top_node;
+
+        other_img_idx = (row-1) * pitch + col * CHANNEL_SIZE;
+        other_r = image[other_img_idx];
+        other_g = image[other_img_idx + 1];
+        other_b = image[other_img_idx + 2];
+    	distance = SCALE * sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
+    	d_weight[write_offset+2] = (unsigned int) round(distance);
+
+    	// Bottom node
+        d_edges[write_offset+3] = bottom_node;
+
+        other_img_idx = (row+1) * pitch + col * CHANNEL_SIZE;
+        other_r = image[other_img_idx];
+        other_g = image[other_img_idx + 1];
+        other_b = image[other_img_idx + 2];
+    	distance = SCALE * sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
+    	d_weight[write_offset+3] = (unsigned int) round(distance);
+    }
+}
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////

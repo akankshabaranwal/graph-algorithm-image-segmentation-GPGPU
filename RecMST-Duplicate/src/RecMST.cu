@@ -63,11 +63,9 @@ Vertex ID bit size:
 // Opencv stuff
 #include "opencv2/imgproc.hpp"
 #include "opencv2/imgcodecs.hpp"
-// #include <opencv2/cudafilters.hpp> // TODO
+#include <opencv2/cudafilters.hpp>
 using namespace cv;
 using namespace cv::cuda;
-
-#define CHANNEL_SIZE 3
 
 #include <sys/time.h>
 
@@ -75,6 +73,8 @@ using namespace cv::cuda;
 ////////////////////////////////////////////////
 // Variables
 ////////////////////////////////////////////////
+GpuMat d_blurred;
+
 unsigned int no_of_rows;										// Number of rows in image
 unsigned int no_of_cols;										// Number of columns in image
 
@@ -259,12 +259,11 @@ int ImagetoGraphSerial(Mat image) {
     return cur_edge_idx;
 }
 
-
+// ! TODO: init some of needed memory before reading for cuda
 void ReadGraph(char *filename) {
 
 	Mat image, output;				// Released automatically
-	Mat blurred;
-   // GpuMat dev_image, dev_output; 	// Released automatically
+   	GpuMat dev_image, dev_output; 	// Released automatically
 
     struct timeval t1, t2;
 	gettimeofday(&t1, 0);
@@ -282,41 +281,72 @@ void ReadGraph(char *filename) {
 	gettimeofday(&t1, 0);
 
     // Apply gaussian filter (done on CPU because GPU turned out to be slower)
-    blurred = image.clone();
-    GaussianBlur(image, blurred, Size(5, 5), 1.0);
-
+    dev_image.upload(image);
+    filter = cv::cuda::createGaussianFilter(CV_8UC3, CV_8UC3, cv::Size(5, 5), 1.0);
+    filter->apply(dev_image, d_blurred);
 	
-	//cudaDeviceSynchronize();
+	cudaDeviceSynchronize();
 	gettimeofday(&t2, 0);
 	time = (1000000.0*(t2.tv_sec-t1.tv_sec) + t2.tv_usec-t1.tv_usec)/1000.0;
 	printf("Gaussian time:  %3.1f ms \n", time);
 
-    // TODO: use dev_output for gaussian filter
-
-    // Get graph parameters
-	no_of_vertices = blurred.rows * blurred.cols;
-	no_of_vertices_orig = no_of_vertices;
-	h_vertex = (unsigned int*)malloc(sizeof(unsigned int)*no_of_vertices);
-
-	// Initial approximation number of edges
-	no_of_edges = (blurred.rows)*(blurred.cols)*4;
-	h_edge = (unsigned int*) malloc (sizeof(unsigned int)*no_of_edges);
-	h_weight = (unsigned int*) malloc (sizeof(unsigned int)*no_of_edges);
 
 	gettimeofday(&t1, 0);
 
-	no_of_edges = ImagetoGraphSerial(blurred);
+    // Get graph parameters
+	no_of_vertices = no_of_rows * no_of_cols;
+	no_of_vertices_orig = no_of_vertices;
+	no_of_edges = 8 + 6 * (no_of_cols - 2) + 6 * (no_of_rows - 2) + 4 * (no_of_cols - 2) * (no_of_rows - 2);
+
+	Init();
+
+	dim3 encode_threads;
+    dim3 encode_blocks;
+    if (num_vertices < 1024) {
+        encode_threads.x = x;
+        encode_threads.y = y;
+        encode_blocks.x = 1;
+        encode_blocks.y = 1;
+    } else {
+        encode_threads.x = 32;
+        encode_threads.y = 32;
+        encode_blocks.x = x / 32 + 1;
+        encode_blocks.y = y / 32 + 1;
+    }
+    size_t pitch = dev_output.step;
+
+    int num_of_blocks, num_of_threads_per_block;
+
+	SetGridThreadLen(no_of_cols, &num_of_blocks, &num_of_threads_per_block);
+	dim3 grid_row(num_of_blocks, 1, 1);
+	dim3 threads_row(num_of_threads_per_block, 1, 1);
+
+	SetGridThreadLen(no_of_rows, &num_of_blocks, &num_of_threads_per_block);
+	dim3 grid_col(num_of_blocks, 1, 1);
+	dim3 threads_col(num_of_threads_per_block, 1, 1);
+
+    dim3 grid_corner(1, 1, 1);
+	dim3 threads_corner(4, 1, 1);
+
+    // Inner graph
+    createInnerGraphKernel<<< encode_blocks, encode_threads>>>(dev_output.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
+
+    // Outer graph
+   	createFirstRowGraphKernel<<< grid_row, threads_row, 0>>>(dev_output.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
+   	createLastRowGraphKernel<<< grid_row, threads_row, 0>>>(dev_output.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
+
+   	createFirstColumnGraphKernel<<< grid_col, threads_col, 0>>>(dev_output.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
+   	createLastColumnGraphKernel<<< grid_col, threads_col, 0>>>(dev_output.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
+
+    // Corners
+	createCornerGraphKernel<<< grid_corner, threads_corner, 0>>>(dev_output.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
 	
-	//cudaDeviceSynchronize();
+	cudaDeviceSynchronize();
 	gettimeofday(&t2, 0);
 	time = (1000000.0*(t2.tv_sec-t1.tv_sec) + t2.tv_usec-t1.tv_usec)/1000.0;
 	printf("Graph creation time:  %3.1f ms \n", time);
 	
 	no_of_edges_orig = no_of_edges;
-
-	// Scale down to real size
-	h_edge = (unsigned int*) realloc(h_edge, no_of_edges * sizeof(unsigned int));
-	h_weight = (unsigned int*) realloc(h_weight, no_of_edges * sizeof(unsigned int));
 
 	printf("Image read successfully into graph with %d vertices and %d edges\n", no_of_vertices, no_of_edges);
 }
@@ -663,7 +693,6 @@ int main( int argc, char** argv) {
 	double time = (1000000.0*(t2.tv_sec-t1.tv_sec) + t2.tv_usec-t1.tv_usec)/1000.0;
 	printf("Graph read & creation time:  %3.1f ms \n", time);
 
-	Init();
 	//printf("\n\n");
 
 	/*unsigned int	timer;
