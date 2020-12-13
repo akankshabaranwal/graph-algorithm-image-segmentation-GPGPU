@@ -6,14 +6,12 @@
 #define FELZENSWALB_CUSTOM_TYPES_H
 
 #define CHANNEL_SIZE 3
-#define K 250
+#define K 220
 #define NUM_NEIGHBOURS 8
 
 typedef struct {
     uint weight;
-    uint src_id;
     uint src_comp;
-    uint dest_id;
     uint dest_comp;
     uint new_int_diff;
 } min_edge;

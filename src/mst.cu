@@ -37,16 +37,13 @@ void find_min_edges_sort(uint4 vertices[], uint2 edges[], min_edge min_edges[], 
         uint4 vertice = vertices[tid];
         min_edge min;
         min.weight = UINT_MAX;
-        min.src_id = 0;
         min.src_comp = 0;
         for (int j = tid * NUM_NEIGHBOURS; j < tid * NUM_NEIGHBOURS + NUM_NEIGHBOURS; j++) {
             uint2 edge = edges[j];
             // Maybe it would be better to just check if it's not in the same component? We would not need to remove internal edges
             if (edge.x != 0) {
                 if (edge.y < min.weight) {
-                    min.src_id = vertice.x;
                     min.src_comp = vertice.y;
-                    min.dest_id = edge.x;
                     min.dest_comp = vertices[edge.x - 1].y; //edge.z;
                     min.weight = edge.y;
                 }
@@ -107,7 +104,7 @@ void compact_min_edge_wrappers(min_edge min_edges[], min_edge_wrapper wrappers[]
     uint num_threads = gridDim.x * blockDim.x;
     for (int index = tid; index < n_vertices; index += num_threads) {
         min_edge edge = wrappers[index].edge;
-        if (edge.src_id != 0 && edge.src_comp != 0) {
+        if (edge.src_comp != 0) {
             uint pos = atomicAdd_system(pos_counter, 1);
             min_edges[pos] = edge;
         }
@@ -231,8 +228,8 @@ void merge(uint4 vertices[], min_edge min_edges[], uint *num_components, uint up
 
         min_edge min_edge = min_edges[comp_id];
         if (min_edge.src_comp == min_edge.dest_comp || min_edge.src_comp == 0) return;
-        uint4 src = vertices[min_edge.src_id - 1];
-        uint4 dest = vertices[min_edge.dest_id - 1];
+        uint4 src = vertices[min_edge.src_comp - 1];
+        uint4 dest = vertices[min_edge.dest_comp - 1];
         uint src_diff = src.w + (K / src.z);
         uint dest_diff = dest.w + (K / dest.z);
         __syncthreads();
@@ -250,7 +247,8 @@ __global__
 void debug_print_min_edges(min_edge min_edges[], uint length) {
     for (int i = 0; i < length; i++) {
         if (min_edges[i].src_comp == 0) continue;
-        printf("[%d]: %d(%d) -(%d)-> %d (%d)\n", i, min_edges[i].src_comp, min_edges[i].src_id, min_edges[i].weight, min_edges[i].dest_comp, min_edges[i].dest_id);
+        //printf("[%d]: %d(%d) -(%d)-> %d (%d)\n", i, min_edges[i].src_comp, min_edges[i].src_id, min_edges[i].weight, min_edges[i].dest_comp, min_edges[i].dest_id);
+        printf("[%d]: %d -(%d)-> %d\n", i, min_edges[i].src_comp, min_edges[i].weight, min_edges[i].dest_comp);
         //printf("%d -(%d)-> %d\n", min_edges[i].src_comp, min_edges[i].weight, min_edges[i].dest_comp);
     }
     printf("\n");
