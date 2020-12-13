@@ -61,8 +61,9 @@ Vertex ID bit size:
 #include <thrust/functional.h>
 
 // Opencv stuff
-#include <opencv2/highgui.hpp>
-#include <opencv2/cudafilters.hpp>
+#include "opencv2/imgproc.hpp"
+#include "opencv2/imgcodecs.hpp"
+// #include <opencv2/cudafilters.hpp> // TODO
 using namespace cv;
 using namespace cv::cuda;
 
@@ -262,7 +263,8 @@ int ImagetoGraphSerial(Mat image) {
 void ReadGraph(char *filename) {
 
 	Mat image, output;				// Released automatically
-    GpuMat dev_image, dev_output; 	// Released automatically
+	Mat blurred;
+   // GpuMat dev_image, dev_output; 	// Released automatically
 
     struct timeval t1, t2;
 	gettimeofday(&t1, 0);
@@ -279,11 +281,13 @@ void ReadGraph(char *filename) {
 
 	gettimeofday(&t1, 0);
 
-    // Apply gaussian filter
+    /*// Apply gaussian filter
     dev_image.upload(image);
     Ptr<Filter> filter = createGaussianFilter(CV_8UC3, CV_8UC3, Size(5, 5), 1.0);
     filter->apply(dev_image, dev_output);
-    dev_output.download(output);
+    dev_output.download(output);*/
+    blurred = image.clone();
+    GaussianBlur(image, blurred, Size(5, 5), 1.0);
 
 	
 	cudaDeviceSynchronize();
@@ -294,18 +298,18 @@ void ReadGraph(char *filename) {
     // TODO: use dev_output for gaussian filter
 
     // Get graph parameters
-	no_of_vertices = image.rows * image.cols;
+	no_of_vertices = blurred.rows * blurred.cols;
 	no_of_vertices_orig = no_of_vertices;
 	h_vertex = (unsigned int*)malloc(sizeof(unsigned int)*no_of_vertices);
 
 	// Initial approximation number of edges
-	no_of_edges = (image.rows)*(image.cols)*4;
+	no_of_edges = (blurred.rows)*(blurred.cols)*4;
 	h_edge = (unsigned int*) malloc (sizeof(unsigned int)*no_of_edges);
 	h_weight = (unsigned int*) malloc (sizeof(unsigned int)*no_of_edges);
 
 	gettimeofday(&t1, 0);
 
-	no_of_edges = ImagetoGraphSerial(image);
+	no_of_edges = ImagetoGraphSerial(blurred);
 	
 	cudaDeviceSynchronize();
 	gettimeofday(&t2, 0);
