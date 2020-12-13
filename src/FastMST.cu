@@ -26,22 +26,21 @@ __global__ void ClearFlagArray(int *flag, int numElements)
 __global__ void MarkSegments(int *flag, int *VertexList,int numElements)
 {
     //int id = blockIdx.x*blockDim.x+threadIdx.x;
-    unsigned int tidx = blockIdx.x*blockDim.x+threadIdx.x;
-    unsigned int num_threads = gridDim.x * blockDim.x;
-
+    int32_t tidx = blockIdx.x*blockDim.x+threadIdx.x;
+    int32_t num_threads = gridDim.x * blockDim.x;
     for (uint idx = tidx; idx < numElements; idx += num_threads)
     {
         flag[VertexList[idx]] = 1;
     }
 }
 
-void SegmentedReduction(CudaContext& context, int32_t *flag, int32_t *a, int32_t *Out, int numElements, int numSegs)
+void SegmentedReduction(CudaContext& context, int32_t *VertexList, int32_t *BitEdgeList, int32_t *MinSegmentedList, int numEdges, int numVertices)
 {
     //Segmented min scan
-    SegReduceCsr(a, flag, numElements, numSegs, false, Out,(int32_t)INT_MAX, mgpu::minimum<int32_t>(),context);
+    SegReduceCsr(BitEdgeList, VertexList, numEdges, numVertices, false, MinSegmentedList,(int32_t)INT_MAX, mgpu::minimum<int32_t>(),context);
 }
 
-__global__ void FindSuccessorArray(int32_t *Successor, int32_t *VertexList, int32_t *Out, int numVertices)
+__global__ void FindSuccessorArray(int32_t *Successor, int32_t *VertexList, int32_t *MinSegmentedList, int numVertices)
 {
     //int id = blockIdx.x*blockDim.x+threadIdx.x;
     int32_t min_edge_index;
@@ -50,23 +49,23 @@ __global__ void FindSuccessorArray(int32_t *Successor, int32_t *VertexList, int3
 
     for (uint idx = tidx; idx < numVertices; idx += num_threads)
     {   min_edge_index = VertexList[idx];
-        Successor[idx] = Out[min_edge_index]%(2<<15);
+        Successor[idx] = MinSegmentedList[min_edge_index]%(2<<15);
     }
 }
 
 __global__ void RemoveCycles(int32_t *Successor, int numVertices)
 {
     //int vertex = blockIdx.x*blockDim.x+threadIdx.x;
-    unsigned int tidx = blockIdx.x*blockDim.x+threadIdx.x;
-    unsigned int num_threads = gridDim.x * blockDim.x;
+    int32_t tidx = blockIdx.x*blockDim.x+threadIdx.x;
+    int32_t num_threads = gridDim.x * blockDim.x;
     int32_t successor_2;
 
-    for (uint idx = tidx; idx < numVertices; idx += num_threads)
+    for (int32_t idx = tidx; idx < numVertices; idx += num_threads)
     {
         successor_2 = Successor[Successor[idx]];
         if(idx == successor_2) //Cycle detected
         {
-            if(idx < successor_2)
+            if(idx < Successor[idx])
                 Successor[idx] = idx;
             else
             {
@@ -75,44 +74,28 @@ __global__ void RemoveCycles(int32_t *Successor, int numVertices)
         }
     }
 }
-/*
-__global__ void CopySuccessorToNewSuccessor(int *Successor, int *newSuccessor, int no_of_vertices)
-{
-    unsigned int tid = blockIdx.x*blockDim.x + threadIdx.x;
-    if(tid<no_of_vertices)
-        newSuccessor[tid] = Successor[tid];
-}
 
-void PropagateRepresentativeVertices(int32_t *Successor, int *newSuccessor, int numVertices)
+void PropagateRepresentativeVertices(int32_t *Successor, int numVertices)
 {
     bool change;
     change = true;
+    int32_t successor, successor_2;
+
     while(change)
     {
         change = false;
-        //TODO: Is it worth to make this parallel? Repeat copy of 'change' between host and device??
-        //Try some scan to figure out value of change array after every kernel call?
-        int32_t successor, successor_2;
-        for(int i=0; i<numVertices;i++)
+        for(int vertex=0; vertex<numVertices;vertex++)
         {
-            successor = Successor[i];
+            successor = Successor[vertex];
             successor_2 = Successor[successor];
             if(successor!=successor_2)
             {
                 change=true;
-                newSuccessor[i] = successor_2;
+                Successor[vertex] = successor_2;
             }
         }
     }
 }
-
-__global__ void CopyNewSuccessorToSuccessor(int32_t *Successor, int32_t *newSuccessor, int no_of_vertices)
-{
-    unsigned int tid = blockIdx.x*blockDim.x + threadIdx.x;
-    if(tid<no_of_vertices)
-        Successor[tid] = newSuccessor[tid];
-}
-*/
 
 __global__ void appendSuccessorArray(int32_t *Representative, int32_t *VertexIds, int32_t *Successor, int numVertices)
 {
@@ -152,12 +135,19 @@ __global__ void CreateFlag2Array(int32_t *Representative, int *Flag2, int numSeg
 
 void SortedSplit(int32_t *Representative, int32_t *VertexIds, int32_t *Successor, int *Flag2, int numVertices)
 {
-    int numthreads = 1024;
+    int numthreads = 32;
     int numBlock = numVertices/numthreads;
     printf("Calling sorted split number of vertices are:%d ", numVertices);
     //TODO: Make this run on device
     thrust::sort_by_key(thrust::device, Representative, Representative + numVertices, VertexIds);
     CreateFlag2Array<<<numBlock, numthreads>>>(Representative, Flag2, numVertices);
+    cudaError_t err = cudaGetLastError();        // Get error code
+    err = cudaGetLastError();        // Get error code
+    if ( err != cudaSuccess )
+    {
+        printf("CUDA Error: CreateFlag2 Array%s\n", cudaGetErrorString(err));
+        exit(-1);
+    }
     //Scan to assign new vertex ids. Use exclusive scan. Run exclusive scan on the flag array
     thrust::inclusive_scan(Flag2, Flag2 + numVertices, Flag2, thrust::plus<int>());
 }
@@ -210,7 +200,7 @@ __global__ void RemoveSelfEdges(int *BitEdgeList, int numEdges, int *uid, int *S
 
 //12 Removing duplicate edges
 //Instead of UVW array create separate U, V, W array.
-__global__ void CreateUVWArray(int *BitEdgeList, int numEdges, int *uid, int32_t *SuperVertexId, int *UV, int *W)
+__global__ void CreateUVWArray(int *BitEdgeList, int numEdges, int *uid, int32_t *SuperVertexId, int32_t *UV, int *W)
 {
     //int idx = blockIdx.x*blockDim.x+threadIdx.x; //Index for accessing Edge
     int32_t id_u, id_v, edge_weight;
@@ -239,18 +229,23 @@ __global__ void CreateUVWArray(int *BitEdgeList, int numEdges, int *uid, int32_t
 }
 
 //FIXME: Add code for clearing of flag array before every place it has been used
-int SortUVW(int *UV, int *W, int numEdges, int *flag3)
+int SortUVW(int32_t *UV, int32_t *W, int numEdges, int *flag3)
 {
     //12.2
-    printf("Printing UVW Before Sorted array: ");
+    /*printf("Printing UVW Before Sorted array: ");
     for(int i = 0; i< 2000;i++)
     {
         printf("%d, ", UV[i]);
     }
     printf("\n");
+    printf("Printing UVW Before sorted array \n");
+    for(int i = 58000; i< 60000;i++)
+    {
+        printf("%d, ", UV[i]);
+    }*/
     thrust::sort_by_key(thrust::device, UV, UV + numEdges, W);
     cudaDeviceSynchronize();
-    printf("Printing UVW Sorted array: ");
+  /*  printf("Printing UVW Sorted array: ");
     for(int i = 0; i< 2000;i++)
     {
         printf("%d, ", UV[i]);
@@ -260,7 +255,7 @@ int SortUVW(int *UV, int *W, int numEdges, int *flag3)
     {
         printf("%d, ", UV[i]);
     }
-    printf("\n");
+    printf("\n");*/
     //12.3
     //Initialize F3 array
     cudaDeviceSynchronize();
@@ -360,7 +355,7 @@ int CreateNewEdgeVertexList(int *newBitEdgeList, int *newVertexList, int *UV, in
             {
                 newBitEdgeList[i] = edge_weight*(2<<15) + supervertex_id_v;
                 expand_u[i] = supervertex_id_u;
-                new_edge_size = max(new_location+1, new_edge_size);
+                new_E_size = max(new_location+1, new_E_size);
                 new_V_size = max(supervertex_id_v+1, new_V_size);
             }
         }
@@ -372,13 +367,26 @@ int CreateNewEdgeVertexList(int *newBitEdgeList, int *newVertexList, int *UV, in
     if(new_E_size>0)
         flag4[0] =1;
     //Create the flag array in parallel
-    int numthreads = 1024;
+    int numthreads = 32;
     int numBlock = new_E_size/numthreads;
+
     CreateFlag4Array<<<numBlock, numthreads>>>(expand_u, flag4, new_E_size);
+    cudaError_t err = cudaGetLastError();        // Get error code
+    if ( err != cudaSuccess )
+    {
+        printf("CUDA Error Flag4: %s\n", cudaGetErrorString(err));
+        exit(-1);
+    }
     cudaDeviceSynchronize();
 
     //Can this flag4 array creation be skipped?? Can we directly use the index while creating the expand_u array?
     CreateNewVertexList<<<numBlock, numthreads>>>(newVertexList, flag4, new_E_size, expand_u);
+    err = cudaGetLastError();        // Get error code
+    if ( err != cudaSuccess )
+    {
+        printf("CUDA Error CreateNewVertexList: %s\n", cudaGetErrorString(err));
+        exit(-1);
+    }
     cudaDeviceSynchronize();
 
     return new_V_size;
