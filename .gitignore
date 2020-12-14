@@ -209,3 +209,7 @@ Icon
 Network Trash Folder
 Temporary Items
 .apdisk
+
+# Python
+__pycache__
+.ipynb_checkpoints
