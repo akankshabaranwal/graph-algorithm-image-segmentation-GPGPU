@@ -689,7 +689,10 @@ void writeComponents() {
 
     for (int l = 0; l < hierarchy_levels.size(); l++) {
 		int level_size = hierarchy_level_sizes[l];
-		unsigned int* d_level = hierarchy_levels[l];
+		unsigned int* level = hierarchy_levels[l];
+		unsigned int* d_level;
+		cudaMalloc( (void**) &d_level, level_size*sizeof(unsigned int));
+		cudaMemcpy( d_level, &level, level_size*sizeof(unsigned int), cudaMemcpyHostToDevice);
 
 		CreateLevelOutput<<< grid_rgb, threads_rgb, 0>>>(d_output_image, d_component_colours, d_level, d_prev_level_component, no_of_rows, no_of_cols);
 	    cudaMemcpy(output, d_output_image, no_of_rows*no_of_cols*CHANNEL_SIZE*sizeof(char), cudaMemcpyDeviceToHost);
@@ -744,15 +747,12 @@ int main( int argc, char** argv) {
 	    HPGMST();
 
 	    // Add hierarchy level
-	    //unsigned int* cur_hierarchy = (unsigned int*)malloc(sizeof(unsigned int)*cur_hierarchy_size);
-	    //cudaMemcpy(cur_hierarchy, d_new_supervertexIDs, sizeof(unsigned int)*cur_hierarchy_size, cudaMemcpyDeviceToHost);
-	    hierarchy_levels.push_back(d_new_supervertexIDs);
+	    unsigned int* cur_hierarchy = (unsigned int*)malloc(sizeof(unsigned int)*cur_hierarchy_size);
+	    cudaMemcpy(cur_hierarchy, d_new_supervertexIDs, sizeof(unsigned int)*cur_hierarchy_size, cudaMemcpyDeviceToHost);
+	    hierarchy_levels.push_back(cur_hierarchy);
 	    hierarchy_level_sizes.push_back(cur_hierarchy_size);
-	    cudaMalloc( (void**) &d_new_supervertexIDs, sizeof(unsigned int)*cur_hierarchy_size);
+	    //cudaMalloc( (void**) &d_new_supervertexIDs, sizeof(unsigned int)*cur_hierarchy_size);
 
-
-	    
-	    
 	    printf("%d\n", no_of_vertices);
 	}
 	while(no_of_vertices>1);
