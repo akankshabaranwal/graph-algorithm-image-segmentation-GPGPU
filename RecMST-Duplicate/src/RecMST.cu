@@ -691,7 +691,7 @@ void writeComponents() {
 		int level_size = hierarchy_level_sizes[l];
 		unsigned int* d_level = hierarchy_levels[l];
 
-		CreateLevelOutput<<< grid_rgb, threads_rgb, 0>>>CreateLevelOutputunsigned(d_output_image, d_component_colours, d_level, d_prev_level_component, no_of_rows, no_of_cols) 
+		CreateLevelOutput<<< grid_rgb, threads_rgb, 0>>>(d_output_image, d_component_colours, d_level, d_prev_level_component, no_of_rows, no_of_cols);
 	    cudaMemcpy(output, d_output_image, no_of_rows*no_of_cols*CHANNEL_SIZE*sizeof(char), cudaMemcpyDeviceToHost);
 
 		cv::Mat output_img = cv::Mat(no_of_rows, no_of_cols, CV_8UC3, output);
