@@ -222,7 +222,7 @@ void update_new_size(uint4 vertices[], uint num_vertices, uint2 edges[]) {
 
 // Kernel to merge components
 __global__
-void merge(uint4 vertices[], min_edge min_edges[], uint *num_components, uint update_threads, uint update_blocks, uint vertices_length, uint comp_count) {
+void merge(uint4 vertices[], min_edge min_edges[], uint *num_components, uint update_threads, uint update_blocks, uint vertices_length, uint comp_count, uint k) {
     uint component_id = blockDim.x * blockIdx.x + threadIdx.x;
     uint num_threads = gridDim.x * blockDim.x;
     for (uint comp_id = component_id; comp_id < comp_count; comp_id += num_threads) {
@@ -231,8 +231,8 @@ void merge(uint4 vertices[], min_edge min_edges[], uint *num_components, uint up
         if (min_edge.src_comp == min_edge.dest_comp || min_edge.src_comp == 0) return;
         uint4 src = vertices[min_edge.src_comp - 1];
         uint4 dest = vertices[min_edge.dest_comp - 1];
-        uint src_diff = src.w + (K / src.z);
-        uint dest_diff = dest.w + (K / dest.z);
+        uint src_diff = src.w + (k / src.z);
+        uint dest_diff = dest.w + (k / dest.z);
         __syncthreads();
 
         if (min_edge.weight <= min(src_diff, dest_diff)) {
@@ -268,7 +268,7 @@ void debug_print_vertices(uint4 vertices[], uint length, uint2 edges[]) {
 
 // Kernel to orchestrate
 __global__
-void segment(uint4 vertices[], uint2 edges[], min_edge min_edges[], min_edge_wrapper wrappers[], uint2 sources[], uint *n_components, uint *did_change) {
+void segment(uint4 vertices[], uint2 edges[], min_edge min_edges[], min_edge_wrapper wrappers[], uint2 sources[], uint *n_components, uint *did_change, uint k) {
     uint counter = 0;
     uint prev_n_components = 0;
     uint n_vertices = *n_components;
@@ -315,7 +315,7 @@ void segment(uint4 vertices[], uint2 edges[], min_edge min_edges[], min_edge_wra
         remove_deps(min_edges, curr_n_comp, sources ,blocks.x, threads.x, did_change);
 
         //printf("Merge\n");
-        merge<<<blocks.x, threads.x>>>(vertices, min_edges, n_components, threads.y, blocks.y, n_vertices, curr_n_comp);
+        merge<<<blocks.x, threads.x>>>(vertices, min_edges, n_components, threads.y, blocks.y, n_vertices, curr_n_comp, k);
 
         //printf("Update\n");
         update_parents<<<blocks.x, threads.x>>>(vertices, min_edges, curr_n_comp);
@@ -352,7 +352,7 @@ void remove_deps_cpu(min_edge min_edges[], uint num_components, uint2 sources[],
     }
 }
 
-void segment_cpu(uint4 vertices[], uint2 edges[], min_edge min_edges[], min_edge_wrapper wrappers[], uint2 sources[], uint *n_components, uint *did_change, uint n_vertices) {
+void segment_cpu(uint4 vertices[], uint2 edges[], min_edge min_edges[], min_edge_wrapper wrappers[], uint2 sources[], uint *n_components, uint *did_change, uint n_vertices, uint k) {
     uint zero = 0;
     uint counter = 0;
     uint prev_n_components = 0;
@@ -397,7 +397,7 @@ void segment_cpu(uint4 vertices[], uint2 edges[], min_edge min_edges[], min_edge
         remove_deps_cpu(min_edges, curr_n_comp, sources ,blocks.x, threads.x, did_change);
 
         //printf("Merge\n");
-        merge<<<blocks.x, threads.x>>>(vertices, min_edges, n_components, threads.y, blocks.y, n_vertices, curr_n_comp);
+        merge<<<blocks.x, threads.x>>>(vertices, min_edges, n_components, threads.y, blocks.y, n_vertices, curr_n_comp, k);
 
         //printf("Update\n");
         update_parents<<<blocks.x, threads.x>>>(vertices, min_edges, curr_n_comp);
@@ -434,7 +434,7 @@ void checkErrors(const char *identifier) {
     }
 }
 
-char *compute_segments(void *input, uint x, uint y, size_t pitch, bool use_cpu) {
+char *compute_segments(void *input, uint x, uint y, size_t pitch, bool use_cpu, uint k) {
     uint4 *vertices;
     uint2 *edges;
     uint2 *sources;
@@ -484,10 +484,10 @@ char *compute_segments(void *input, uint x, uint y, size_t pitch, bool use_cpu) 
     // Segment matrix
     //cudaSetDeviceFlags(cudaDeviceBlockingSync);
     if (!use_cpu) {
-        segment<<<1, 1>>>(vertices, edges, min_edges, wrappers, sources, num_components, did_change);
+        segment<<<1, 1>>>(vertices, edges, min_edges, wrappers, sources, num_components, did_change, k);
         cudaDeviceSynchronize();
     } else {
-        segment_cpu(vertices, edges, min_edges, wrappers, sources, num_components, did_change, num_vertices);
+        segment_cpu(vertices, edges, min_edges, wrappers, sources, num_components, did_change, num_vertices, k);
     }
     checkErrors("segment()");
 

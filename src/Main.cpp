@@ -13,10 +13,11 @@ void printUsage() {
     puts("Options:");
     puts("\t-i: Path to input file (default: data/beach.png)");
     puts("\t-o: Path to output file (default: segmented.png)");
+    puts("\t-k: K from Felzenszwalb algorithm (default: 200)");
+    puts("\t-w: Number of iterations to perform during warmup (default: 1)");
+    puts("\t-s: Number of iterations to perform during benchmarking (default: 10)");
     puts("\t-c: Use host side kernel launches instead of dynamic parallelism");
     puts("\t-s: Show the generated images");
-    puts("\t-w: Number of iterations to perform during warmup");
-    puts("\t-s: Number of iterations to perform during benchmarking");
     exit(1);
 }
 
@@ -24,7 +25,7 @@ const Options handleParams(int argc, char **argv) {
     Options options = Options();
     for(;;)
     {
-        switch(getopt(argc, argv, "chsi:o:w:b:"))
+        switch(getopt(argc, argv, "chsi:o:w:b:k:"))
         {
             case 'c': {
                 options.useCPU = true;
@@ -48,6 +49,10 @@ const Options handleParams(int argc, char **argv) {
             }
             case 'b': {
                 options.benchmarkIterations = atoi(optarg);
+                continue;
+            }
+            case 'k' : {
+                options.k = atoi(optarg);
                 continue;
             }
             case '?':
@@ -79,7 +84,7 @@ char *segment_wrapper(cv::Mat image, Options options, bool isBenchmarking) {
     filter->apply(dev_image, dev_output);
 
     // Segmentation
-    img = compute_segments(dev_output.cudaPtr(), image.rows, image.cols, dev_output.step, options.useCPU);
+    img = compute_segments(dev_output.cudaPtr(), image.rows, image.cols, dev_output.step, options.useCPU, options.k);
 
     // Stop timer
     end = std::chrono::high_resolution_clock::now();
