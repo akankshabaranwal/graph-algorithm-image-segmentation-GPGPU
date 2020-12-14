@@ -661,7 +661,7 @@ void writeComponents() {
 	cudaDeviceSynchronize();
 	gettimeofday(&t2, 0);
 	double time = (1000000.0*(t2.tv_sec-t1.tv_sec) + t2.tv_usec-t1.tv_usec)/1000.0;
-	printf("Random color time:  %3.1f ms \n", time);
+	printf("Random coloring time:  %3.1f ms \n", time);
 
 	
 
