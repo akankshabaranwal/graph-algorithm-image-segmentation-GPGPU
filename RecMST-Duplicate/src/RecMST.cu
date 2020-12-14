@@ -696,11 +696,12 @@ void writeComponents() {
 
 		CreateLevelOutput<<< grid_rgb, threads_rgb>>>(d_output_image, d_component_colours, d_level, d_prev_level_component, no_of_rows, no_of_cols);
 	    cudaMemcpy(output, d_output_image, no_of_rows*no_of_cols*CHANNEL_SIZE*sizeof(char), cudaMemcpyDeviceToHost);
-
+	    cudaDeviceSynchronize();
 		cv::Mat output_img = cv::Mat(no_of_rows, no_of_cols, CV_8UC3, output);
 		printf("Writing segmented_%d.png\n", l);
 		imwrite("segmented_" + std::to_string(l) + ".png", output_img);
 		cudaFree(d_level);
+
 	}
 
 	// Free memory
