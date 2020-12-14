@@ -687,14 +687,14 @@ void writeComponents() {
 	cudaMalloc( (void**) &d_output_image, no_of_rows*no_of_cols*CHANNEL_SIZE*sizeof(char));
     char *output = (char*) malloc(no_of_rows*no_of_cols*CHANNEL_SIZE*sizeof(char));
 
-    printf("-> here\n");
-
     for (int l = 0; l < hierarchy_levels.size(); l++) {
 		int level_size = hierarchy_level_sizes[l];
 		unsigned int* level = hierarchy_levels[l];
 		unsigned int* d_level;
 		cudaMalloc( (void**) &d_level, level_size*sizeof(unsigned int));
 		cudaMemcpy( d_level, &level, level_size*sizeof(unsigned int), cudaMemcpyHostToDevice);
+
+		    printf("-> here\n");
 
 		CreateLevelOutput<<< grid_rgb, threads_rgb, 0>>>(d_output_image, d_component_colours, d_level, d_prev_level_component, no_of_rows, no_of_cols);
 	    cudaMemcpy(output, d_output_image, no_of_rows*no_of_cols*CHANNEL_SIZE*sizeof(char), cudaMemcpyDeviceToHost);
