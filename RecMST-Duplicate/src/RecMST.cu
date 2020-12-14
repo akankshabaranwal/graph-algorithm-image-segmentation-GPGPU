@@ -636,13 +636,13 @@ void writeComponents() {
 
 
 	// Create a Mersenne Twister pseudorandom number generator
-	curandCreateGenerator(&gen , CURAND RNG PSEUDO MTGP32);
+	curandCreateGenerator(&gen , CURAND_RNG_PSEUDO_MTGP32);
 
 	// Set seed
 	curandSetPseudoRandomGeneratorSeed(gen, 1234ULL);
 
 	// Generate n floats on device
-	curandGenerateUniform(gen, devData, n);
+	curandGenerateUniform(gen, d_component_colours_float, no_of_vertices_orig * CHANNEL_SIZE);
 
 	// Convert floats to RGB char
 	int num_of_blocks, num_of_threads_per_block;
