@@ -27,6 +27,7 @@ static void HandleError( cudaError_t err, const char *file, int line )
 __global__ void ClearFlagArray(int *flag, int numElements);
 __global__ void MarkSegments(int *flag, int *VertexList,int numElements);
 void SegmentedReduction(CudaContext& context, int32_t *VertexList, int32_t *BitEdgeList, int32_t *MinSegmentedList, int numEdges, int numVertices);
+__global__ void CreateNWEArray(int32_t *NWE, int32_t *MinSegmentedList, int numVertices);
 __global__ void FindSuccessorArray(int32_t *Successor, int32_t *VertexList, int32_t *MinSegmentedList, int numSegments);
 __global__ void RemoveCycles(int32_t *Successor, int numVertices);
 

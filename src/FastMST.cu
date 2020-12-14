@@ -40,7 +40,7 @@ void SegmentedReduction(CudaContext& context, int32_t *VertexList, int32_t *BitE
     SegReduceCsr(BitEdgeList, VertexList, numEdges, numVertices, false, MinSegmentedList,(int32_t)INT_MAX, mgpu::minimum<int32_t>(),context);
 }
 
-__global__ void FindSuccessorArray(int32_t *Successor, int32_t *VertexList, int32_t *MinSegmentedList, int numVertices)
+__global__ void CreateNWEArray(int32_t *NWE, int32_t *MinSegmentedList, int numVertices)
 {
     //int id = blockIdx.x*blockDim.x+threadIdx.x;
     int32_t min_edge_index;
@@ -48,8 +48,21 @@ __global__ void FindSuccessorArray(int32_t *Successor, int32_t *VertexList, int3
     unsigned int num_threads = gridDim.x * blockDim.x;
 
     for (uint idx = tidx; idx < numVertices; idx += num_threads)
-    {   min_edge_index = VertexList[idx];
-        Successor[idx] = MinSegmentedList[min_edge_index]%(2<<15);
+    {
+        NWE[idx] = MinSegmentedList[idx]%(2<<15);
+    }
+}
+
+__global__ void FindSuccessorArray(int32_t *Successor, int32_t *BitEdgeList, int32_t *NWE, int numVertices)
+{
+    //int id = blockIdx.x*blockDim.x+threadIdx.x;
+    int32_t min_edge_index;
+    unsigned int tidx = blockIdx.x*blockDim.x+threadIdx.x;
+    unsigned int num_threads = gridDim.x * blockDim.x;
+
+    for (uint idx = tidx; idx < numVertices; idx += num_threads)
+    {   min_edge_index = NWE[idx];
+        Successor[idx] = BitEdgeList[min_edge_index]%(2<<15);
     }
 }
 
