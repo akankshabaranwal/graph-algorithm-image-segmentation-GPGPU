@@ -687,6 +687,8 @@ void writeComponents() {
 	cudaMalloc( (void**) &d_output_image, no_of_rows*no_of_cols*CHANNEL_SIZE*sizeof(char));
     char *output = (char*) malloc(no_of_rows*no_of_cols*CHANNEL_SIZE*sizeof(char));
 
+    printf("-> here\n");
+
     for (int l = 0; l < hierarchy_levels.size(); l++) {
 		int level_size = hierarchy_level_sizes[l];
 		unsigned int* level = hierarchy_levels[l];
@@ -700,6 +702,7 @@ void writeComponents() {
 		cv::Mat output_img = cv::Mat(no_of_rows, no_of_cols, CV_8UC3, output);
 		printf("Writing segmented_%d.png\n", l);
 		imwrite("segmented_" + std::to_string(l) + ".png", output_img);
+		cudaFree(d_level);
 	}
 
 	// Free memory
@@ -708,7 +711,7 @@ void writeComponents() {
 	cudaFree(d_prev_level_component);
 	cudaFree(d_output_image);
 	for (int l = 0; l < hierarchy_levels.size(); l++) {
-		cudaFree(hierarchy_levels[l]);
+		free(hierarchy_levels[l]);
 	}
 }
 
