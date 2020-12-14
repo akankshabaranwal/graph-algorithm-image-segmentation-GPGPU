@@ -746,9 +746,12 @@ int main( int argc, char** argv) {
 	    // Add hierarchy level
 	    //unsigned int* cur_hierarchy = (unsigned int*)malloc(sizeof(unsigned int)*cur_hierarchy_size);
 	    //cudaMemcpy(cur_hierarchy, d_new_supervertexIDs, sizeof(unsigned int)*cur_hierarchy_size, cudaMemcpyDeviceToHost);
-
 	    hierarchy_levels.push_back(d_new_supervertexIDs);
 	    hierarchy_level_sizes.push_back(cur_hierarchy_size);
+	    cudaMalloc( (void**) &d_new_supervertexIDs, sizeof(unsigned int)*cur_hierarchy_size);
+
+
+	    
 	    
 	    printf("%d\n", no_of_vertices);
 	}
