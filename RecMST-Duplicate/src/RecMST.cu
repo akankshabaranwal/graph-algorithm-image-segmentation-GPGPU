@@ -652,10 +652,9 @@ void writeComponents() {
 	dim3 threads_rgb(num_of_threads_per_block, 1, 1);
 
 	RandFloatToRandRGB<<< grid_rgb, threads_rgb, 0>>>(d_component_colours, d_component_colours_float, no_of_vertices_orig * CHANNEL_SIZE);
-	cudaFree(d_component_colours_float);
 
 	// Copy from device to host11
-	cudaMemcpy(component_colours , d_component_colours , no_of_vertices_orig * CHANNEL_SIZE * sizeof(char) ,cudaMemcpyDeviceToHost) ;
+	cudaMemcpy(component_colours , d_component_colours , no_of_vertices_orig * CHANNEL_SIZE * sizeof(float) ,cudaMemcpyDeviceToHost) ;
 
 
 	//get_component_colours(component_colours, no_of_vertices_orig);
@@ -663,56 +662,38 @@ void writeComponents() {
 	gettimeofday(&t2, 0);
 	double time = (1000000.0*(t2.tv_sec-t1.tv_sec) + t2.tv_usec-t1.tv_usec)/1000.0;
 	printf("Random coloring time:  %3.1f ms \n", time);
+
 	
 
-	unsigned int* d_prev_level_component;
-	cudaMalloc( (void**) &d_prev_level_component, sizeof(unsigned int)*no_of_vertices_orig);
+	char *output = (char*) malloc(no_of_rows*no_of_cols*CHANNEL_SIZE*sizeof(char));
 
-	dim3 threads_pixels;
-    dim3 grid_pixels;
-    if (no_of_vertices < 1024) {
-        threads_pixels.x = no_of_rows;
-        threads_pixels.y = no_of_cols;
-        grid_pixels.x = 1;
-        grid_pixels.y = 1;
-    } else {
-        threads_pixels.x = 32;
-        threads_pixels.y = 32;
-        grid_pixels.x = no_of_rows / 32 + 1;
-        grid_pixels.y = no_of_cols / 32 + 1;
-    }
-    InitPrevLevelComponents<<<grid_pixels, threads_pixels>>>(d_prev_level_component, no_of_rows, no_of_cols);
+	unsigned int* prev_level_component = (unsigned int*)malloc(sizeof(unsigned int)*no_of_vertices_orig);
+	for (int i = 0; i < no_of_rows; i++) {
+		for (int j = 0; j < no_of_cols; j++) {
+			prev_level_component[i * no_of_cols + j] = i * no_of_cols + j;
+		}
+	}
 
-    char* d_output_image;
-	cudaMalloc( (void**) &d_output_image, no_of_rows*no_of_cols*CHANNEL_SIZE*sizeof(char));
-    char *output = (char*) malloc(no_of_rows*no_of_cols*CHANNEL_SIZE*sizeof(char));
-
-    for (int l = 0; l < hierarchy_levels.size(); l++) {
+	for (int l = 0; l < hierarchy_levels.size(); l++) {
 		int level_size = hierarchy_level_sizes[l];
 		unsigned int* level = hierarchy_levels[l];
-		unsigned int* d_level;
-				    printf("-> here\n");
+		for (int i = 0; i < no_of_rows; i++) {
+			for (int j = 0; j < no_of_cols; j++) {
+				unsigned int prev_component = prev_level_component[i * no_of_cols + j];
+				unsigned int new_component = level[prev_component];
 
-		cudaMalloc( (void**) &d_level, level_size*sizeof(unsigned int));
-		cudaMemcpy( d_level, level, level_size*sizeof(unsigned int), cudaMemcpyHostToDevice);
+				int img_pos = CHANNEL_SIZE * (i * no_of_cols + j);
+				int colour_pos = CHANNEL_SIZE * new_component;
+				output[img_pos] = component_colours[colour_pos];
+				output[img_pos + 1] = component_colours[colour_pos+1];
+				output[img_pos + 2] = component_colours[colour_pos+2];
 
-
-		CreateLevelOutput<<< grid_rgb, threads_rgb, 0>>>(d_output_image, d_component_colours, d_level, d_prev_level_component, no_of_rows, no_of_cols);
-	    cudaMemcpy(output, d_output_image, no_of_rows*no_of_cols*CHANNEL_SIZE*sizeof(char), cudaMemcpyDeviceToHost);
-
+                prev_level_component[i * no_of_cols + j] = new_component;
+			}
+		}
 		cv::Mat output_img = cv::Mat(no_of_rows, no_of_cols, CV_8UC3, output);
 		printf("Writing segmented_%d.png\n", l);
 		imwrite("segmented_" + std::to_string(l) + ".png", output_img);
-		cudaFree(d_level);
-	}
-
-	// Free memory
-	cudaFree(d_component_colours_float);
-	cudaFree(d_component_colours);
-	cudaFree(d_prev_level_component);
-	cudaFree(d_output_image);
-	for (int l = 0; l < hierarchy_levels.size(); l++) {
-		free(hierarchy_levels[l]);
 	}
 }
 
@@ -753,10 +734,10 @@ int main( int argc, char** argv) {
 	    // Add hierarchy level
 	    unsigned int* cur_hierarchy = (unsigned int*)malloc(sizeof(unsigned int)*cur_hierarchy_size);
 	    cudaMemcpy(cur_hierarchy, d_new_supervertexIDs, sizeof(unsigned int)*cur_hierarchy_size, cudaMemcpyDeviceToHost);
+
 	    hierarchy_levels.push_back(cur_hierarchy);
 	    hierarchy_level_sizes.push_back(cur_hierarchy_size);
-	    //cudaMalloc( (void**) &d_new_supervertexIDs, sizeof(unsigned int)*cur_hierarchy_size);
-
+	    
 	    printf("%d\n", no_of_vertices);
 	}
 	while(no_of_vertices>1);
