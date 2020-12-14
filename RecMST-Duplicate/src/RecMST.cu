@@ -654,10 +654,10 @@ void writeComponents() {
 	RandFloatToRandRGB<<< grid_rgb, threads_rgb, 0>>>(d_component_colours, d_component_colours_float, no_of_vertices_orig * CHANNEL_SIZE);
 
 	// Copy from device to host11
-	//cudaMemcpy(component_colours , d_component_colours , no_of_vertices_orig * CHANNEL_SIZE * sizeof(float) ,cudaMemcpyDeviceToHost) ;
+	cudaMemcpy(component_colours , d_component_colours , no_of_vertices_orig * CHANNEL_SIZE * sizeof(float) ,cudaMemcpyDeviceToHost) ;
 
 
-	get_component_colours(component_colours, no_of_vertices_orig);
+	//get_component_colours(component_colours, no_of_vertices_orig);
 	cudaDeviceSynchronize();
 	gettimeofday(&t2, 0);
 	double time = (1000000.0*(t2.tv_sec-t1.tv_sec) + t2.tv_usec-t1.tv_usec)/1000.0;
