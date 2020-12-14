@@ -8,6 +8,16 @@
 #include "custom_types.h"
 
 __device__ __forceinline__
+int compare_min_edges_volatile(min_edge *left, min_edge volatile *right) {
+    if (left->src_comp == 0 && right->src_comp == 0) return 0;
+    if (left->src_comp == 0) return 1;
+    if (right->src_comp == 0) return -1;
+    uint component_diff = left->src_comp - right->src_comp;
+    if (component_diff != 0) return component_diff;
+    return left->weight - right->weight;
+}
+
+__device__ __forceinline__
 int compare_min_edges(min_edge left, min_edge right) {
     //printf("Compare %d with %d\n", left.src_comp, right.src_comp);
     if (left.src_comp == 0 && right.src_comp == 0) return 0;

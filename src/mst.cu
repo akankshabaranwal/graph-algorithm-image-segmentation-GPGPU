@@ -74,23 +74,24 @@ void filter_min_edges(min_edge min_edges[], min_edge_wrapper new_min_edges[], ui
         uint id = our.src_comp;
 
         uint lock;
-        min_edge their;
+        min_edge volatile *their_ptr = &(new_min_edges[id].edge);
         bool exit = false;
         while(!exit) {
-            their = new_min_edges[id].edge;
-            if (compare_min_edges(our, their) < 0) {
+            if (compare_min_edges_volatile(&our, their_ptr) < 0) {
                 lock = atomicCAS_system(&(new_min_edges[id].locked), 0, 1);
+                __threadfence_system();
 
                 if (lock == 0) {
-                    min_edge updated_their = new_min_edges[id].edge;
-                    if (compare_min_edges(our, updated_their) < 0) {
+                    // Super duper make sure we can write
+                    if (compare_min_edges_volatile(&our, their_ptr) < 0) {
                         new_min_edges[id].edge = our;
                         __threadfence_system();
                     }
                     atomicExch_system(&(new_min_edges[id].locked), 0);
+                    __threadfence_system();
                     exit = true;
                 }
-                __threadfence_system();
+                __syncthreads();
             } else {
                 exit = true;
             }
@@ -248,8 +249,8 @@ void debug_print_min_edges(min_edge min_edges[], uint length) {
     for (int i = 0; i < length; i++) {
         if (min_edges[i].src_comp == 0) continue;
         //printf("[%d]: %d(%d) -(%d)-> %d (%d)\n", i, min_edges[i].src_comp, min_edges[i].src_id, min_edges[i].weight, min_edges[i].dest_comp, min_edges[i].dest_id);
-        printf("[%d]: %d -(%d)-> %d\n", i, min_edges[i].src_comp, min_edges[i].weight, min_edges[i].dest_comp);
-        //printf("%d -(%d)-> %d\n", min_edges[i].src_comp, min_edges[i].weight, min_edges[i].dest_comp);
+        //printf("[%d]: %d -(%d)-> %d\n", i, min_edges[i].src_comp, min_edges[i].weight, min_edges[i].dest_comp);
+        printf("%d -(%d)-> %d\n", min_edges[i].src_comp, min_edges[i].weight, min_edges[i].dest_comp);
     }
     printf("\n");
 }
@@ -301,10 +302,13 @@ void segment(uint4 vertices[], uint2 edges[], min_edge min_edges[], min_edge_wra
             reset_wrappers<<<blocks.y, threads.y>>>(wrappers, n_vertices);
             filter_min_edges<<<blocks.y, threads.y>>>(min_edges, wrappers, n_vertices);
             cudaDeviceSynchronize();
+            //printf("%d: %d %d\n", 10068, wrappers[10068].edge.dest_comp, wrappers[10068].edge.weight);
 
             //printf("Compact\n");
             *did_change = 0;
             compact_min_edge_wrappers<<<blocks.y, threads.y>>>(min_edges, wrappers, n_vertices, did_change);
+            //debug_print_min_edges<<<1, 1>>>(min_edges, curr_n_comp);
+            //return;
         }
 
         //printf("Remove cycles\n");
@@ -536,6 +540,9 @@ char *compute_segments(void *input, uint x, uint y, size_t pitch, bool use_cpu) 
 
     cudaMemcpy(output, output_dev, x*y*CHANNEL_SIZE*sizeof(char), cudaMemcpyDeviceToHost);
     checkErrors("Memcpy output");
+
+    cudaFree(output_dev);
+    checkErrors("Free output_dev");
 
     return output;
 }
