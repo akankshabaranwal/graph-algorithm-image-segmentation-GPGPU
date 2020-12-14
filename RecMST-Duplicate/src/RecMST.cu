@@ -655,7 +655,7 @@ void writeComponents() {
 	cudaFree(d_component_colours_float);
 
 	// Copy from device to host11
-	cudaMemcpy(component_colours , d_component_colours , no_of_vertices_orig * CHANNEL_SIZE * sizeof(float) ,cudaMemcpyDeviceToHost) ;
+	cudaMemcpy(component_colours , d_component_colours , no_of_vertices_orig * CHANNEL_SIZE * sizeof(char) ,cudaMemcpyDeviceToHost) ;
 
 
 	//get_component_colours(component_colours, no_of_vertices_orig);
