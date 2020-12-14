@@ -670,7 +670,7 @@ void writeComponents() {
 
 	dim3 threads_pixels;
     dim3 grid_pixels;
-    if (no_of_vertices < 1024) {
+    if (no_of_vertices_orig < 1024) {
         threads_pixels.x = no_of_rows;
         threads_pixels.y = no_of_cols;
         grid_pixels.x = 1;
