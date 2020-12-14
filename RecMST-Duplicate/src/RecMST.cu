@@ -683,6 +683,12 @@ void writeComponents() {
     }
     InitPrevLevelComponents<<<grid_pixels, threads_pixels>>>(d_prev_level_component, no_of_rows, no_of_cols);
 
+    unsigned int* prev_level_component = (unsigned int*)malloc(sizeof(unsigned int)*no_of_vertices_orig);
+    cudaMemcpy(prev_level_component, d_prev_level_component, sizeof(unsigned int)*no_of_vertices_orig, cudaMemcpyDeviceToHost);
+    for (int i = 0; i < 10; i++) {
+    	printf("%u ",prev_level_component[i]);
+    }
+
     char* d_output_image;
 	cudaMalloc( (void**) &d_output_image, no_of_rows*no_of_cols*CHANNEL_SIZE*sizeof(char));
     char *output = (char*) malloc(no_of_rows*no_of_cols*CHANNEL_SIZE*sizeof(char));
