@@ -461,7 +461,7 @@ __global__ void InitPrevLevelComponents(unsigned int* d_prev_level_component, un
 	}
 }
 
-__global__ void CreateLevelOutput(har *d_output_image, char *d_component_colours, unsigned int* d_level, unsigned int* d_prev_level_component, unsigned int no_of_rows, unsigned int no_of_cols) 
+__global__ void CreateLevelOutput(char *d_output_image, char *d_component_colours, unsigned int* d_level, unsigned int* d_prev_level_component, unsigned int no_of_rows, unsigned int no_of_cols) 
 {
 	unsigned int row = blockDim.x * blockIdx.x + threadIdx.x;
     unsigned int col = blockDim.y * blockIdx.y + threadIdx.y;
