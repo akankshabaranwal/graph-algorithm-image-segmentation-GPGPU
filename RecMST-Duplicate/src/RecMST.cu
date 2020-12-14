@@ -344,6 +344,7 @@ void ReadGraph(char *filename) {
 	createCornerGraphKernel<<< grid_corner, threads_corner, 0>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
 	
 	cudaDeviceSynchronize();
+
 	gettimeofday(&t2, 0);
 	time = (1000000.0*(t2.tv_sec-t1.tv_sec) + t2.tv_usec-t1.tv_usec)/1000.0;
 	printf("Graph creation time:  %3.1f ms \n", time);
@@ -605,6 +606,53 @@ void FreeMem()
 	cudaFree(d_appended_uvw);
 }
 
+void writeComponents() {
+	// Write back hierarchy output
+	// Generate random colors for segments
+
+	struct timeval t1, t2;
+	gettimeofday(&t1, 0);
+
+	char *component_colours = (char *) malloc(no_of_vertices_orig * CHANNEL_SIZE * sizeof(char));
+	get_component_colours(component_colours, no_of_vertices_orig);
+
+	gettimeofday(&t2, 0);
+	double time = (1000000.0*(t2.tv_sec-t1.tv_sec) + t2.tv_usec-t1.tv_usec)/1000.0;
+	printf("Random color time:  %3.1f ms \n", time);
+
+	
+
+	char *output = (char*) malloc(no_of_rows*no_of_cols*CHANNEL_SIZE*sizeof(char));
+
+	unsigned int* prev_level_component = (unsigned int*)malloc(sizeof(unsigned int)*no_of_vertices_orig);
+	for (int i = 0; i < no_of_rows; i++) {
+		for (int j = 0; j < no_of_cols; j++) {
+			prev_level_component[i * no_of_cols + j] = i * no_of_cols + j;
+		}
+	}
+
+	for (int l = 0; l < hierarchy_levels.size(); l++) {
+		int level_size = hierarchy_level_sizes[l];
+		unsigned int* level = hierarchy_levels[l];
+		for (int i = 0; i < no_of_rows; i++) {
+			for (int j = 0; j < no_of_cols; j++) {
+				unsigned int prev_component = prev_level_component[i * no_of_cols + j];
+				unsigned int new_component = level[prev_component];
+
+				int img_pos = CHANNEL_SIZE * (i * no_of_cols + j);
+				int colour_pos = CHANNEL_SIZE * new_component;
+				output[img_pos] = component_colours[colour_pos];
+				output[img_pos + 1] = component_colours[colour_pos+1];
+				output[img_pos + 2] = component_colours[colour_pos+2];
+
+                prev_level_component[i * no_of_cols + j] = new_component;
+			}
+		}
+		cv::Mat output_img = cv::Mat(no_of_rows, no_of_cols, CV_8UC3, output);
+		printf("Writing segmented_%d.png\n", l);
+		imwrite("segmented_" + std::to_string(l) + ".png", output_img);
+	}
+}
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -663,43 +711,7 @@ int main( int argc, char** argv) {
 	gettimeofday(&t2, 0);
 	time = (1000000.0*(t2.tv_sec-t1.tv_sec) + t2.tv_usec-t1.tv_usec)/1000.0;
 	printf("Segmentation time:  %3.1f ms \n", time);
-
-	// Write back hierarchy output
-	// Generate random colors for segments
-	char *component_colours = (char *) malloc(no_of_vertices_orig * CHANNEL_SIZE * sizeof(char));
-	get_component_colours(component_colours, no_of_vertices_orig);
-
-	char *output = (char*) malloc(no_of_rows*no_of_cols*CHANNEL_SIZE*sizeof(char));
-
-	unsigned int* prev_level_component = (unsigned int*)malloc(sizeof(unsigned int)*no_of_vertices_orig);
-	for (int i = 0; i < no_of_rows; i++) {
-		for (int j = 0; j < no_of_cols; j++) {
-			prev_level_component[i * no_of_cols + j] = i * no_of_cols + j;
-		}
-	}
-
-	for (int l = 0; l < hierarchy_levels.size(); l++) {
-		int level_size = hierarchy_level_sizes[l];
-		unsigned int* level = hierarchy_levels[l];
-		for (int i = 0; i < no_of_rows; i++) {
-			for (int j = 0; j < no_of_cols; j++) {
-				unsigned int prev_component = prev_level_component[i * no_of_cols + j];
-				unsigned int new_component = level[prev_component];
-
-				int img_pos = CHANNEL_SIZE * (i * no_of_cols + j);
-				int colour_pos = CHANNEL_SIZE * new_component;
-				output[img_pos] = component_colours[colour_pos];
-				output[img_pos + 1] = component_colours[colour_pos+1];
-				output[img_pos + 2] = component_colours[colour_pos+2];
-
-                prev_level_component[i * no_of_cols + j] = new_component;
-			}
-		}
-		cv::Mat output_img = cv::Mat(no_of_rows, no_of_cols, CV_8UC3, output);
-		printf("Writing segmented_%d.png\n", l);
-		imwrite("segmented_" + std::to_string(l) + ".png", output_img);
-	}
-
+	writeComponents();
 
 	/*cutStopTimer( timer);
 	printf("\n=================== Time taken To perform MST :: %3.3f ms===================\n",cutGetTimerValue(timer));*/
