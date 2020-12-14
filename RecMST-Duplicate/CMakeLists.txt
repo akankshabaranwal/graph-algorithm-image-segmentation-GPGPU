@@ -18,7 +18,7 @@ add_executable(felz
 set_property(TARGET felz PROPERTY CUDA_ARCHITECTURES 61)
 
 target_include_directories(felz PRIVATE ${OpenCV_INCLUDE_DIRS})
-target_link_libraries(felz PRIVATE ${OpenCV_LIBS})
+target_link_libraries(felz PRIVATE ${OpenCV_LIBS} -lcurand)
 
 add_custom_command(
         TARGET felz POST_BUILD
