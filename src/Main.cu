@@ -18,7 +18,7 @@ int main(int argc, char **argv)
 
     image = imread("data/beach.png", IMREAD_COLOR);
     int scale_percent = 10; // percent of original size
-    cv::resize(image, image, cv::Size(), 0.10, 0.10);
+    cv::resize(image, image, cv::Size(), 0.1, 0.1);
 
     printf("Size of image obtained is: Rows: %d, Columns: %d, Pixels: %d\n", image.rows, image.cols, image.rows * image.cols);
 
@@ -34,6 +34,8 @@ int main(int argc, char **argv)
 
     //Convert image to graph
     int32_t *VertexList, *OnlyEdge, *OnlyVertex, *OnlyWeight, *BitEdgeList, *FlagList, *MinSegmentedList, *tempArray, *NWE, *Successor, *newSuccessor, *L, *Representative, *VertexIds;
+    int32_t *new_E_size, *new_V_size;
+
     edge *EdgeList;
 
     int *flag;
@@ -56,6 +58,8 @@ int main(int argc, char **argv)
     cudaMallocManaged(&L, numVertices * sizeof(int32_t));
     cudaMallocManaged(&Representative, numVertices * sizeof(int32_t));
     cudaMallocManaged(&VertexIds, numVertices * sizeof(int32_t));
+    cudaMallocManaged(&new_E_size, numEdges * sizeof(int32_t));
+    cudaMallocManaged(&new_V_size, numEdges * sizeof(int32_t));
 
     int *Flag2;
     cudaMallocManaged(&Flag2, numEdges * sizeof(int32_t));
@@ -161,6 +165,7 @@ int main(int argc, char **argv)
         }
 
         MarkSegments<<<numBlock, numthreads>>>(flag, VertexList, numEdges);
+
         err = cudaGetLastError();        // Get error code
         if ( err != cudaSuccess )
         {
@@ -231,17 +236,7 @@ int main(int argc, char **argv)
             exit(-1);
         }
         cudaDeviceSynchronize();
-/*
-        printf("\n Printing Original Edge Array: \n");
-        for(int i =0; i< 1000; i++)
-        {
-            printf("%d ,", BitEdgeList[i]);
-        }
-        printf("\n Printing Segmented Array: \n");
-        for(int i =0; i< 1000; i++)
-        {
-            printf("%d ,", MinSegmentedList[i]);
-        }*/
+
         printf("\nPrinting Successor Array: \n");
         for(int i =0; i< numVertices; i++)
         {
@@ -256,6 +251,8 @@ int main(int argc, char **argv)
             exit(-1);
         }
         cudaDeviceSynchronize();
+
+
         printf("\n After removing cycles printing Successor Array: \n");
         for(int i =0; i< numVertices; i++)
         {
@@ -337,7 +334,6 @@ int main(int argc, char **argv)
             printf("%d ,", SuperVertexId[i]);
         }
 
-
         //Create UID array. 10.2
         CreateUid(uid, flag, numVertices); //Isnt this same as the vertex list??
         cudaDeviceSynchronize();
@@ -347,9 +343,13 @@ int main(int argc, char **argv)
         {
             printf("%d ,", uid[i]);
         }
-
+        printf("\nPrinting Only Edge Array before self edges: \n");
+        for (int i = 0; i < numEdges; i++)
+        {
+            printf("%d, ", OnlyEdge[i]);
+        }
         //11. Removing self edges
-        RemoveSelfEdges<<<numBlock,numthreads>>>(BitEdgeList,numEdges, uid, SuperVertexId);
+        RemoveSelfEdges<<<numBlock,numthreads>>>(OnlyEdge, numEdges, uid, SuperVertexId);
         err = cudaGetLastError();        // Get error code
         if ( err != cudaSuccess )
         {
@@ -363,9 +363,13 @@ int main(int argc, char **argv)
         {
             printf("%d ,", SuperVertexId[i]);
         }
-
+        printf("\nPrinting only Edge Array after marked for removal: \n");
+        for (int i = 0; i < numEdges; i++)
+        {
+            printf("%d, ", OnlyEdge[i]);
+        }
         //E 12.
-        CreateUVWArray<<<numBlock,numthreads>>>(BitEdgeList, numEdges, uid, SuperVertexId, UV, W);
+        CreateUVWArray<<<numBlock,numthreads>>>(BitEdgeList, OnlyEdge, numEdges, uid, SuperVertexId, UV, W);
         err = cudaGetLastError();        // Get error code
         if ( err != cudaSuccess )
         {
@@ -373,28 +377,14 @@ int main(int argc, char **argv)
             exit(-1);
         }
         cudaDeviceSynchronize();
-       printf("\n Printing UVW array: before calling SortUVW");
-        for(int i = 0; i< numVertices;i++)
-        {
-            printf("%d, ", UV[i]);
-        }
-        printf("\n");
-        int new_edge_size = SortUVW(UV, W, numEdges, flag3);
-
-        cudaDeviceSynchronize();
-        printf("\n Printing UVW array after SortUVW: ");
+        printf("\n Printing UVW array: before calling SortUVW");
         for(int i = 0; i< numEdges;i++)
         {
-            if (UV[i] != 65536)
-            {printf("%d, ", UV[i]);}
+            printf("%d %d %d , ", UV[i]>>16, UV[i]%(2<<15), W[i]);
         }
         printf("\n");
-        printf("\n Printing UVW array after SortUVW: ");
-        for(int i = 0; i< numVertices;i++)
-        {
-            printf("%d, ", UV[i]);
-        }
 
+        int new_edge_size = SortUVW(UV, W, numEdges, flag3);
 
         /*
         //flag3 could be renamed to compact location

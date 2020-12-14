@@ -112,24 +112,18 @@ void PropagateRepresentativeVertices(int32_t *Successor, int numVertices)
 
 __global__ void appendSuccessorArray(int32_t *Representative, int32_t *VertexIds, int32_t *Successor, int numVertices)
 {
-    //TODO: Need to fix all kernels with this
-    // Should access be thread wise or block wise??
     int32_t tidx = blockIdx.x*blockDim.x+threadIdx.x;
     int32_t num_threads = gridDim.x * blockDim.x;
     //printf("numThreads: %d", num_threads);
     for (uint idx = tidx; idx < numVertices; idx += num_threads)
     {
-        //L[idx] = Successor[idx]*(2<<15)+idx;
         Representative[idx] = Successor[idx];
         VertexIds[idx] = idx;
-        //Vertex Li1 = L[i]% (2 << 15);
-        //Representative Li0 = L[i]>>16;
     }
 }
 
 __global__ void CreateFlag2Array(int32_t *Representative, int *Flag2, int numSegments)
 {
-    //int idx = blockIdx.x*blockDim.x+threadIdx.x;
     Flag2[0]=0;
     int32_t L0, L1;
     int32_t tidx = blockIdx.x*blockDim.x+threadIdx.x;
@@ -168,7 +162,6 @@ void SortedSplit(int32_t *Representative, int32_t *VertexIds, int32_t *Successor
 //TODO: The array names need to be verified
 __global__ void CreateSuperVertexArray(int *SuperVertexId, int *VertexIds, int *Flag2, int numVertices){
     // Find supervertex id. Create a supervertex array for the original vertex ids
-    //int idx = blockIdx.x*blockDim.x+threadIdx.x;
     int32_t vertex, supervertex_id;
 
     int32_t tidx = blockIdx.x*blockDim.x+threadIdx.x;
@@ -185,11 +178,12 @@ __global__ void CreateSuperVertexArray(int *SuperVertexId, int *VertexIds, int *
 //10.2
 void CreateUid(int *uid, int *flag, int numElements)
 {
+    flag[0]=0;
     thrust::inclusive_scan(flag, flag + numElements, uid, thrust::plus<int>());
 }
 
 //11 Removing self edges
-__global__ void RemoveSelfEdges(int *BitEdgeList, int numEdges, int *uid, int *SuperVertexId)
+__global__ void RemoveSelfEdges(int *OnlyEdge, int numEdges, int *uid, int *SuperVertexId)
 {  // int idx = blockIdx.x*blockDim.x+threadIdx.x;
     int32_t supervertexid_u, supervertexid_v, id_u, id_v;
 
@@ -201,19 +195,19 @@ __global__ void RemoveSelfEdges(int *BitEdgeList, int numEdges, int *uid, int *S
         id_u = uid[idx];
         supervertexid_u = SuperVertexId[id_u];
 
-        id_v = BitEdgeList[idx]% (2 << 15);
+        id_v = OnlyEdge[idx];
         supervertexid_v = SuperVertexId[id_v];
 
         if(supervertexid_u == supervertexid_v)
         {
-            BitEdgeList[idx] = INT_MAX; //Marking edge to remove it
+            OnlyEdge[idx] = INT_MAX; //Marking edge to remove it
         }
     }
 }
 
 //12 Removing duplicate edges
 //Instead of UVW array create separate U, V, W array.
-__global__ void CreateUVWArray(int *BitEdgeList, int numEdges, int *uid, int32_t *SuperVertexId, int32_t *UV, int *W)
+__global__ void CreateUVWArray(int32_t *BitEdgeList, int32_t *OnlyEdge, int numEdges, int *uid, int32_t *SuperVertexId, int32_t *UV, int *W)
 {
     //int idx = blockIdx.x*blockDim.x+threadIdx.x; //Index for accessing Edge
     int32_t id_u, id_v, edge_weight;
@@ -224,9 +218,9 @@ __global__ void CreateUVWArray(int *BitEdgeList, int numEdges, int *uid, int32_t
     for (uint idx = tidx; idx < numEdges; idx += num_threads)
     {
         id_u = uid[idx];
-        id_v =  BitEdgeList[idx]% (2 << 15);  //TODO: Check if this is correct
-        edge_weight =BitEdgeList[idx]>>16; //TODO: Check if we can use the NWE array?
-        if(BitEdgeList[idx] != INT_MAX) //Check if the edge is marked using the criteria from before
+        id_v =  OnlyEdge[idx];  //TODO: Check if this is correct
+        edge_weight = BitEdgeList[idx]>>16;
+        if(id_v != INT_MAX) //Check if the edge is marked using the criteria from before
         {
             supervertexid_u = SuperVertexId[id_u];
             supervertexid_v = SuperVertexId[id_v];
@@ -236,7 +230,7 @@ __global__ void CreateUVWArray(int *BitEdgeList, int numEdges, int *uid, int32_t
         else
         {
             UV[idx] = INT_MAX;
-            W[idx] = INT_MAX; //TODO: Need to replace the -1 with INT_MAX
+            W[idx] = edge_weight; //TODO: Need to replace the -1 with INT_MAX
         }
     }
 }
@@ -245,33 +239,14 @@ __global__ void CreateUVWArray(int *BitEdgeList, int numEdges, int *uid, int32_t
 int SortUVW(int32_t *UV, int32_t *W, int numEdges, int *flag3)
 {
     //12.2
-    /*printf("Printing UVW Before Sorted array: ");
-    for(int i = 0; i< 2000;i++)
-    {
-        printf("%d, ", UV[i]);
-    }
-    printf("\n");
-    printf("Printing UVW Before sorted array \n");
-    for(int i = 58000; i< 60000;i++)
-    {
-        printf("%d, ", UV[i]);
-    }*/
     thrust::sort_by_key(thrust::device, UV, UV + numEdges, W);
     cudaDeviceSynchronize();
-  /*  printf("Printing UVW Sorted array: ");
-    for(int i = 0; i< 2000;i++)
+    printf("\n Printing UVW array after SortUVW: ");
+    for(int i = 0; i< numEdges;i++)
     {
-        printf("%d, ", UV[i]);
+        printf("%d %d %d , ", UV[i]>>16, UV[i]%(2<<15), W[i]);
     }
     printf("\n");
-    for(int i = 58000; i< 60000;i++)
-    {
-        printf("%d, ", UV[i]);
-    }
-    printf("\n");*/
-    //12.3
-    //Initialize F3 array
-    cudaDeviceSynchronize();
 
     int new_edge_size = numEdges;
     int32_t prev_supervertexid_u, prev_supervertexid_v, supervertexid_u, supervertexid_v;
@@ -330,7 +305,7 @@ __global__ void CreateNewVertexList(int *newVertexList, int *Flag4, int new_E_si
 }
 
 //Create new edge list and vertex list
-int CreateNewEdgeVertexList(int *newBitEdgeList, int *newVertexList, int *UV, int *W, int *flag3, int new_edge_size, int *flag4)
+void CreateNewEdgeVertexList(int *newBitEdgeList, int *newVertexList, int *UV, int *W, int *flag3, int new_edge_size, int *new_E_size, int *new_V_size, int *flag4)
 {
     //Check if this can be parallelized? can we move the min (new_edge_size) part to somewhere before?
     int32_t supervertex_id_u, supervertex_id_v;
@@ -344,8 +319,8 @@ int CreateNewEdgeVertexList(int *newBitEdgeList, int *newVertexList, int *UV, in
     thrust::inclusive_scan(flag3, flag3 + new_edge_size, compact_locations, thrust::plus<int>());
     //FIXME: Need to allocate memory for newBitEdgeList and newVertexList appropriately.
 
-    int new_E_size = 0;
-    int new_V_size =0;
+    //int new_E_size = 0;
+    //int new_V_size =0;
 
     int *expand_u;
     cudaMallocManaged(&expand_u, new_edge_size * sizeof(int32_t));
@@ -353,8 +328,8 @@ int CreateNewEdgeVertexList(int *newBitEdgeList, int *newVertexList, int *UV, in
     int edge_weight;
     int new_location;
 
-    new_V_size=0;
-    new_E_size = 0;
+    //new_V_size=0;
+    //new_E_size = 0;
     for(int i=0;i < new_edge_size; i++)
     {
         if(flag3[i])
@@ -368,8 +343,8 @@ int CreateNewEdgeVertexList(int *newBitEdgeList, int *newVertexList, int *UV, in
             {
                 newBitEdgeList[i] = edge_weight*(2<<15) + supervertex_id_v;
                 expand_u[i] = supervertex_id_u;
-                new_E_size = max(new_location+1, new_E_size);
-                new_V_size = max(supervertex_id_v+1, new_V_size);
+               // new_E_size = max(new_location+1, new_E_size); //Create a MaxESize Array and replace this with MaxScan
+               // new_V_size = max(supervertex_id_v+1, new_V_size); //Create a MaxVSize Array and replace this with MaxScan
             }
         }
     }
@@ -381,9 +356,9 @@ int CreateNewEdgeVertexList(int *newBitEdgeList, int *newVertexList, int *UV, in
         flag4[0] =1;
     //Create the flag array in parallel
     int numthreads = 32;
-    int numBlock = new_E_size/numthreads;
+    int numBlock = new_edge_size/numthreads;
 
-    CreateFlag4Array<<<numBlock, numthreads>>>(expand_u, flag4, new_E_size);
+    CreateFlag4Array<<<numBlock, numthreads>>>(expand_u, flag4, new_edge_size);
     cudaError_t err = cudaGetLastError();        // Get error code
     if ( err != cudaSuccess )
     {
@@ -393,7 +368,7 @@ int CreateNewEdgeVertexList(int *newBitEdgeList, int *newVertexList, int *UV, in
     cudaDeviceSynchronize();
 
     //Can this flag4 array creation be skipped?? Can we directly use the index while creating the expand_u array?
-    CreateNewVertexList<<<numBlock, numthreads>>>(newVertexList, flag4, new_E_size, expand_u);
+    CreateNewVertexList<<<numBlock, numthreads>>>(newVertexList, flag4, new_edge_size, expand_u);
     err = cudaGetLastError();        // Get error code
     if ( err != cudaSuccess )
     {
@@ -402,5 +377,4 @@ int CreateNewEdgeVertexList(int *newBitEdgeList, int *newVertexList, int *UV, in
     }
     cudaDeviceSynchronize();
 
-    return new_V_size;
 }
