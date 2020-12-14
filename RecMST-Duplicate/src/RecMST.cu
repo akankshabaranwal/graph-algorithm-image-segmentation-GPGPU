@@ -69,6 +69,10 @@ using namespace cv::cuda;
 
 #include <sys/time.h>
 
+// Curand stuff
+#include <cuda.h>
+#include <curand.h>
+
 
 ////////////////////////////////////////////////
 // Variables
@@ -621,8 +625,40 @@ void writeComponents() {
 	gettimeofday(&t1, 0);
 
 	char *component_colours = (char *) malloc(no_of_vertices_orig * CHANNEL_SIZE * sizeof(char));
-	get_component_colours(component_colours, no_of_vertices_orig);
 
+	// Generate uniform [0, 1] float
+	curandGenerator_t gen;
+	
+	char* d_component_colours;
+	float *d_component_colours_float;
+	cudaMalloc( (void**) &d_component_colours_float, no_of_vertices_orig * CHANNEL_SIZE * sizeof(float));
+	cudaMalloc( (void**) &d_component_colours, no_of_vertices_orig * CHANNEL_SIZE * sizeof(char));
+
+
+	// Create a Mersenne Twister pseudorandom number generator
+	curandCreateGenerator(&gen , CURAND RNG PSEUDO MTGP32);
+
+	// Set seed
+	curandSetPseudoRandomGeneratorSeed(gen, 1234ULL);
+
+	// Generate n floats on device
+	curandGenerateUniform(gen, devData, n);
+
+	// Convert floats to RGB char
+	int num_of_blocks, num_of_threads_per_block;
+
+	SetGridThreadLen(no_of_vertices_orig * CHANNEL_SIZE, &num_of_blocks, &num_of_threads_per_block);
+	dim3 grid_rgb(num_of_blocks, 1, 1);
+	dim3 threads_rgb(num_of_threads_per_block, 1, 1);
+
+	RandFloatToRandRGB<<< grid_rgb, threads_rgb, 0>>>(d_component_colours, d_component_colours_float, no_of_vertices_orig * CHANNEL_SIZE);
+
+	// Copy from device to host11
+	cudaMemcpy(component_colours , d_component_colours , no_of_vertices_orig * CHANNEL_SIZE * sizeof(float) ,cudaMemcpyDeviceToHost) ;
+
+
+	//get_component_colours(component_colours, no_of_vertices_orig);
+	cudaDeviceSynchronize();
 	gettimeofday(&t2, 0);
 	double time = (1000000.0*(t2.tv_sec-t1.tv_sec) + t2.tv_usec-t1.tv_usec)/1000.0;
 	printf("Random color time:  %3.1f ms \n", time);

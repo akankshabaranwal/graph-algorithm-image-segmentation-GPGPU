@@ -442,6 +442,14 @@ __global__ void createInnerGraphKernel(unsigned char *image, unsigned int *d_ver
 ////////////////////////////////////////////////////////////////////////////////////////////
 // Segment extraction kernels
 ////////////////////////////////////////////////////////////////////////////////////////////
+__global__ void RandFloatToRandRGB(char* d_component_colours, float *d_component_colours_float, unsigned int n_numbers) 
+{
+	unsigned int tid = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
+	if (tid < n_numbers) {
+		float color = 255 *d_component_colours_float[tid];
+		d_component_colours[tid] = (char) color;
+	}
+}
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////
