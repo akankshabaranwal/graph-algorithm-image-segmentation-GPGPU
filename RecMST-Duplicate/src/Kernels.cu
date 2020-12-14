@@ -28,7 +28,7 @@
 #define MAX_THREADS_PER_BLOCK 1024 // IMPORTANT TO SET CORRECTLY
 #define INF 10000000
 #define CHANNEL_SIZE 3
-#define SCALE 1
+#define SCALE 8
 
 ////////////////////////////////////////////////////////////////////////////////////////////
 // Graph creation kernels
