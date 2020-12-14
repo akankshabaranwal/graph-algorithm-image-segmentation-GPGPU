@@ -606,6 +606,13 @@ void FreeMem()
 	cudaFree(d_appended_uvw);
 }
 
+void get_component_colours(char colours[], uint num_colours) {
+    srand(123456789);
+    for (int i = 0; i < num_colours * CHANNEL_SIZE; i++) {
+        colours[i] = rand() % 256;
+    }
+}
+
 void writeComponents() {
 	// Write back hierarchy output
 	// Generate random colors for segments
@@ -658,14 +665,6 @@ void writeComponents() {
 ////////////////////////////////////////////////////////////////////////////////
 // Program main
 ////////////////////////////////////////////////////////////////////////////////
-void get_component_colours(char colours[], uint num_colours) {
-    srand(123456789);
-    for (int i = 0; i < num_colours * CHANNEL_SIZE; i++) {
-        colours[i] = rand() % 256;
-    }
-}
-
-
 int main( int argc, char** argv) {
 	if(argc<2) {
 		printf("Specify an Input Image\n");
