@@ -743,10 +743,9 @@ const Options handleParams(int argc, char **argv) {
         }
         break;
     }
-    if (options.image == "empty") {
+    if (options.inFile == "empty") {
     	puts("Provide an image!");
 		printUsage();
-		break;
     }
 
     return options;
