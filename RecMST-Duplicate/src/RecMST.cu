@@ -324,6 +324,8 @@ void ReadGraph(char *filename) {
 	no_of_vertices = no_of_rows * no_of_cols;
 	no_of_vertices_orig = no_of_vertices;
 	no_of_edges = 8 + 6 * (no_of_cols - 2) + 6 * (no_of_rows - 2) + 4 * (no_of_cols - 2) * (no_of_rows - 2);
+	no_of_edges_orig = no_of_edges;
+
 
 	Init();
 
@@ -364,7 +366,6 @@ void ReadGraph(char *filename) {
 	time = (1000000.0*(t2.tv_sec-t1.tv_sec) + t2.tv_usec-t1.tv_usec)/1000.0;
 	printf("Graph creation time:  %3.1f ms \n", time);
 	
-	no_of_edges_orig = no_of_edges;
 
 	printf("Image read successfully into graph with %d vertices and %d edges\n", no_of_vertices, no_of_edges);
 }
