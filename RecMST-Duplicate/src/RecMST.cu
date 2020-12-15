@@ -287,7 +287,6 @@ void createGraph(Mat image) {
 	gettimeofday(&t1, 0);
 	
     // Read image
-    image = imread(filename, IMREAD_COLOR);
     printf("Size of image obtained is: Rows: %d, Columns: %d, Pixels: %d\n", image.rows, image.cols, image.rows * image.cols);
     no_of_rows = image.rows;
     no_of_cols = image.cols;
@@ -729,7 +728,7 @@ int main( int argc, char** argv) {
 
 	Mat image = imread(argv[1], IMREAD_COLOR);
 
-	ReadGraph(image);
+	createGraph(image);
 
 	gettimeofday(&t2, 0);
 	double time = (1000000.0*(t2.tv_sec-t1.tv_sec) + t2.tv_usec-t1.tv_usec)/1000.0;
