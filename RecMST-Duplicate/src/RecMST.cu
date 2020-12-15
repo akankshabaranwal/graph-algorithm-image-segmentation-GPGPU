@@ -2,16 +2,20 @@
   Implementing Minimum Spanning Tree on CUDA using primitive operations for the 
   algorithm given in "Fast Minimum Spanning Tree Computation", by Pawan Harish, 
   P.J. Narayanan, Vibhav Vineet, and Suryakant Patidar.
+
   Chapter 7 of Nvidia GPU Computing Gems, Jade Edition, 2011.
   
   Copyright (c) 2011 International Institute of Information Technology - Hyderabad. 
   All rights reserved.
+
   Permission to use, copy, modify and distribute this software and its documentation for 
   educational purpose is hereby granted without fee, provided that the above copyright 
   notice and this permission notice appear in all copies of this software and that you do 
   not sell the software.
+
   THE SOFTWARE IS PROVIDED "AS IS" AND WITHOUT WARRANTY OF ANY KIND, EXPRESSED, IMPLIED OR 
   OTHERWISE.
+
   Created by: Pawan Harish.
   Split Implementation by: Suryakant Patidar and Parikshit Sakurikar.
  ************************************************************************************/
@@ -81,40 +85,39 @@ using namespace cv::cuda;
 ////////////////////////////////////////////////
 // Variables
 ////////////////////////////////////////////////
-unsigned int no_of_rows;										// Number of rows in image
-unsigned int no_of_cols;										// Number of columns in image
+unsigned int no_of_rows;									// Number of rows in image
+unsigned int no_of_cols;									// Number of columns in image
 
-unsigned int no_of_vertices;									//Actual input graph sizes
+unsigned int no_of_vertices;								//Actual input graph sizes
 unsigned int no_of_vertices_orig;							//Original number of vertices graph (constant)
 
 unsigned int no_of_edges;									//Current graph sizes
 unsigned int no_of_edges_orig;								//Original number of edges graph (constant)
 
-//Graph held in these variables at the device end
 unsigned int *d_edge;										// Starts as h_edge
 unsigned int *d_vertex;										// starts as h_vertex
 unsigned int *d_weight;										// starts as h_weight
 
-unsigned long long int *d_segmented_min_scan_input;					//X, Input to the Segmented Min Scan, appended array of weights and edge IDs
-unsigned long long int *d_segmented_min_scan_output;					//Output of the Segmented Min Scan, minimum weight outgoing edge as (weight|to_vertex_id elements) can be found at end of each segment
-unsigned int *d_edge_flag;							//Flag for the segmented min scan
-unsigned int *d_edge_flag_thrust;					//NEW! Flag for the segmented min scan in thrust Needs to be 000111222 instead of 100100100
-unsigned int *d_vertex_flag;						//F2, Flag for the scan input for supervertex ID generation
+unsigned long long int *d_segmented_min_scan_input;			//X, Input to the Segmented Min Scan, appended array of weights and edge IDs
+unsigned long long int *d_segmented_min_scan_output;		//Output of the Segmented Min Scan, minimum weight outgoing edge as (weight|to_vertex_id elements) can be found at end of each segment
+unsigned int *d_edge_flag;									//Flag for the segmented min scan
+unsigned int *d_edge_flag_thrust;							//NEW! Flag for the segmented min scan in thrust Needs to be 000111222 instead of 100100100
+unsigned int *d_vertex_flag;								//F2, Flag for the scan input for supervertex ID generation
 unsigned int *d_pick_array;									//PickArray for each edge. index min weight outgoing edge of u in sorted array if not removed. Else -1 if removed (representative doesn't add edges)
 unsigned int *d_successor;									//S, Successor Array
 unsigned int *d_successor_copy;								//Helper array for pointer doubling
-bool *d_succchange;									//Variable to check if can stop pointer doubling
+bool *d_succchange;											//Variable to check if can stop pointer doubling
 
-unsigned int *d_new_supervertexIDs;					//mapping from each original vertex ID to its new supervertex ID so we can lookup supervertex IDs directly
-unsigned int *d_old_uIDs;							//expanded old u ids, stored per edge, needed to remove self edges (orig ID of source vertex u for each edge(weight|dest_vertex_id_v))
-unsigned long long int *d_appended_uvw;				//Appended u,v,w array for duplicate edge removal
+unsigned int *d_new_supervertexIDs;							//mapping from each original vertex ID to its new supervertex ID so we can lookup supervertex IDs directly
+unsigned int *d_old_uIDs;									//expanded old u ids, stored per edge, needed to remove self edges (orig ID of source vertex u for each edge(weight|dest_vertex_id_v))
+unsigned long long int *d_appended_uvw;						//Appended u,v,w array for duplicate edge removal
 
-unsigned int *d_size;								//Stores amount of edges
+unsigned int *d_size;										//Stores amount of edges
 unsigned int *d_edge_mapping_copy;
 unsigned int *d_edge_list_size;
 unsigned int *d_vertex_list_size;
 
-unsigned long long int *d_vertex_split;				//L, Input to the split function
+unsigned long long int *d_vertex_split;						//L, Input to the split function
 
 // Hierarchy output
 int cur_hierarchy_size; 									// Size current hierarchy
@@ -208,7 +211,7 @@ void printUInt(unsigned int *d_val) {
 }
 
 ////////////////////////////////////////////////
-// Helper function to set the grid sizes
+// Helper functions to set the grid sizes
 ////////////////////////////////////////////////
 void SetGridThreadLen(int number, int *num_of_blocks, int *num_of_threads_per_block)
 {
@@ -240,12 +243,12 @@ void SetImageGridThreadLen(int no_of_rows, int no_of_cols, int no_of_vertices, d
 }
 
 ////////////////////////////////////////////////
-// Allocate and Initialize Arrays
+// Allocate and Free segmentation Arrays
 ////////////////////////////////////////////////
 void Init()
 {
 
-	//Copy the Graph to Device
+	//Allocate graph device memory
 	cudaMalloc( (void**) &d_edge, sizeof(unsigned int)*no_of_edges_orig);
 	cudaMalloc( (void**) &d_vertex, sizeof(unsigned int)*no_of_vertices_orig);
 	cudaMalloc( (void**) &d_weight, sizeof(unsigned int)*no_of_edges_orig);
@@ -274,32 +277,48 @@ void Init()
 	
 }
 
+void FreeMem()
+{
+	cudaFree(d_edge);
+	cudaFree(d_vertex);
+	cudaFree(d_weight);
+	cudaFree(d_segmented_min_scan_input);
+	cudaFree(d_segmented_min_scan_output);
+	cudaFree(d_edge_flag);
+	cudaFree(d_edge_flag_thrust);
+	cudaFree(d_pick_array);
+	cudaFree(d_successor);
+	cudaFree(d_successor_copy);
+	cudaFree(d_succchange);
+	cudaFree(d_vertex_split);
+	cudaFree(d_vertex_flag);
+	cudaFree(d_new_supervertexIDs);
+	cudaFree(d_old_uIDs);
+	cudaFree(d_size);
+	cudaFree(d_edge_mapping_copy);
+	cudaFree(d_edge_list_size);
+	cudaFree(d_vertex_list_size);
+	cudaFree(d_appended_uvw);
+}
+
 ////////////////////////////////////////////////
 // Create graph in compressed adjacency list
 ////////////////////////////////////////////////
 void createGraph(Mat image) {
 	struct timeval t1, t2;
 
-   	GpuMat dev_image, d_blurred;; 	// Released automatically
+   	GpuMat dev_image, d_blurred;; 	// Released automatically in destructor
    	cv::Ptr<cv::cuda::Filter> filter;
-
-    if (TIMING_MODE == TIME_PARTS) {
+   	
+	if (TIMING_MODE == TIME_PARTS) {
 		gettimeofday(&t1, 0);
 	}
 
-
-
-    // Apply gaussian filter (done on CPU because GPU turned out to be slower)
+	// Apply gaussian filter
     dev_image.upload(image);
     filter = cv::cuda::createGaussianFilter(CV_8UC3, CV_8UC3, cv::Size(5, 5), 1.0);
-
-    Init();
-    
     filter->apply(dev_image, d_blurred);
-
-
 	
-
 	if (TIMING_MODE == TIME_PARTS) {
 		cudaDeviceSynchronize();
 		gettimeofday(&t2, 0);
@@ -307,17 +326,18 @@ void createGraph(Mat image) {
 		printf("Gaussian time:  %3.1f ms \n", time);
 	}
 
+   	// Allocate GPU segmentation memory
+	Init();
+
 	// Create graph
 	if (TIMING_MODE == TIME_PARTS) {
 		gettimeofday(&t1, 0);
 	}
 
-
-
+	// Create graphs. Kernels executed in different streams for concurrency
 	dim3 encode_threads;
 	dim3 encode_blocks;
 	SetImageGridThreadLen(no_of_rows, no_of_cols, no_of_vertices, &encode_threads, &encode_blocks);
-    size_t pitch = d_blurred.step;
 
     int num_of_blocks, num_of_threads_per_block;
 
@@ -332,25 +352,29 @@ void createGraph(Mat image) {
     dim3 grid_corner(1, 1, 1);
 	dim3 threads_corner(4, 1, 1);
 
+    size_t pitch = d_blurred.step;
+
     // Inner graph
     createInnerGraphKernel<<< encode_blocks, encode_threads>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
 
     // Outer graph
-   	createFirstRowGraphKernel<<< grid_row, threads_row, 0>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
-   	createLastRowGraphKernel<<< grid_row, threads_row, 0>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
+   	createFirstRowGraphKernel<<< grid_row, threads_row>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
+   	createLastRowGraphKernel<<< grid_row, threads_row>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
 
-   	createFirstColumnGraphKernel<<< grid_col, threads_col, 0>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
-   	createLastColumnGraphKernel<<< grid_col, threads_col, 0>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
+   	createFirstColumnGraphKernel<<< grid_col, threads_col>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
+   	createLastColumnGraphKernel<<< grid_col, threads_col>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
 
     // Corners
-	createCornerGraphKernel<<< grid_corner, threads_corner, 0>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
+	createCornerGraphKernel<<< grid_corner, threads_corner>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
 	
-	cudaDeviceSynchronize();
+	cudaDeviceSynchronize(); // Needed to synchronise streams!
 
-	gettimeofday(&t2, 0);
-	double time = (1000000.0*(t2.tv_sec-t1.tv_sec) + t2.tv_usec-t1.tv_usec)/1000.0;
-	printf("Graph creation time:  %3.1f ms \n", time);
-	
+	if (TIMING_MODE == TIME_PARTS) {
+		gettimeofday(&t2, 0);
+		double time = (1000000.0*(t2.tv_sec-t1.tv_sec) + t2.tv_usec-t1.tv_usec)/1000.0;
+		printf("Graph creation time:  %3.1f ms \n", time);
+	}
+
 
 	printf("Image read successfully into graph with %d vertices and %d edges\n", no_of_vertices, no_of_edges);
 }
@@ -373,7 +397,6 @@ void HPGMST()
 	SetGridThreadLen(no_of_vertices, &num_of_blocks, &num_of_threads_per_block);
 	dim3 grid_vertexlen(num_of_blocks, 1, 1);
 	dim3 threads_vertexlen(num_of_threads_per_block, 1, 1);
-
 
 	/*
 	 * A. Find minimum weighted edge
@@ -444,6 +467,7 @@ void HPGMST()
 	 * C. Merging vertices and assigning IDs to supervertices
 	 */
 
+
 	// 7. Propagate Representative Vertex IDs to all vertices iteratively using pointer Doubling until no change occures in Successor Array
 	bool succchange;
 	do
@@ -475,7 +499,7 @@ void HPGMST()
 	//     first element not flagged so that can use simple sum for scan
 	ClearArray<<< grid_vertexlen, threads_vertexlen, 0>>>( d_vertex_flag, no_of_vertices);
 	MakeFlagForScan<<< grid_vertexlen, threads_vertexlen, 0>>>(d_vertex_flag, d_vertex_split, no_of_vertices);
- 
+
 	// 9.3 Scan flag to assign new IDs to supervertices, Using a scan on O(V) elements // DONE: change to thrust
 	//printf("New supervertex ids:\n");
 	thrust::inclusive_scan(thrust::device, d_vertex_flag, d_vertex_flag + no_of_vertices, d_new_supervertexIDs);
@@ -495,7 +519,6 @@ void HPGMST()
 	CopyEdgeArray<<< grid_edgelen, threads_edgelen, 0>>>(d_edge,d_edge_mapping_copy, no_of_edges); // for conflicts
 	RemoveSelfEdges<<< grid_edgelen, threads_edgelen, 0>>>(d_edge, d_old_uIDs, d_new_supervertexIDs, d_edge_mapping_copy, no_of_edges);
 	CopyEdgeArrayBack<<< grid_edgelen, threads_edgelen, 0>>>(d_edge,d_edge_mapping_copy, no_of_edges); // for conflicts
-
 
 	/*
 	 * D. Removing duplicate edges. This is not mandatory, however, reduces the edge-list size significantly. You may choose to use it once in the initial 
@@ -580,56 +603,9 @@ void HPGMST()
 }
 
 
-
-////////////////////////////////////////////////
-//Free All memory from Host and Device
-////////////////////////////////////////////////
-void FreeMem()
-{
-	cudaFree(d_edge);
-	cudaFree(d_vertex);
-	cudaFree(d_weight);
-	cudaFree(d_segmented_min_scan_input);
-	cudaFree(d_segmented_min_scan_output);
-	cudaFree(d_edge_flag);
-	cudaFree(d_edge_flag_thrust);
-	cudaFree(d_pick_array);
-	cudaFree(d_successor);
-	cudaFree(d_successor_copy);
-	cudaFree(d_succchange);
-	cudaFree(d_vertex_split);
-	cudaFree(d_vertex_flag);
-	cudaFree(d_new_supervertexIDs);
-	cudaFree(d_old_uIDs);
-	cudaFree(d_size);
-	cudaFree(d_edge_mapping_copy);
-	cudaFree(d_edge_list_size);
-	cudaFree(d_vertex_list_size);
-	cudaFree(d_appended_uvw);
-}
-
-void get_component_colours(char colours[], uint num_colours) {
-    srand(123456789);
-    for (int i = 0; i < num_colours * CHANNEL_SIZE; i++) {
-        colours[i] = rand() % 256;
-    }
-}
-
-void clearHierarchy(std::vector<unsigned int*>& d_hierarchy_levels, std::vector<int>& hierarchy_level_sizes) {
-	for (int l = 0; l < d_hierarchy_levels.size(); l++) {
-			cudaFree(d_hierarchy_levels[l]);
-		}
-        d_hierarchy_levels.clear();
-        hierarchy_level_sizes.clear();
-}
-
 void writeComponents(std::vector<unsigned int*>& d_hierarchy_levels, std::vector<int>& hierarchy_level_sizes) {
 	// Write back hierarchy output
 	// Generate random colors for segments
-
-	struct timeval t1, t2;
-	gettimeofday(&t1, 0);
-
 	char *component_colours = (char *) malloc(no_of_vertices_orig * CHANNEL_SIZE * sizeof(char));
 
 	// Generate uniform [0, 1] float
@@ -660,24 +636,24 @@ void writeComponents(std::vector<unsigned int*>& d_hierarchy_levels, std::vector
 	RandFloatToRandRGB<<< grid_rgb, threads_rgb, 0>>>(d_component_colours, d_component_colours_float, no_of_vertices_orig * CHANNEL_SIZE);
 	cudaFree(d_component_colours_float);
 
-	// Copy from device to host11
-	//cudaMemcpy(component_colours , d_component_colours , no_of_vertices_orig * CHANNEL_SIZE * sizeof(char) ,cudaMemcpyDeviceToHost) ;
-
-
-	//get_component_colours(component_colours, no_of_vertices_orig);
-	cudaDeviceSynchronize();
-	gettimeofday(&t2, 0);
-	double time = (1000000.0*(t2.tv_sec-t1.tv_sec) + t2.tv_usec-t1.tv_usec)/1000.0;
-	printf("Random coloring time:  %3.1f ms \n", time);
-	
 
 	unsigned int* d_prev_level_component;
 	cudaMalloc( (void**) &d_prev_level_component, sizeof(unsigned int)*no_of_vertices_orig);
 
 	dim3 threads_pixels;
     dim3 grid_pixels;
-	SetImageGridThreadLen(no_of_rows, no_of_cols, no_of_vertices, &threads_pixels, &grid_pixels);
-    InitPrevLevelComponents<<<grid_pixels, threads_pixels>>>(d_prev_level_component, no_of_rows, no_of_cols);
+    if (no_of_vertices_orig < 1024) {
+        threads_pixels.x = no_of_rows;
+        threads_pixels.y = no_of_cols;
+        grid_pixels.x = 1;
+        grid_pixels.y = 1;
+    } else {
+        threads_pixels.x = 32;
+        threads_pixels.y = 32;
+        grid_pixels.x = no_of_rows / 32 + 1;
+        grid_pixels.y = no_of_cols / 32 + 1;
+    }
+    InitPrevLevelComponents<<<grid_pixels, threads_pixels, 0>>>(d_prev_level_component, no_of_rows, no_of_cols);
 
     char* d_output_image;
 	cudaMalloc( (void**) &d_output_image, no_of_rows*no_of_cols*CHANNEL_SIZE*sizeof(char));
@@ -686,11 +662,8 @@ void writeComponents(std::vector<unsigned int*>& d_hierarchy_levels, std::vector
     for (int l = 0; l < d_hierarchy_levels.size(); l++) {
 		int level_size = hierarchy_level_sizes[l];
 		unsigned int* d_level = d_hierarchy_levels[l];
-		//unsigned int* d_level;
-		//cudaMalloc( (void**) &d_level, level_size*sizeof(unsigned int));
-		//cudaMemcpy( d_level, level, level_size*sizeof(unsigned int), cudaMemcpyHostToDevice);
 
-		CreateLevelOutput<<< grid_pixels, threads_pixels>>>(d_output_image, d_component_colours, d_level, d_prev_level_component, no_of_rows, no_of_cols);
+		CreateLevelOutput<<< grid_pixels, threads_pixels, 0>>>(d_output_image, d_component_colours, d_level, d_prev_level_component, no_of_rows, no_of_cols);
 	    cudaMemcpy(output, d_output_image, no_of_rows*no_of_cols*CHANNEL_SIZE*sizeof(char), cudaMemcpyDeviceToHost);
 
 		cv::Mat output_img = cv::Mat(no_of_rows, no_of_cols, CV_8UC3, output);
@@ -705,7 +678,78 @@ void writeComponents(std::vector<unsigned int*>& d_hierarchy_levels, std::vector
 	cudaFree(d_component_colours);
 	cudaFree(d_prev_level_component);
 	cudaFree(d_output_image);
-	clearHierarchy(d_hierarchy_levels, hierarchy_level_sizes);
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
+// Program main
+////////////////////////////////////////////////////////////////////////////////
+void printUsage() {
+    puts("Usage: ./felz -i [input image path] -o [output image path]");
+    puts("Options:");
+    puts("\t-i: Path to input file (default: data/beach.png)");
+    puts("\t-o: Path to output file (default: segmented.png)");
+    puts("Benchmarking options");
+    puts("\t-w: Number of iterations to perform during warmup");
+    puts("\t-b: Number of iterations to perform during benchmarking");
+    puts("\t-t: Timing mode: complete / parts (default complete)");
+    exit(1);
+}
+
+const Options handleParams(int argc, char **argv) {
+    Options options = Options();
+    TIMING_MODE = NO_TIME;
+    for(;;)
+    {
+        switch(getopt(argc, argv, "hi:o:w:b:t:"))
+        {
+            case 'i': {
+                options.inFile = std::string(optarg);
+                continue;
+            }
+            case 'o': {
+                options.outFile = std::string(optarg);
+                continue;
+            }
+            case 'w': {
+                options.warmupIterations = atoi(optarg);
+                continue;
+            }
+            case 'b': {
+                options.benchmarkIterations = atoi(optarg);
+                continue;
+            }
+            case 't': {
+            	if (std::string(optarg) == "complete") {
+            		TIMING_MODE = TIME_COMPLETE;
+            	} else if (std::string(optarg) == "parts") {
+            		TIMING_MODE = TIME_PARTS;
+            	} else {
+            		puts("Invalid timing option!");
+            		printUsage();
+            		break;
+            	}
+                continue;
+            }
+            case '?':
+            case 'h':
+            default : {
+                printUsage();
+                break;
+            }
+
+            case -1:  {
+                break;
+            }
+        }
+        break;
+    }
+    if (options.inFile == "empty") {
+    	puts("Provide an image!");
+		printUsage();
+    }
+
+    return options;
 }
 
 void setGraphParams(unsigned int rows, unsigned int cols) {
@@ -717,49 +761,44 @@ void setGraphParams(unsigned int rows, unsigned int cols) {
 	no_of_edges_orig = no_of_edges;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// Program main
-////////////////////////////////////////////////////////////////////////////////
-int main( int argc, char** argv) {
-	if(argc<2) {
-		printf("Specify an Input Image\n");
-		exit(1);
+void clearHierarchy(std::vector<unsigned int*>& d_hierarchy_levels, std::vector<int>& hierarchy_level_sizes) {
+	for (int l = 0; l < d_hierarchy_levels.size(); l++) {
+			cudaFree(d_hierarchy_levels[l]);
+		}
+        d_hierarchy_levels.clear();
+        hierarchy_level_sizes.clear();
+}
+
+void segment(Mat image) {
+	struct timeval t1, t2;
+
+	if (TIMING_MODE == TIME_COMPLETE) {
+		gettimeofday(&t1, 0);
 	}
 
-	struct timeval t1, t2;
-	gettimeofday(&t1, 0);
+
+	// Reset num vertices in edges in case of multiple iterations
+	no_of_edges = no_of_edges_orig;
+	no_of_vertices = no_of_vertices_orig;
+
+	std::vector<unsigned int*> d_hierarchy_levels;	// Vector containing pointers to all hierarchy levels (don't dereference on CPU, device pointers)
+	std::vector<int> hierarchy_level_sizes;			// Size of each hierarchy level
 
 
-	Mat image = imread(argv[1], IMREAD_COLOR);
-	setGraphParams(image.rows, image.cols);
-
+	// Graph creation
 	createGraph(image);
 
-	gettimeofday(&t2, 0);
-	double time = (1000000.0*(t2.tv_sec-t1.tv_sec) + t2.tv_usec-t1.tv_usec)/1000.0;
-	printf("Graph read & creation time:  %3.1f ms \n", time);
 
-	//printf("\n\n");
-
-	/*unsigned int	timer;
-	cutCreateTimer( &timer);	
-	cutStartTimer( timer);*/
-	//Perform Our MST algorhtm
-	printf("start\n");
-	cudaDeviceSynchronize();
-	gettimeofday(&t1, 0);
+	if (TIMING_MODE == TIME_PARTS) {
+		gettimeofday(&t1, 0);
+	}
 	
-	//TODO:
-	std::vector<unsigned int*> d_hierarchy_levels;// Vector containing pointers to all hierarchy levels
-	std::vector<int> hierarchy_level_sizes;// Size of each hierarchy level
-
+	
+	// Segmentation
 	do
 	{
 	    HPGMST();
 
-	    // Add hierarchy level
-	    //unsigned int* cur_hierarchy = (unsigned int*)malloc(sizeof(unsigned int)*cur_hierarchy_size);
-	    //cudaMemcpy(cur_hierarchy, d_new_supervertexIDs, sizeof(unsigned int)*cur_hierarchy_size, cudaMemcpyDeviceToHost);
 	    d_hierarchy_levels.push_back(d_new_supervertexIDs);
 	    hierarchy_level_sizes.push_back(cur_hierarchy_size);
 	    cudaMalloc( (void**) &d_new_supervertexIDs, sizeof(unsigned int)*cur_hierarchy_size);
@@ -768,13 +807,52 @@ int main( int argc, char** argv) {
 	}
 	while(no_of_vertices>1);
 
-	cudaDeviceSynchronize();
-	gettimeofday(&t2, 0);
-	time = (1000000.0*(t2.tv_sec-t1.tv_sec) + t2.tv_usec-t1.tv_usec)/1000.0;
-	printf("Segmentation time:  %3.1f ms \n", time);
+	if (TIMING_MODE == TIME_COMPLETE) {
+		cudaDeviceSynchronize();
+		gettimeofday(&t2, 0);
+		double time = (1000000.0*(t2.tv_sec-t1.tv_sec) + t2.tv_usec-t1.tv_usec)/1000.0;
+		printf("Total time:  %3.1f ms \n", time);
+	}
+
+	if (TIMING_MODE == TIME_PARTS) {
+		cudaDeviceSynchronize();
+		gettimeofday(&t2, 0);
+		double time = (1000000.0*(t2.tv_sec-t1.tv_sec) + t2.tv_usec-t1.tv_usec)/1000.0;
+		printf("Segmentation time:  %3.1f ms \n", time);
+	}
+
+	// Write segmentation hierarchy
 	writeComponents(d_hierarchy_levels, hierarchy_level_sizes);
+	clearHierarchy(d_hierarchy_levels, hierarchy_level_sizes);
+
+	// Free GPU segmentation memory
+	FreeMem();
+}
+
+
+int main(int argc, char **argv)
+{
+    const Options options = handleParams(argc, argv);
+
+    // Read image
+    Mat image = imread(options.inFile, IMREAD_COLOR);
+    printf("Size of image obtained is: Rows: %d, Columns: %d, Pixels: %d\n", image.rows, image.cols, image.rows * image.cols);
+   	setGraphParams(image.rows, image.cols);
+
+	// Warm up
+    for (int i = 0; i < options.warmupIterations; i++) {
+    	segment(image);
+    }
+
+    // Benchmark
+    for (int i = 0; i < options.benchmarkIterations; i++) {
+        segment(image);
+
+    }
+
 
 	
-	FreeMem();
-	return 0;
+
+    return 0;
 }
+
