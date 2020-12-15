@@ -292,22 +292,17 @@ void createGraph(Mat image) {
     filter = cv::cuda::createGaussianFilter(CV_8UC3, CV_8UC3, cv::Size(5, 5), 1.0);
     filter->apply(dev_image, d_blurred);
 	
-	cudaDeviceSynchronize();
-	gettimeofday(&t2, 0);
-	double time = (1000000.0*(t2.tv_sec-t1.tv_sec) + t2.tv_usec-t1.tv_usec)/1000.0;
-	printf("Gaussian time:  %3.1f ms \n", time);
+	if (TIMING_MODE == TIME_PARTS) {
+		cudaDeviceSynchronize();
+		gettimeofday(&t2, 0);
+		double time = (1000000.0*(t2.tv_sec-t1.tv_sec) + t2.tv_usec-t1.tv_usec)/1000.0;
+		printf("Gaussian time:  %3.1f ms \n", time);
+	}
 
-
-	gettimeofday(&t1, 0);
-
-    // Get graph parameters
-	no_of_vertices = no_of_rows * no_of_cols;
-	no_of_vertices_orig = no_of_vertices;
-	no_of_edges = 8 + 6 * (no_of_cols - 2) + 6 * (no_of_rows - 2) + 4 * (no_of_cols - 2) * (no_of_rows - 2);
-	no_of_edges_orig = no_of_edges;
-
-
-	Init();
+	// Create graph
+	if (TIMING_MODE == TIME_PARTS) {
+		gettimeofday(&t1, 0);
+	}
 
 	dim3 encode_threads;
 	dim3 encode_blocks;
@@ -726,7 +721,7 @@ int main( int argc, char** argv) {
 
 	Mat image = imread(argv[1], IMREAD_COLOR);
 	setGraphParams(image.rows, image.cols);
-
+	Init();
 	createGraph(image);
 
 	gettimeofday(&t2, 0);
