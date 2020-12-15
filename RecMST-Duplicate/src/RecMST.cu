@@ -659,7 +659,7 @@ void writeComponents(std::vector<unsigned int*>& d_hierarchy_levels, std::vector
     char *output = (char*) malloc(no_of_rows*no_of_cols*CHANNEL_SIZE*sizeof(char));
 
     for (int l = 0; l < d_hierarchy_levels.size(); l++) {
-		int level_size = d_hierarchy_level_sizes[l];
+		int level_size = hierarchy_level_sizes[l];
 		unsigned int* d_level = d_hierarchy_levels[l];
 
 		CreateLevelOutput<<< grid_pixels, threads_pixels, 0>>>(d_output_image, d_component_colours, d_level, d_prev_level_component, no_of_rows, no_of_cols);
@@ -761,7 +761,7 @@ void setGraphParams(unsigned int rows, unsigned int cols) {
 	no_of_edges_orig = no_of_edges;
 }
 
-clearHierarchy(std::vector<unsigned int*>& d_hierarchy_levels, std::vector<int>& hierarchy_level_sizes) {
+void clearHierarchy(std::vector<unsigned int*>& d_hierarchy_levels, std::vector<int>& hierarchy_level_sizes) {
 	for (int l = 0; l < d_hierarchy_levels.size(); l++) {
 			cudaFree(d_hierarchy_levels[l]);
 		}
@@ -778,8 +778,8 @@ void segment(Mat image) {
 
 
 	// Reset num vertices in edges in case of multiple iterations
-	no_of_edges = no_of_edges_orig
-	no_of_vertices = no_of_vertices_orig
+	no_of_edges = no_of_edges_orig;
+	no_of_vertices = no_of_vertices_orig;
 
 	std::vector<unsigned int*> d_hierarchy_levels;	// Vector containing pointers to all hierarchy levels (don't dereference on CPU, device pointers)
 	std::vector<int> hierarchy_level_sizes;			// Size of each hierarchy level
