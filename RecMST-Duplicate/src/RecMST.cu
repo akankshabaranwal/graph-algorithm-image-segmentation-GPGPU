@@ -30,20 +30,30 @@ Vertex ID bit size:
    -> Change to u.id 26 bit, v.id 26 bit, weight 12 bit
 ************************************************************************************/
 
+////////////////////////////////////////////////
+// Variables
+////////////////////////////////////////////////
+
+// Standard C stuff
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
 
+// C++ stuff
 #include <iostream>
 #include <vector>
 
-// includes, project
-// #include <cutil.h> // Removed, should just have been for CUDA_SAFE_CALL and CUDA_CUT_CALL which has been deprecated
+// Command line options
+#include <getopt.h>
+#include "Options.h"
 
-// includes, kernels
+// Timings
+#include <chrono>
+#include <sys/time.h>
+
+// Kernels
 #include "Kernels.cu"
-// #include <cudpp.h> 
 
 // Thrust stuff
 #include <thrust/device_ptr.h>
@@ -59,8 +69,6 @@ Vertex ID bit size:
 #include <opencv2/cudafilters.hpp>
 using namespace cv;
 using namespace cv::cuda;
-
-#include <sys/time.h>
 
 // Curand stuff
 #include <cuda.h>
@@ -106,11 +114,14 @@ unsigned int *d_vertex_list_size;
 unsigned long long int *d_vertex_split;				//L, Input to the split function
 
 // Hierarchy output
-int cur_hierarchy_size; // Size current hierarchy
-std::vector<unsigned int*> hierarchy_levels;// Vector containing pointers to all hierarchy levels
-std::vector<int> hierarchy_level_sizes;// Size of each hierarchy level
+int cur_hierarchy_size; 									// Size current hierarchy
 
-// Debug helper function
+enum timing_mode {NO_TIME, TIME_COMPLETE, TIME_PARTS};
+enum timing_mode TIMING_MODE;
+
+////////////////////////////////////////////////
+// Debugging helper functions
+////////////////////////////////////////////////
 void printIntArr(int* d_data, int n_elements) {
 	int* h_data = (int *)malloc(sizeof(int)*n_elements);
 	cudaMemcpy(h_data, d_data, sizeof(int) * n_elements, cudaMemcpyDeviceToHost);
@@ -610,7 +621,15 @@ void get_component_colours(char colours[], uint num_colours) {
     }
 }
 
-void writeComponents() {
+void clearHierarchy(std::vector<unsigned int*>& d_hierarchy_levels, std::vector<int>& hierarchy_level_sizes) {
+	for (int l = 0; l < d_hierarchy_levels.size(); l++) {
+			cudaFree(d_hierarchy_levels[l]);
+		}
+        d_hierarchy_levels.clear();
+        hierarchy_level_sizes.clear();
+}
+
+void writeComponents(std::vector<unsigned int*>& d_hierarchy_levels, std::vector<int>& hierarchy_level_sizes) {
 	// Write back hierarchy output
 	// Generate random colors for segments
 
@@ -680,9 +699,9 @@ void writeComponents() {
 	cudaMalloc( (void**) &d_output_image, no_of_rows*no_of_cols*CHANNEL_SIZE*sizeof(char));
     char *output = (char*) malloc(no_of_rows*no_of_cols*CHANNEL_SIZE*sizeof(char));
 
-    for (int l = 0; l < hierarchy_levels.size(); l++) {
+    for (int l = 0; l < d_hierarchy_levels.size(); l++) {
 		int level_size = hierarchy_level_sizes[l];
-		unsigned int* d_level = hierarchy_levels[l];
+		unsigned int* d_level = d_hierarchy_levels[l];
 		//unsigned int* d_level;
 		//cudaMalloc( (void**) &d_level, level_size*sizeof(unsigned int));
 		//cudaMemcpy( d_level, level, level_size*sizeof(unsigned int), cudaMemcpyHostToDevice);
@@ -702,9 +721,7 @@ void writeComponents() {
 	cudaFree(d_component_colours);
 	cudaFree(d_prev_level_component);
 	cudaFree(d_output_image);
-	for (int l = 0; l < hierarchy_levels.size(); l++) {
-		cudaFree(hierarchy_levels[l]);
-	}
+	clearHierarchy(d_hierarchy_levels, hierarchy_level_sizes);
 }
 
 
@@ -736,6 +753,9 @@ int main( int argc, char** argv) {
 	cudaDeviceSynchronize();
 	gettimeofday(&t1, 0);
 	
+	//TODO:
+	std::vector<unsigned int*> d_hierarchy_levels;// Vector containing pointers to all hierarchy levels
+	std::vector<int> hierarchy_level_sizes;// Size of each hierarchy level
 
 	do
 	{
@@ -744,7 +764,7 @@ int main( int argc, char** argv) {
 	    // Add hierarchy level
 	    //unsigned int* cur_hierarchy = (unsigned int*)malloc(sizeof(unsigned int)*cur_hierarchy_size);
 	    //cudaMemcpy(cur_hierarchy, d_new_supervertexIDs, sizeof(unsigned int)*cur_hierarchy_size, cudaMemcpyDeviceToHost);
-	    hierarchy_levels.push_back(d_new_supervertexIDs);
+	    d_hierarchy_levels.push_back(d_new_supervertexIDs);
 	    hierarchy_level_sizes.push_back(cur_hierarchy_size);
 	    cudaMalloc( (void**) &d_new_supervertexIDs, sizeof(unsigned int)*cur_hierarchy_size);
 
@@ -756,30 +776,9 @@ int main( int argc, char** argv) {
 	gettimeofday(&t2, 0);
 	time = (1000000.0*(t2.tv_sec-t1.tv_sec) + t2.tv_usec-t1.tv_usec)/1000.0;
 	printf("Segmentation time:  %3.1f ms \n", time);
-	writeComponents();
+	writeComponents(d_hierarchy_levels, hierarchy_level_sizes);
 
-	/*cutStopTimer( timer);
-	printf("\n=================== Time taken To perform MST :: %3.3f ms===================\n",cutGetTimerValue(timer));*/
-	//printf("\n\nOutputs:\n");
-
-	//Copy the Final MST array to the CPU memory, a 1 at the index means that edge was selected in the MST, 0 otherwise.
-	//It should be noted that each edge has an opposite edge also, out of whcih only one is selected in this output.
-	//So total number of 1s in this array must be equal to no_of_vertices_orig-1.
-	/*int k=0;
-	int weight=0;
-	//printf("\n\nSelected Edges in MST...\n\n");
-	for(int i=0;i<no_of_edges_orig;i++)
-		if(h_output_MST_test[i]==1)
-			{
-				printf("%d %d\n",h_edge[i],h_weight[i]);
-				k++;
-				weight+=h_weight[i];
-			}
-		//else {
-		//	printf("not %d %d\n",h_edge[i],h_weight[i]);
-		//}
-	printf("\nNumber of edges in MST, must be=(no_of_vertices-1)): %d,(%d)\nTotal MST weight: %d\n",k, no_of_vertices_orig,weight);*/
-	printf("Done\n");
+	
 	FreeMem();
 	return 0;
 }
