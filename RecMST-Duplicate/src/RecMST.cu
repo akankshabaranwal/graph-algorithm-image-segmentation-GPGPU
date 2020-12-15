@@ -280,19 +280,21 @@ void Init()
 void createGraph(Mat image) {
 	struct timeval t1, t2;
 
-   	GpuMat dev_image, d_blurred;; 	// Released automatically
+   	GpuMat dev_image(image), d_blurred;; 	// Released automatically
    	cv::Ptr<cv::cuda::Filter> filter;
 
     if (TIMING_MODE == TIME_PARTS) {
 		gettimeofday(&t1, 0);
 	}
-	    Init();
 
+	Init();
 
     // Apply gaussian filter (done on CPU because GPU turned out to be slower)
-    dev_image.upload(image);
+    //dev_image.upload(image);
     filter = cv::cuda::createGaussianFilter(CV_8UC3, CV_8UC3, cv::Size(5, 5), 1.0);
     filter->apply(dev_image, d_blurred);
+
+
 	
 
 	if (TIMING_MODE == TIME_PARTS) {
