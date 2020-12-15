@@ -456,14 +456,14 @@ void HPGMST()
 	// 10.2 Create vector indicating source vertex u for each edge // DONE: change to thrust
 	thrust::inclusive_scan(thrust::device, d_edge_flag, d_edge_flag + no_of_edges, d_old_uIDs);
 
-	//printf("Expanded U:\n");
-	//printUIntArr(d_old_uIDs, no_of_edges);
+	printf("Expanded U:\n");
+	printUIntArr(d_old_uIDs, no_of_edges);
 
 
 	/*
 	 * C. Merging vertices and assigning IDs to supervertices
 	 */
- 		printf("stuck\n");
+
 
 	// 7. Propagate Representative Vertex IDs to all vertices iteratively using pointer Doubling until no change occures in Successor Array
 	bool succchange;
