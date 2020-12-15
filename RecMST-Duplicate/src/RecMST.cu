@@ -256,29 +256,28 @@ void Init()
 {
 
 	//Copy the Graph to Device
-	cudaMalloc( (void**) &d_edge, sizeof(unsigned int)*no_of_edges);
-	cudaMalloc( (void**) &d_vertex, sizeof(unsigned int)*no_of_vertices);
-	cudaMalloc( (void**) &d_weight, sizeof(unsigned int)*no_of_edges);
-	printf("Graph Copied to Device\n");
+	cudaMalloc( (void**) &d_edge, sizeof(unsigned int)*no_of_edges_orig);
+	cudaMalloc( (void**) &d_vertex, sizeof(unsigned int)*no_of_vertices_orig);
+	cudaMalloc( (void**) &d_weight, sizeof(unsigned int)*no_of_edges_orig);
 
 	//Allocate memory for other arrays
-	cudaMalloc( (void**) &d_segmented_min_scan_input, sizeof(unsigned long long int)*no_of_edges);
-	cudaMalloc( (void**) &d_segmented_min_scan_output, sizeof(unsigned long long int)*no_of_edges);
-	cudaMalloc( (void**) &d_edge_flag, sizeof(unsigned int)*no_of_edges);
-	cudaMalloc( (void**) &d_edge_flag_thrust, sizeof(unsigned int)*no_of_edges);
-	cudaMalloc( (void**) &d_pick_array, sizeof(unsigned int)*no_of_edges);
-	cudaMalloc( (void**) &d_successor,sizeof(unsigned int)*no_of_vertices);
-	cudaMalloc( (void**) &d_successor_copy,sizeof(unsigned int)*no_of_vertices);
+	cudaMalloc( (void**) &d_segmented_min_scan_input, sizeof(unsigned long long int)*no_of_edges_orig);
+	cudaMalloc( (void**) &d_segmented_min_scan_output, sizeof(unsigned long long int)*no_of_edges_orig);
+	cudaMalloc( (void**) &d_edge_flag, sizeof(unsigned int)*no_of_edges_orig);
+	cudaMalloc( (void**) &d_edge_flag_thrust, sizeof(unsigned int)*no_of_edges_orig);
+	cudaMalloc( (void**) &d_pick_array, sizeof(unsigned int)*no_of_edges_orig);
+	cudaMalloc( (void**) &d_successor,sizeof(unsigned int)*no_of_vertices_orig);
+	cudaMalloc( (void**) &d_successor_copy,sizeof(unsigned int)*no_of_vertices_orig);
 	
 	//Clear Output MST array
 	cudaMalloc( (void**) &d_succchange, sizeof(bool));
-	cudaMalloc( (void**) &d_vertex_split, sizeof(unsigned long long int)*no_of_vertices);
-	cudaMalloc( (void**) &d_vertex_flag, sizeof(unsigned int)*no_of_vertices);
-	cudaMalloc( (void**) &d_new_supervertexIDs, sizeof(unsigned int)*no_of_vertices);
-	cudaMalloc( (void**) &d_old_uIDs, sizeof(unsigned int)*no_of_edges);
-	cudaMalloc( (void**) &d_appended_uvw, sizeof(unsigned long long int)*no_of_edges);
+	cudaMalloc( (void**) &d_vertex_split, sizeof(unsigned long long int)*no_of_vertices_orig);
+	cudaMalloc( (void**) &d_vertex_flag, sizeof(unsigned int)*no_of_vertices_orig);
+	cudaMalloc( (void**) &d_new_supervertexIDs, sizeof(unsigned int)*no_of_vertices_orig);
+	cudaMalloc( (void**) &d_old_uIDs, sizeof(unsigned int)*no_of_edges_orig);
+	cudaMalloc( (void**) &d_appended_uvw, sizeof(unsigned long long int)*no_of_edges_orig);
 	cudaMalloc( (void**) &d_size, sizeof(unsigned int));
-	cudaMalloc( (void**) &d_edge_mapping_copy, sizeof(unsigned int)*no_of_edges); 
+	cudaMalloc( (void**) &d_edge_mapping_copy, sizeof(unsigned int)*no_of_edges_orig); 
 
 	cudaMalloc( (void**) &d_edge_list_size, sizeof(unsigned int));
 	cudaMalloc( (void**) &d_vertex_list_size, sizeof(unsigned int));
