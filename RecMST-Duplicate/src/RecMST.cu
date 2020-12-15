@@ -69,6 +69,8 @@
 // Opencv stuff
 #include "opencv2/imgproc.hpp"
 #include "opencv2/imgcodecs.hpp"
+#include "opencv2/opencv.hpp"
+#include "opencv2/gpu/gpu.hpp"
 #include <opencv2/cudafilters.hpp>
 using namespace cv;
 using namespace cv::cuda;
@@ -294,7 +296,7 @@ void createGraph(Mat image) {
     filter = cv::cuda::createGaussianFilter(CV_8UC3, CV_8UC3, cv::Size(5, 5), 1.0);
 
     Init();
-    
+
     filter->apply(dev_image, d_blurred);
 
 
@@ -729,7 +731,7 @@ int main( int argc, char** argv) {
 	struct timeval t1, t2;
 	gettimeofday(&t1, 0);
 
-
+	cv::Mat image = cv::imread("file.png", CV_LOAD_IMAGE_GRAYSCALE);
 	Mat image = imread(argv[1], IMREAD_COLOR);
 	setGraphParams(image.rows, image.cols);
 
