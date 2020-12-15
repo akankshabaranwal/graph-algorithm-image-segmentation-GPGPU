@@ -599,6 +599,7 @@ void FreeMem()
 	cudaFree(d_segmented_min_scan_input);
 	cudaFree(d_segmented_min_scan_output);
 	cudaFree(d_edge_flag);
+	cudaFree(d_edge_flag_thrust);
 	cudaFree(d_pick_array);
 	cudaFree(d_successor);
 	cudaFree(d_successor_copy);
