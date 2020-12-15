@@ -304,7 +304,6 @@ void FreeMem()
 ////////////////////////////////////////////////
 // Create graph in compressed adjacency list
 ////////////////////////////////////////////////
-// ! TODO: init some of needed memory before reading for cuda
 void createGraph(Mat image) {
 	struct timeval t1, t2;
 
@@ -335,7 +334,18 @@ void createGraph(Mat image) {
 	// Create graphs. Kernels executed in different streams for concurrency
 	dim3 encode_threads;
     dim3 encode_blocks;
-    SetImageGridThreadLen(no_of_rows, no_of_cols, no_of_vertices, &encode_threads, &encode_blocks);
+    if (no_of_vertices < 1024) {
+        encode_threads.x = no_of_rows;
+        encode_threads.y = no_of_cols;
+        encode_blocks.x = 1;
+        encode_blocks.y = 1;
+    } else {
+        encode_threads.x = 32;
+        encode_threads.y = 32;
+        encode_blocks.x = no_of_rows / 32 + 1;
+        encode_blocks.y = no_of_cols / 32 + 1;
+    }
+   // SetImageGridThreadLen(no_of_rows, no_of_cols, no_of_vertices, &encode_threads, &encode_blocks);
 
     int num_of_blocks, num_of_threads_per_block;
 
