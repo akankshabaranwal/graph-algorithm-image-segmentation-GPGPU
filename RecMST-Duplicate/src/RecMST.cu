@@ -704,26 +704,33 @@ const Options handleParams(int argc, char **argv) {
         {
             case 'i': {
                 options.inFile = std::string(optarg);
+                puts("i");
                 continue;
             }
             case 'o': {
                 options.outFile = std::string(optarg);
+                 puts("i");
                 continue;
             }
             case 'w': {
                 options.warmupIterations = atoi(optarg);
+                 puts("i");
                 continue;
             }
             case 'b': {
                 options.benchmarkIterations = atoi(optarg);
+                 puts("i");
                 continue;
             }
             case 't': {
             	if (std::string(optarg) == "complete") {
+            		 puts("t complete");
             		TIMING_MODE = TIME_COMPLETE;
             	} else if (std::string(optarg) == "parts") {
+            		 puts("t part");
             		TIMING_MODE = TIME_PARTS;
             	} else {
+            		 puts("t none");
             		puts("Invalid timing option!");
             		printUsage();
             		break;
