@@ -278,6 +278,8 @@ void Init()
 // Create graph in compressed adjacency list
 ////////////////////////////////////////////////
 void createGraph(Mat image) {
+	Init();
+	
 	struct timeval t1, t2;
 
    	GpuMat dev_image, d_blurred;; 	// Released automatically
@@ -304,7 +306,7 @@ void createGraph(Mat image) {
 		gettimeofday(&t1, 0);
 	}
 
-	Init();
+
 
 	dim3 encode_threads;
 	dim3 encode_blocks;
