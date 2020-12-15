@@ -459,7 +459,6 @@ void HPGMST()
 	//printf("Expanded U:\n");
 	//printUIntArr(d_old_uIDs, no_of_edges);
 
-	printf("stuck\n");
 
 	/*
 	 * C. Merging vertices and assigning IDs to supervertices
@@ -559,6 +558,7 @@ void HPGMST()
                   thrust::minus<unsigned int>());
 
 	//printf("Write positions:");
+	printf("stuck\n");
 
 	//******************************************************************************************
 	//Do all clearing in a single kernel, no need to call multiple times, OK for testing only TODO
