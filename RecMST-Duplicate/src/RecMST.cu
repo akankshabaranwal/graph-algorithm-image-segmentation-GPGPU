@@ -278,8 +278,6 @@ void Init()
 // Create graph in compressed adjacency list
 ////////////////////////////////////////////////
 void createGraph(Mat image) {
-	Init();
-	
 	struct timeval t1, t2;
 
    	GpuMat dev_image, d_blurred;; 	// Released automatically
@@ -294,6 +292,8 @@ void createGraph(Mat image) {
     filter = cv::cuda::createGaussianFilter(CV_8UC3, CV_8UC3, cv::Size(5, 5), 1.0);
     filter->apply(dev_image, d_blurred);
 	
+    Init();
+
 	if (TIMING_MODE == TIME_PARTS) {
 		cudaDeviceSynchronize();
 		gettimeofday(&t2, 0);
