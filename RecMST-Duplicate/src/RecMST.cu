@@ -332,6 +332,8 @@ void createGraph(Mat image) {
 	}
 
 	// Create graphs. Kernels executed in different streams for concurrency
+	dim3 encode_threads;
+	dim3 encode_blocks;
 	SetImageGridThreadLen(no_of_rows, no_of_cols, no_of_vertices, &encode_threads, &encode_blocks);
 
     int num_of_blocks, num_of_threads_per_block;
