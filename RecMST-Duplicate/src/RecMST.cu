@@ -305,7 +305,7 @@ void FreeMem()
 // Create graph in compressed adjacency list
 ////////////////////////////////////////////////
 // ! TODO: init some of needed memory before reading for cuda
-void ReadGraph(char *filename) {
+void ReadGraph(Mat image) {
 
 	Mat image, output;				// Released automatically
    	GpuMat dev_image, d_blurred;; 	// Released automatically
