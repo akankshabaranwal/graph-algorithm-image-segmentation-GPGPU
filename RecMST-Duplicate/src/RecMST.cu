@@ -745,7 +745,6 @@ const Options handleParams(int argc, char **argv) {
             }
 
             case -1:  {
-            	printUsage();
                 break;
             }
         }
