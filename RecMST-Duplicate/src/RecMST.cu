@@ -278,24 +278,14 @@ void Init()
 // Create graph in compressed adjacency list
 ////////////////////////////////////////////////
 void createGraph(Mat image) {
+	struct timeval t1, t2;
 
-	Mat output;				// Released automatically
    	GpuMat dev_image, d_blurred;; 	// Released automatically
    	cv::Ptr<cv::cuda::Filter> filter;
 
-    struct timeval t1, t2;
-	gettimeofday(&t1, 0);
-	
-    // Read image
-    printf("Size of image obtained is: Rows: %d, Columns: %d, Pixels: %d\n", image.rows, image.cols, image.rows * image.cols);
-    no_of_rows = image.rows;
-    no_of_cols = image.cols;
-
-    gettimeofday(&t2, 0);
-	double time = (1000000.0*(t2.tv_sec-t1.tv_sec) + t2.tv_usec-t1.tv_usec)/1000.0;
-	printf("Read time:  %3.1f ms \n", time);
-
-	gettimeofday(&t1, 0);
+    if (TIMING_MODE == TIME_PARTS) {
+		gettimeofday(&t1, 0);
+	}
 
     // Apply gaussian filter (done on CPU because GPU turned out to be slower)
     dev_image.upload(image);
@@ -713,6 +703,14 @@ void writeComponents(std::vector<unsigned int*>& d_hierarchy_levels, std::vector
 	clearHierarchy(d_hierarchy_levels, hierarchy_level_sizes);
 }
 
+void setGraphParams(unsigned int rows, unsigned int cols) {
+	no_of_rows = rows;
+    no_of_cols = cols;
+	no_of_vertices = no_of_rows * no_of_cols;
+	no_of_vertices_orig = no_of_vertices;
+	no_of_edges = 8 + 6 * (no_of_cols - 2) + 6 * (no_of_rows - 2) + 4 * (no_of_cols - 2) * (no_of_rows - 2);
+	no_of_edges_orig = no_of_edges;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // Program main
@@ -727,6 +725,7 @@ int main( int argc, char** argv) {
 	gettimeofday(&t1, 0);
 
 	Mat image = imread(argv[1], IMREAD_COLOR);
+	setGraphParams(image.rows, image.cols);
 
 	createGraph(image);
 
