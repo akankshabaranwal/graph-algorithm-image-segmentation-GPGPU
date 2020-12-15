@@ -240,16 +240,6 @@ void SetImageGridThreadLen(int no_of_rows, int no_of_cols, int no_of_vertices, d
 }
 
 ////////////////////////////////////////////////
-// Read the Graph in our format (Compressed adjacency list)
-////////////////////////////////////////////////
-unsigned int dissimilarity(Mat image, int row1, int col1, int row2, int col2) {
-    Point3_<uchar>* u = image.ptr<Point3_<uchar> >(row1,col1);
-    Point3_<uchar>* v = image.ptr<Point3_<uchar> >(row2,col2);
-    double distance = 8 * sqrt(pow((u->x - v->x), 2) + pow((u->y - v->y), 2) + pow((u->z - v->z), 2));
-    return (unsigned int) round(distance); // TODO: maybe map to larger interval for better accuracy
-}
-
-////////////////////////////////////////////////
 // Allocate and Initialize Arrays
 ////////////////////////////////////////////////
 void Init()
@@ -284,11 +274,12 @@ void Init()
 	
 }
 
+////////////////////////////////////////////////
+// Create graph in compressed adjacency list
+////////////////////////////////////////////////
+void createGraph(Mat image) {
 
-// ! TODO: init some of needed memory before reading for cuda
-void ReadGraph(char *filename) {
-
-	Mat image, output;				// Released automatically
+	Mat output;				// Released automatically
    	GpuMat dev_image, d_blurred;; 	// Released automatically
    	cv::Ptr<cv::cuda::Filter> filter;
 
@@ -736,7 +727,9 @@ int main( int argc, char** argv) {
 	struct timeval t1, t2;
 	gettimeofday(&t1, 0);
 
-	ReadGraph(argv[1]);
+	Mat image = imread(argv[1], IMREAD_COLOR);
+
+	ReadGraph(image);
 
 	gettimeofday(&t2, 0);
 	double time = (1000000.0*(t2.tv_sec-t1.tv_sec) + t2.tv_usec-t1.tv_usec)/1000.0;
