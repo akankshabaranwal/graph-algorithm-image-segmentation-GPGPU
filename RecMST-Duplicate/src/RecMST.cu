@@ -17,17 +17,20 @@
  ************************************************************************************/
 
 /***********************************************************************************
-Vertex ID bit size:
-- 8K image: 33.177.600 pixels, 26 bits = 67.108.864 pixels 
--> Gives 12 bits for weight -> max weight = 4096
-	- Max weight L2 distance: 442, can use 3 more bits (* 2 * 2 * 2)
-	  - multiply double * 8, then scale to int (be wary for further modifications)
-1. Segmented min scan: 10 bit weight, 22 bit ID
-   -> Change to long long 12 bit weight, 26 bit ID DONE
-8. List L: 32 bit vertex ID left, 32 bit vertex ID right
-   -> keep same DONE
-12. UVW: u.id 24 bit, v.id 24 bit, weight 16 bit
-   -> Change to u.id 26 bit, v.id 26 bit, weight 12 bit
+  General bit size info
+  ---------------------
+  Vertex ID 26 bit -> 67.108.864
+  - 8K image: 7680 × 4320 = 33.177.600 pixels -> supports 2 8K images
+
+  Weight 12 bit -> Max weight = 4096
+  - Max L2 distance RGB: 442 -> can use 3 more bits for extra precision (*8) (SCALE)
+  - Could reduce weight precision to support higher resolution images
+
+  1. Segmented min scan: 10 bit weight, 22 bit ID
+  -> Changed to long long; 12 bit weight, 26 bit ID
+  8. List L: 32 bit vertex ID left, 32 bit vertex ID right
+  12. UVW: u.id 24 bit, v.id 24 bit, weight 16 bit
+  -> Change to u.id 26 bit, v.id 26 bit, weight 12 bit
 ************************************************************************************/
 
 ////////////////////////////////////////////////
@@ -221,6 +224,21 @@ void SetGridThreadLen(int number, int *num_of_blocks, int *num_of_threads_per_bl
 	}
 }
 
+void SetImageGridThreadLen(int no_of_rows, int no_of_cols, int no_of_vertices, dim3* encode_threads, dim3* encode_blocks)
+{    
+    if (no_of_vertices < 1024) {
+        encode_threads->x = no_of_rows;
+        encode_threads->y = no_of_cols;
+        encode_blocks->x = 1;
+        encode_blocks->y = 1;
+    } else {
+        encode_threads->x = 32;
+        encode_threads->y = 32;
+        encode_blocks->x = no_of_rows / 32 + 1;
+        encode_blocks->y = no_of_cols / 32 + 1;
+    }
+}
+
 ////////////////////////////////////////////////
 // Read the Graph in our format (Compressed adjacency list)
 ////////////////////////////////////////////////
@@ -311,18 +329,8 @@ void ReadGraph(char *filename) {
 	Init();
 
 	dim3 encode_threads;
-    dim3 encode_blocks;
-    if (no_of_vertices < 1024) {
-        encode_threads.x = no_of_rows;
-        encode_threads.y = no_of_cols;
-        encode_blocks.x = 1;
-        encode_blocks.y = 1;
-    } else {
-        encode_threads.x = 32;
-        encode_threads.y = 32;
-        encode_blocks.x = no_of_rows / 32 + 1;
-        encode_blocks.y = no_of_cols / 32 + 1;
-    }
+	dim3 encode_blocks;
+	SetImageGridThreadLen(no_of_rows, no_of_cols, no_of_vertices, &encode_threads, &encode_blocks);
     size_t pitch = d_blurred.step;
 
     int num_of_blocks, num_of_threads_per_block;
