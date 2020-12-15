@@ -722,6 +722,7 @@ int main( int argc, char** argv) {
 
 	Mat image = imread(argv[1], IMREAD_COLOR);
 	setGraphParams(image.rows, image.cols);
+	cudaDeviceSynchronize();
 	Init();
 
 	createGraph(image);
