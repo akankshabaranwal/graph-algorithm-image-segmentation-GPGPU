@@ -304,62 +304,37 @@ void FreeMem()
 ////////////////////////////////////////////////
 // Create graph in compressed adjacency list
 ////////////////////////////////////////////////
-// ! TODO: init some of needed memory before reading for cuda
 void createGraph(Mat image) {
+	struct timeval t1, t2;
 
-	Mat output;				// Released automatically
-   	GpuMat dev_image, d_blurred;; 	// Released automatically
+   	GpuMat dev_image, d_blurred;; 	// Released automatically in destructor
    	cv::Ptr<cv::cuda::Filter> filter;
+   	
+	if (TIMING_MODE == TIME_PARTS) {
+		gettimeofday(&t1, 0);
+	}
 
-    struct timeval t1, t2;
-	gettimeofday(&t1, 0);
-	
-    // Read image
-    //image = imread(filename, IMREAD_COLOR);
-    printf("Size of image obtained is: Rows: %d, Columns: %d, Pixels: %d\n", image.rows, image.cols, image.rows * image.cols);
-    no_of_rows = image.rows;
-    no_of_cols = image.cols;
-
-    gettimeofday(&t2, 0);
-	double time = (1000000.0*(t2.tv_sec-t1.tv_sec) + t2.tv_usec-t1.tv_usec)/1000.0;
-	printf("Read time:  %3.1f ms \n", time);
-
-	gettimeofday(&t1, 0);
-
-    // Apply gaussian filter (done on CPU because GPU turned out to be slower)
+	// Apply gaussian filter
     dev_image.upload(image);
     filter = cv::cuda::createGaussianFilter(CV_8UC3, CV_8UC3, cv::Size(5, 5), 1.0);
     filter->apply(dev_image, d_blurred);
 	
-	cudaDeviceSynchronize();
-	gettimeofday(&t2, 0);
-	time = (1000000.0*(t2.tv_sec-t1.tv_sec) + t2.tv_usec-t1.tv_usec)/1000.0;
-	printf("Gaussian time:  %3.1f ms \n", time);
+	if (TIMING_MODE == TIME_PARTS) {
+		cudaDeviceSynchronize();
+		gettimeofday(&t2, 0);
+		double time = (1000000.0*(t2.tv_sec-t1.tv_sec) + t2.tv_usec-t1.tv_usec)/1000.0;
+		printf("Gaussian time:  %3.1f ms \n", time);
+	}
 
+	// Create graph
+	if (TIMING_MODE == TIME_PARTS) {
+		gettimeofday(&t1, 0);
+	}
 
-	gettimeofday(&t1, 0);
-
-    // Get graph parameters
-	no_of_vertices = no_of_rows * no_of_cols;
-	no_of_vertices_orig = no_of_vertices;
-	no_of_edges = 8 + 6 * (no_of_cols - 2) + 6 * (no_of_rows - 2) + 4 * (no_of_cols - 2) * (no_of_rows - 2);
-
-	Init();
-
+	// Create graphs. Kernels executed in different streams for concurrency
 	dim3 encode_threads;
-    dim3 encode_blocks;
-    if (no_of_vertices < 1024) {
-        encode_threads.x = no_of_rows;
-        encode_threads.y = no_of_cols;
-        encode_blocks.x = 1;
-        encode_blocks.y = 1;
-    } else {
-        encode_threads.x = 32;
-        encode_threads.y = 32;
-        encode_blocks.x = no_of_rows / 32 + 1;
-        encode_blocks.y = no_of_cols / 32 + 1;
-    }
-    size_t pitch = d_blurred.step;
+	dim3 encode_blocks;
+	SetImageGridThreadLen(no_of_rows, no_of_cols, no_of_vertices, &encode_threads, &encode_blocks);
 
     int num_of_blocks, num_of_threads_per_block;
 
@@ -374,30 +349,32 @@ void createGraph(Mat image) {
     dim3 grid_corner(1, 1, 1);
 	dim3 threads_corner(4, 1, 1);
 
+    size_t pitch = d_blurred.step;
+
     // Inner graph
     createInnerGraphKernel<<< encode_blocks, encode_threads>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
 
     // Outer graph
-   	createFirstRowGraphKernel<<< grid_row, threads_row, 0>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
-   	createLastRowGraphKernel<<< grid_row, threads_row, 0>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
+   	createFirstRowGraphKernel<<< grid_row, threads_row>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
+   	createLastRowGraphKernel<<< grid_row, threads_row>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
 
-   	createFirstColumnGraphKernel<<< grid_col, threads_col, 0>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
-   	createLastColumnGraphKernel<<< grid_col, threads_col, 0>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
+   	createFirstColumnGraphKernel<<< grid_col, threads_col>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
+   	createLastColumnGraphKernel<<< grid_col, threads_col>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
 
     // Corners
-	createCornerGraphKernel<<< grid_corner, threads_corner, 0>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
+	createCornerGraphKernel<<< grid_corner, threads_corner>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
 	
-	cudaDeviceSynchronize();
+	cudaDeviceSynchronize(); // Needed to synchronise streams!
 
-	gettimeofday(&t2, 0);
-	time = (1000000.0*(t2.tv_sec-t1.tv_sec) + t2.tv_usec-t1.tv_usec)/1000.0;
-	printf("Graph creation time:  %3.1f ms \n", time);
-	
-	no_of_edges_orig = no_of_edges;
+	if (TIMING_MODE == TIME_PARTS) {
+		gettimeofday(&t2, 0);
+		double time = (1000000.0*(t2.tv_sec-t1.tv_sec) + t2.tv_usec-t1.tv_usec)/1000.0;
+		printf("Graph creation time:  %3.1f ms \n", time);
+	}
+
 
 	printf("Image read successfully into graph with %d vertices and %d edges\n", no_of_vertices, no_of_edges);
 }
-
 
 
 ////////////////////////////////////////////////
@@ -538,7 +515,7 @@ void HPGMST()
 	CopyEdgeArray<<< grid_edgelen, threads_edgelen, 0>>>(d_edge,d_edge_mapping_copy, no_of_edges); // for conflicts
 	RemoveSelfEdges<<< grid_edgelen, threads_edgelen, 0>>>(d_edge, d_old_uIDs, d_new_supervertexIDs, d_edge_mapping_copy, no_of_edges);
 	CopyEdgeArrayBack<<< grid_edgelen, threads_edgelen, 0>>>(d_edge,d_edge_mapping_copy, no_of_edges); // for conflicts
-
+		printf("stuck\n");
 
 	/*
 	 * D. Removing duplicate edges. This is not mandatory, however, reduces the edge-list size significantly. You may choose to use it once in the initial 
@@ -581,7 +558,6 @@ void HPGMST()
                   thrust::minus<unsigned int>());
 
 	//printf("Write positions:");
-	printf("stuck\n");
 
 	//******************************************************************************************
 	//Do all clearing in a single kernel, no need to call multiple times, OK for testing only TODO
