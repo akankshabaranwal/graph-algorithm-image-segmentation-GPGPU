@@ -353,17 +353,17 @@ void createGraph(Mat image) {
     size_t pitch = d_blurred.step;
 
     // Inner graph
-    createInnerGraphKernel<<< encode_blocks, encode_threads, 0>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
+    createInnerGraphKernel<<< encode_blocks, encode_threads>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
 
     // Outer graph
-   	createFirstRowGraphKernel<<< grid_row, threads_row, 1>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
-   	createLastRowGraphKernel<<< grid_row, threads_row, 2>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
+   	createFirstRowGraphKernel<<< grid_row, threads_row>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
+   	createLastRowGraphKernel<<< grid_row, threads_row>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
 
-   	createFirstColumnGraphKernel<<< grid_col, threads_col, 3>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
-   	createLastColumnGraphKernel<<< grid_col, threads_col, 4>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
+   	createFirstColumnGraphKernel<<< grid_col, threads_col>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
+   	createLastColumnGraphKernel<<< grid_col, threads_col>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
 
     // Corners
-	createCornerGraphKernel<<< grid_corner, threads_corner, 5>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
+	createCornerGraphKernel<<< grid_corner, threads_corner>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
 	
 	cudaDeviceSynchronize(); // Needed to synchronise streams!
 
@@ -704,33 +704,26 @@ const Options handleParams(int argc, char **argv) {
         {
             case 'i': {
                 options.inFile = std::string(optarg);
-                puts("i");
                 continue;
             }
             case 'o': {
                 options.outFile = std::string(optarg);
-                 puts("i");
                 continue;
             }
             case 'w': {
                 options.warmupIterations = atoi(optarg);
-                 puts("i");
                 continue;
             }
             case 'b': {
                 options.benchmarkIterations = atoi(optarg);
-                 puts("i");
                 continue;
             }
             case 't': {
             	if (std::string(optarg) == "complete") {
-            		 puts("t complete");
             		TIMING_MODE = TIME_COMPLETE;
             	} else if (std::string(optarg) == "parts") {
-            		 puts("t part");
             		TIMING_MODE = TIME_PARTS;
             	} else {
-            		 puts("t none");
             		puts("Invalid timing option!");
             		printUsage();
             		break;
@@ -749,6 +742,11 @@ const Options handleParams(int argc, char **argv) {
             }
         }
         break;
+    }
+    if (options.image == "empty") {
+    	puts("Provide an image!");
+		printUsage();
+		break;
     }
 
     return options;
@@ -842,12 +840,12 @@ int main(int argc, char **argv)
 	Init();
 
 	// Warm up
-    for (int i = 0; i < options.warmupIterations; ++i) {
+    for (int i = 0; i < options.warmupIterations; i++) {
     	segment(image);
     }
 
     // Benchmark
-    for (int i = 0; i < options.benchmarkIterations; ++i) {
+    for (int i = 0; i < options.benchmarkIterations; i++) {
         segment(image);
 
     }
