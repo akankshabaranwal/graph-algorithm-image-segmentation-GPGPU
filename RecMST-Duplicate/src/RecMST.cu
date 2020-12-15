@@ -304,6 +304,8 @@ void createGraph(Mat image) {
 		gettimeofday(&t1, 0);
 	}
 
+	Init();
+
 	dim3 encode_threads;
 	dim3 encode_blocks;
 	SetImageGridThreadLen(no_of_rows, no_of_cols, no_of_vertices, &encode_threads, &encode_blocks);
@@ -338,7 +340,7 @@ void createGraph(Mat image) {
 	cudaDeviceSynchronize();
 
 	gettimeofday(&t2, 0);
-	double time = (1000000.0*(t2.tv_sec-t1.tv_sec) + t2.tv_usec-t1.tv_usec)/1000.0;
+	time = (1000000.0*(t2.tv_sec-t1.tv_sec) + t2.tv_usec-t1.tv_usec)/1000.0;
 	printf("Graph creation time:  %3.1f ms \n", time);
 	
 
@@ -721,7 +723,7 @@ int main( int argc, char** argv) {
 
 	Mat image = imread(argv[1], IMREAD_COLOR);
 	setGraphParams(image.rows, image.cols);
-	Init();
+
 	createGraph(image);
 
 	gettimeofday(&t2, 0);
