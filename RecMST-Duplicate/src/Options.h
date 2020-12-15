@@ -7,8 +7,8 @@ class Options
 public:
     int warmupIterations = 0;
     int benchmarkIterations = 1;
-    std::string inFile = "data/beach.png";
-    std::string outFile = "segmented.png";
+    std::string inFile = "empty";
+    std::string outFile = "empty";
 };
 
 
