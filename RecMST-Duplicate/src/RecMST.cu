@@ -293,7 +293,7 @@ void createGraph(Mat image) {
     dev_image.upload(image);
     filter = cv::cuda::createGaussianFilter(CV_8UC3, CV_8UC3, cv::Size(5, 5), 1.0);
 
-    
+    Init();
     
     filter->apply(dev_image, d_blurred);
 
