@@ -395,7 +395,6 @@ void HPGMST()
 	dim3 grid_vertexlen(num_of_blocks, 1, 1);
 	dim3 threads_vertexlen(num_of_threads_per_block, 1, 1);
 
-	printf("stuck\n");
 	/*
 	 * A. Find minimum weighted edge
 	 */
@@ -460,6 +459,7 @@ void HPGMST()
 	//printf("Expanded U:\n");
 	//printUIntArr(d_old_uIDs, no_of_edges);
 
+	printf("stuck\n");
 
 	/*
 	 * C. Merging vertices and assigning IDs to supervertices
