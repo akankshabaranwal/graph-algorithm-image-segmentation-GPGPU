@@ -25,10 +25,10 @@
 #define MOVEBITS 26 						// Amount of bits in X for vertex ID
 #define NO_OF_BITS_TO_SPLIT_ON 32			// Amount of bits for L split (32 bits one vertex, 32 other)
 #define NO_OF_BITS_MOVED_FOR_VERTEX_IDS 26
-#define MAX_THREADS_PER_BLOCK 1024 // IMPORTANT TO SET CORRECTLY
-#define INF 10000000
-#define CHANNEL_SIZE 3
-#define SCALE 8
+#define MAX_THREADS_PER_BLOCK 1024 			// IMPORTANT TO SET CORRECTLY
+#define INF 10000000						// Make sure larger than amount of edges, maybe best equal to max possible vertex ID // TODO: set to 2^MOVEBITS - 1
+#define CHANNEL_SIZE 3						// Amount of color channels, 3 for RGB
+#define SCALE 8 							// Make sure to set scale so weight less than assigned amount of bits
 
 ////////////////////////////////////////////////////////////////////////////////////////////
 // Graph creation kernels
