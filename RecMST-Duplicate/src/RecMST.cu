@@ -305,7 +305,7 @@ void FreeMem()
 // Create graph in compressed adjacency list
 ////////////////////////////////////////////////
 // ! TODO: init some of needed memory before reading for cuda
-void ReadGraph(Mat image) {
+void createGraph(Mat image) {
 
 	Mat image, output;				// Released automatically
    	GpuMat dev_image, d_blurred;; 	// Released automatically
@@ -315,7 +315,7 @@ void ReadGraph(Mat image) {
 	gettimeofday(&t1, 0);
 	
     // Read image
-    image = imread(filename, IMREAD_COLOR);
+    //image = imread(filename, IMREAD_COLOR);
     printf("Size of image obtained is: Rows: %d, Columns: %d, Pixels: %d\n", image.rows, image.cols, image.rows * image.cols);
     no_of_rows = image.rows;
     no_of_cols = image.cols;
