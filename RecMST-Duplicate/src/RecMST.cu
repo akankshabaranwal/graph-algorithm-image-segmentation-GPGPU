@@ -718,10 +718,12 @@ int main( int argc, char** argv) {
 
 	struct timeval t1, t2;
 	gettimeofday(&t1, 0);
+	cudaDeviceSynchronize();
+	Init();
+
 
 	Mat image = imread(argv[1], IMREAD_COLOR);
 	setGraphParams(image.rows, image.cols);
-	Init();
 
 	createGraph(image);
 
