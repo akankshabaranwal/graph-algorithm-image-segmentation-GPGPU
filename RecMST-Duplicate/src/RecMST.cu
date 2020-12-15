@@ -307,7 +307,7 @@ void FreeMem()
 // ! TODO: init some of needed memory before reading for cuda
 void createGraph(Mat image) {
 
-	Mat image, output;				// Released automatically
+	Mat output;				// Released automatically
    	GpuMat dev_image, d_blurred;; 	// Released automatically
    	cv::Ptr<cv::cuda::Filter> filter;
 
