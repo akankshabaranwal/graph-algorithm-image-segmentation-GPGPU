@@ -463,6 +463,7 @@ void HPGMST()
 	/*
 	 * C. Merging vertices and assigning IDs to supervertices
 	 */
+ 		printf("stuck\n");
 
 	// 7. Propagate Representative Vertex IDs to all vertices iteratively using pointer Doubling until no change occures in Successor Array
 	bool succchange;
@@ -495,7 +496,6 @@ void HPGMST()
 	//     first element not flagged so that can use simple sum for scan
 	ClearArray<<< grid_vertexlen, threads_vertexlen, 0>>>( d_vertex_flag, no_of_vertices);
 	MakeFlagForScan<<< grid_vertexlen, threads_vertexlen, 0>>>(d_vertex_flag, d_vertex_split, no_of_vertices);
- 		printf("stuck\n");
 
 	// 9.3 Scan flag to assign new IDs to supervertices, Using a scan on O(V) elements // DONE: change to thrust
 	//printf("New supervertex ids:\n");
