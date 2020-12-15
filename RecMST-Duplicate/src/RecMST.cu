@@ -700,7 +700,7 @@ const Options handleParams(int argc, char **argv) {
     TIMING_MODE = NO_TIME;
     for(;;)
     {
-        switch(getopt(argc, argv, "chsi:o:w:b:k:"))
+        switch(getopt(argc, argv, "hi:o:w:b:t:"))
         {
             case 'i': {
                 options.inFile = std::string(optarg);
