@@ -730,17 +730,13 @@ const Options handleParams(int argc, char **argv) {
             	}
                 continue;
             }
+            case '?':
+            case 'h':
             default : {
+                printUsage();
                 break;
             }
-            case '?': {
-            	printUsage();
-                break;
-            }
-            case 'h': {
-            	printUsage();
-                break;
-            }
+
             case -1:  {
             	printUsage();
                 break;
