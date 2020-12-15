@@ -691,17 +691,7 @@ void writeComponents(std::vector<unsigned int*>& d_hierarchy_levels, std::vector
 
 	dim3 threads_pixels;
     dim3 grid_pixels;
-    if (no_of_vertices_orig < 1024) {
-        threads_pixels.x = no_of_rows;
-        threads_pixels.y = no_of_cols;
-        grid_pixels.x = 1;
-        grid_pixels.y = 1;
-    } else {
-        threads_pixels.x = 32;
-        threads_pixels.y = 32;
-        grid_pixels.x = no_of_rows / 32 + 1;
-        grid_pixels.y = no_of_cols / 32 + 1;
-    }
+	SetImageGridThreadLen(no_of_rows, no_of_cols, no_of_vertices, &threads_pixels, &grid_pixels);
     InitPrevLevelComponents<<<grid_pixels, threads_pixels>>>(d_prev_level_component, no_of_rows, no_of_cols);
 
     char* d_output_image;
