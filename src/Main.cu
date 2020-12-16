@@ -18,7 +18,7 @@ int main(int argc, char **argv)
 
     image = imread("data/beach.png", IMREAD_COLOR);
     int scale_percent = 10; // percent of original size
-    cv::resize(image, image, cv::Size(), 0.1, 0.1);
+    cv::resize(image, image, cv::Size(), 0.05, 0.05);
 
     printf("Size of image obtained is: Rows: %d, Columns: %d, Pixels: %d\n", image.rows, image.cols, image.rows * image.cols);
 
@@ -252,7 +252,6 @@ int main(int argc, char **argv)
         }
         cudaDeviceSynchronize();
 
-
         printf("\n After removing cycles printing Successor Array: \n");
         for(int i =0; i< numVertices; i++)
         {
@@ -280,6 +279,7 @@ int main(int argc, char **argv)
         {
             printf("CUDA Error: AppendSuccessorArray %s\n", cudaGetErrorString(err));
             exit(-1);
+            exit(-1);
         }
         cudaDeviceSynchronize();
 
@@ -297,8 +297,6 @@ int main(int argc, char **argv)
         //cudaDeviceSynchronize();
         //9. Create F2, Assign new IDs based on Flag2 array
         cudaDeviceSynchronize();
-        //thrust::sort_by_key(thrust::host, VertexIds, VertexIds + numVertices, Representative);
-        //thrust::sort_by_key(thrust::host, Representative, Representative + numVertices, VertexIds);
         SortedSplit(Representative, VertexIds, Successor, Flag2, numVertices);
         cudaDeviceSynchronize();
 
@@ -319,6 +317,7 @@ int main(int argc, char **argv)
         {
             printf("%d ,", Flag2[i]);
         }
+
         //D. Finding the Supervertex ids and storing it in an array
         CreateSuperVertexArray<<<numBlock,numthreads>>>(SuperVertexId, VertexIds, Flag2, numVertices);
         err = cudaGetLastError();        // Get error code
@@ -335,7 +334,7 @@ int main(int argc, char **argv)
         }
 
         //Create UID array. 10.2
-        CreateUid(uid, flag, numVertices); //Isnt this same as the vertex list??
+        CreateUid(uid, flag, numEdges); //Isnt this same as the vertex list??
         cudaDeviceSynchronize();
 
         printf("\n Uid\n");
@@ -366,6 +365,7 @@ int main(int argc, char **argv)
         printf("\nPrinting only Edge Array after marked for removal: \n");
         for (int i = 0; i < numEdges; i++)
         {
+            if(OnlyEdge[i]!=INT_MAX)
             printf("%d, ", OnlyEdge[i]);
         }
         //E 12.
