@@ -585,12 +585,6 @@ void HPGMST()
 
 
 void writeComponents(std::vector<unsigned int*>& d_hierarchy_levels, std::vector<int>& hierarchy_level_sizes, std::string outFile) {
-	int time;
-	std::chrono::high_resolution_clock::time_point start, end, start2, end2;
-	if (TIMING_MODE == TIME_PARTS) { // Start output creation timer
-		start = std::chrono::high_resolution_clock::now();
-	}
-
 	// Extract filepath without extension
 	size_t lastindex = outFile.find_last_of("."); 
 	std::string rawOutName = outFile.substr(0, lastindex);
@@ -643,33 +637,14 @@ void writeComponents(std::vector<unsigned int*>& d_hierarchy_levels, std::vector
 		CreateLevelOutput<<< grid_pixels, threads_pixels, 0>>>(d_output_image, d_component_colours, d_level, d_prev_level_component, no_of_rows, no_of_cols);
 	    cudaMemcpy(output, d_output_image, no_of_rows*no_of_cols*CHANNEL_SIZE*sizeof(char), cudaMemcpyDeviceToHost);
 
-
-		if (TIMING_MODE == TIME_PARTS) { // Start output writing timer
-			start2 = std::chrono::high_resolution_clock::now();
-		}
-
 		cv::Mat output_img = cv::Mat(no_of_rows, no_of_cols, CV_8UC3, output);
 		std::string outfilename = rawOutName + std::string("_")  + std::to_string(l) + std::string(".png");
 		std::string outmessage = std::string("Writing ") + outfilename.c_str() + std::string("\n");
 
 		fprintf(stderr, outmessage.c_str());
 		imwrite(outfilename, output_img);
-
-
-		if (TIMING_MODE == TIME_PARTS) { // Subtract writing time from output time
-			cudaDeviceSynchronize();
-			end2 = std::chrono::high_resolution_clock::now();
-			time -= std::chrono::duration_cast<std::chrono::microseconds>(end2 - start2).count();
-		}
 	}
 
-
-	if (TIMING_MODE == TIME_PARTS) { // End segmentation timer
-		cudaDeviceSynchronize();
-		end = std::chrono::high_resolution_clock::now();
-		time += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-		timings.push_back(time);
-	}
 
 	// Free memory
 	cudaFree(d_component_colours);
@@ -695,7 +670,7 @@ void clearHierarchy(std::vector<unsigned int*>& d_hierarchy_levels, std::vector<
         hierarchy_level_sizes.clear();
 }
 
-void segment(Mat image, std::string outFile) {
+void segment(Mat image, std::string outFile, bool output) {
 	std::chrono::high_resolution_clock::time_point start, end;
 
 	if (TIMING_MODE == TIME_COMPLETE) { // Start whole execution timer
@@ -748,8 +723,11 @@ void segment(Mat image, std::string outFile) {
 	// Free GPU segmentation memory
 	FreeMem();
 
-	// Write segmentation hierarchy
-	writeComponents(d_hierarchy_levels, hierarchy_level_sizes, outFile);
+	if (output) {
+		// Write segmentation hierarchy
+		writeComponents(d_hierarchy_levels, hierarchy_level_sizes, outFile);
+	}
+
 	clearHierarchy(d_hierarchy_levels, hierarchy_level_sizes);
 }
 
@@ -773,7 +751,7 @@ void printCSVHeader() {
 	if (TIMING_MODE == TIME_COMPLETE) {
 		 printf("total\n"); // Excluding output: gaussian + graph creation + segmentation
 	} else {
-		printf("gaussian, graph creation, segmentation, output\n");
+		printf("gaussian, graph creation, segmentation\n");
 	}
 }
 
@@ -858,13 +836,13 @@ int main(int argc, char **argv)
 
 	// Warm up
     for (int i = 0; i < options.warmupIterations; i++) {
-    	segment(image, options.outFile);
+    	segment(image, options.outFile, false);
     }
 
     // Benchmark
     timings.clear();
     for (int i = 0; i < options.benchmarkIterations; i++) {
-        segment(image, options.outFile);
+        segment(image, options.outFile, i == options.benchmarkIterations-1);
         printCSVLine();
     }
 
