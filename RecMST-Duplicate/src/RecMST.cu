@@ -649,8 +649,8 @@ void writeComponents(std::vector<unsigned int*>& d_hierarchy_levels, std::vector
 		}
 
 		cv::Mat output_img = cv::Mat(no_of_rows, no_of_cols, CV_8UC3, output);
-		fprintf(stderr, "Writing " + rawOutName.c_str() + "_" + std::to_string(l).c_str() + ".png\n");
-		imwrite(rawOutName.c_str() + "_" + std::to_string(l).c_str() + ".png", output_img);
+		fprintf(stderr, std::string("Writing) " + rawOutName.c_str() + std::string("_") + std::to_string(l).c_str() + std::string(".png\n"));
+		imwrite(rawOutName.c_str() + std::string("_") + std::to_string(l).c_str() + std::string(".png"), output_img);
 
 
 		if (TIMING_MODE == TIME_PARTS) { // Subtract writing time from output time
