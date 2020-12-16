@@ -507,6 +507,28 @@ __global__ void ClearArray(unsigned int *d_array, unsigned int size)
 	}
 }
 
+__global__ void ClearEdgeStuff(unsigned int *d_edge_flag, unsigned int *d_vertex, unsigned int edge_size, unsigned int vertex_size) 
+{
+	unsigned int tid = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
+	if(tid<size) {
+		d_edge[tid]=0;
+		d_weight[tid]=0;
+		d_edge_mapping_copy[tid]=0;
+		d_pick_array[tid]=0;
+	}
+}
+
+__global__ void ClearVertexEdgeStuff(unsigned int *d_edge, unsigned int *d_weight, unsigned int *d_edge_mapping_copy, unsigned int *d_pick_array, unsigned int size) 
+{
+	unsigned int tid = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
+	if(tid<size) {
+		d_edge[tid]=0;
+		d_weight[tid]=0;
+		d_edge_mapping_copy[tid]=0;
+		d_pick_array[tid]=0;
+	}
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Make the flag for Input to the segmented min scan, Runs for Vertex Length
 ////////////////////////////////////////////////////////////////////////////////

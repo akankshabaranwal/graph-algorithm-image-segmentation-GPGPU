@@ -375,14 +375,13 @@ void createGraph(Mat image) {
 	cudaDeviceSynchronize(); // Needed to synchronise streams!
 
 	if (TIMING_MODE == TIME_PARTS) {
-		//cudaDeviceSynchronize();
 		end = std::chrono::high_resolution_clock::now();
 		int time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 		timings.push_back(time);
 	}
 
 
-	printf("Image read successfully into graph with %d vertices and %d edges\n", no_of_vertices, no_of_edges);
+	fprintf(stderr, "Image read successfully into graph with %d vertices and %d edges\n", no_of_vertices, no_of_edges);
 }
 
 
@@ -427,17 +426,10 @@ void HPGMST()
 	// Prepare key vector for thrust
 	thrust::inclusive_scan(thrust::device, d_edge_flag, d_edge_flag + no_of_edges, d_edge_flag_thrust);
 
-	//printf("X:\n");
-	//printUIntArr(d_edge_flag, no_of_edges);
-	//printXArr(d_segmented_min_scan_input, no_of_edges);
-
 	// Min inclusive segmented scan on ints from start to end.
 	thrust::equal_to<unsigned int> binaryPred;
 	thrust::minimum<unsigned long long int> binaryOp;
 	thrust::inclusive_scan_by_key(thrust::device, d_edge_flag_thrust, d_edge_flag_thrust + no_of_edges, d_segmented_min_scan_input, d_segmented_min_scan_output, binaryPred, binaryOp);
-
-	//printXArr(d_segmented_min_scan_output, no_of_edges);
-	//printf("\n");
 
 
 	/*
@@ -465,9 +457,6 @@ void HPGMST()
 	// 10.2 Create vector indicating source vertex u for each edge // DONE: change to thrust
 	thrust::inclusive_scan(thrust::device, d_edge_flag, d_edge_flag + no_of_edges, d_old_uIDs);
 
-	//printf("Expanded U:\n");
-	//printUIntArr(d_old_uIDs, no_of_edges);
-
 
 	/*
 	 * C. Merging vertices and assigning IDs to supervertices
@@ -490,7 +479,7 @@ void HPGMST()
 	while(succchange);
 
 
-	// 8. Append successor array’s entries with its index to form a list, L. Representative left, vertex id right, 64 bit. TODO look into needed sizes
+	// 8. Append successor array’s entries with its index to form a list, L. Representative left, vertex id right, 64 bit.
 	//    Append Vertex Ids with SuperVertexIDs
 	AppendVertexIDsForSplit<<< grid_vertexlen, threads_vertexlen, 0>>>(d_vertex_split, d_successor,no_of_vertices);
 
@@ -507,9 +496,7 @@ void HPGMST()
 	MakeFlagForScan<<< grid_vertexlen, threads_vertexlen, 0>>>(d_vertex_flag, d_vertex_split, no_of_vertices);
 
 	// 9.3 Scan flag to assign new IDs to supervertices, Using a scan on O(V) elements // DONE: change to thrust
-	//printf("New supervertex ids:\n");
 	thrust::inclusive_scan(thrust::device, d_vertex_flag, d_vertex_flag + no_of_vertices, d_new_supervertexIDs);
-	//printUIntArr(d_new_supervertexIDs, no_of_vertices);
 
 
 	/*
@@ -538,7 +525,7 @@ void HPGMST()
 
 	//12.2 Split the array using {u,v) as the key. Pick First distinct (u,v) entry as the edge, nullify others
 	//     You may also replace the split with sort, but we could not find a 64-bit sort.
-	thrust::sort(thrust::device, d_appended_uvw, d_appended_uvw + no_of_edges); // TODO: check
+	thrust::sort(thrust::device, d_appended_uvw, d_appended_uvw + no_of_edges);
 	
 	//Pick the first distinct (u,v) combination, mark these edges and compact
 	// 12.3 Create flag indicating smallest edges, 0 for larger duplicates
@@ -547,18 +534,12 @@ void HPGMST()
 	cudaMemcpy( d_size, &dsize, sizeof(unsigned int), cudaMemcpyHostToDevice);
 	MarkEdgesUV<<< grid_edgelen, threads_edgelen, 0>>>(d_edge_flag, d_appended_uvw, d_size, no_of_edges);
 
-	//printf("UVW:");
-	//printUVWArr(d_appended_uvw, no_of_edges);
-	//printUIntArr(d_edge_flag, no_of_edges);
-
-	//printf("New edge size: ");
-	//printUInt(d_size);
 
 	// 13. Compact and create new edge and weight list
 	// 13.1 Scan the flag array to know where to write the value in new edge and weight lists // DONE: change to thrust
 	thrust::inclusive_scan(thrust::device, d_edge_flag, d_edge_flag + no_of_edges, d_old_uIDs);
 
-	// NEW! Maybe not needed. Make sure new locations start from 0 instead of 1. TODO: can be done more efficient in case works
+	// Make sure new locations start from 0 instead of 1.
 	thrust::transform(thrust::device,
 				  d_old_uIDs,
                   d_old_uIDs + no_of_edges,
@@ -566,15 +547,9 @@ void HPGMST()
                   d_old_uIDs,
                   thrust::minus<unsigned int>());
 
-	//printf("Write positions:");
 
-	//******************************************************************************************
-	//Do all clearing in a single kernel, no need to call multiple times, OK for testing only TODO
-	//******************************************************************************************
-	ClearArray<<< grid_edgelen, threads_edgelen, 0>>>((unsigned int*)d_edge, no_of_edges );
-	ClearArray<<< grid_edgelen, threads_edgelen, 0>>>((unsigned int*)d_weight, no_of_edges );
-	ClearArray<<< grid_edgelen, threads_edgelen, 0>>>( d_edge_mapping_copy, no_of_edges);
-	ClearArray<<< grid_edgelen, threads_edgelen, 0>>>( (unsigned int*)d_pick_array, no_of_edges); //Reusing the Pick Array
+	// Do some cleanup / clearing
+	ClearEdgeStuff<<< grid_edgelen, threads_edgelen, 0>>>((unsigned int*)d_edge, (unsigned int*)d_weight, d_edge_mapping_copy, (unsigned int*)d_pick_array, no_of_edges);
 	unsigned int negative=0;
 	cudaMemcpy( d_edge_list_size, &negative, sizeof(unsigned int), cudaMemcpyHostToDevice);
 	cudaMemcpy( d_vertex_list_size, &negative, sizeof(unsigned int), cudaMemcpyHostToDevice);
@@ -593,8 +568,7 @@ void HPGMST()
 	CompactEdgeList<<< grid_validsizelen, threads_validsizelen, 0>>>(d_edge, d_weight, d_old_uIDs, d_edge_flag, d_appended_uvw, d_pick_array, d_size, d_edge_list_size, d_vertex_list_size);
 
 	// 14. Build the vertex list from the newly formed edge list
-	ClearArray<<< grid_edgelen, threads_edgelen, 0>>>( d_edge_flag, no_of_edges);
-	ClearArray<<< grid_vertexlen, threads_vertexlen, 0>>>((unsigned int*)d_vertex, no_of_vertices);
+	ClearVertexEdgeStuff<<< grid_edgelen, threads_edgelen, 0>>>(d_edge_flag, (unsigned int*)d_vertex, no_of_edges, no_of_vertices);
 
 	//14.1 Create flag based on difference in u on the new edge list (based on diffference of u ids)
 	MakeFlagForVertexList<<< grid_edgelen, threads_edgelen, 0>>>(d_pick_array, d_edge_flag, no_of_edges); // d_edge_flag = F4
