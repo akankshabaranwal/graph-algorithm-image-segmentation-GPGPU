@@ -735,7 +735,7 @@ void segment(Mat image) {
 	    hierarchy_level_sizes.push_back(cur_hierarchy_size);
 	    cudaMalloc( (void**) &d_new_supervertexIDs, sizeof(unsigned int)*cur_hierarchy_size);
 
-	    printf(stderr, "Vertices: %d\n", no_of_vertices);
+	    fprintf(stderr, "Vertices: %d\n", no_of_vertices);
 	}
 	while(no_of_vertices>1);
 
@@ -859,7 +859,7 @@ int main(int argc, char **argv)
 
     // Read image
     Mat image = imread(options.inFile, IMREAD_COLOR);
-    printf(stderr, "Size of image obtained is: Rows: %d, Columns: %d, Pixels: %d\n", image.rows, image.cols, image.rows * image.cols);
+    fprintf(stderr, "Size of image obtained is: Rows: %d, Columns: %d, Pixels: %d\n", image.rows, image.cols, image.rows * image.cols);
    	setGraphParams(image.rows, image.cols);
 
    	printCSVHeader();
