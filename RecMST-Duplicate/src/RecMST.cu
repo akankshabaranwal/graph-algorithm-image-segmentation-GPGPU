@@ -326,7 +326,7 @@ void createGraph(Mat image) {
 	if (TIMING_MODE == TIME_PARTS) { // End gaussian filter timer
 		cudaDeviceSynchronize();
 		end = std::chrono::high_resolution_clock::now();
-		int time = (int) std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+		int time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 		timings.push_back(time);
 	}
 
@@ -377,7 +377,7 @@ void createGraph(Mat image) {
 	if (TIMING_MODE == TIME_PARTS) {
 		//cudaDeviceSynchronize();
 		end = std::chrono::high_resolution_clock::now();
-		int time = (int) std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+		int time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 		timings.push_back(time);
 	}
 
@@ -742,14 +742,14 @@ void segment(Mat image) {
 	if (TIMING_MODE == TIME_PARTS) { // End segmentation timer
 		cudaDeviceSynchronize();
 		end = std::chrono::high_resolution_clock::now();
-		int time = (int) std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+		int time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 		timings.push_back(time);
 	}
 
 	if (TIMING_MODE == TIME_COMPLETE) { // End whole execution timer
 		cudaDeviceSynchronize();
 		end = std::chrono::high_resolution_clock::now();
-		int time = (int) std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+		int time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 		timings.push_back(time);
 	}
 
