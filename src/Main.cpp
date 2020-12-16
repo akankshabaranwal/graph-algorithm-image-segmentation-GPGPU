@@ -111,11 +111,13 @@ int main(int argc, char **argv)
     // Warm up
     for (int i = 0; i < options.warmupIterations; ++i) {
         segmented_img = segment_wrapper(image, options, false);
+        free(segmented_img);
     }
 
     // Benchmark
     for (int i = 0; i < options.benchmarkIterations; ++i) {
         segmented_img = segment_wrapper(image, options, true);
+        if (i < options.benchmarkIterations - 1) free(segmented_img);
     }
 
     cv::Mat output_img = cv::Mat(image.rows, image.cols, CV_8UC3, segmented_img);
