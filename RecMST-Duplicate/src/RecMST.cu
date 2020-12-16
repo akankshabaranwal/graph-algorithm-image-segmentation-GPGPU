@@ -124,7 +124,7 @@ int cur_hierarchy_size; 									// Size current hierarchy
 
 enum timing_mode {NO_TIME, TIME_COMPLETE, TIME_PARTS};
 enum timing_mode TIMING_MODE;
-std::vector<double> timings;
+std::vector<int> timings;
 
 ////////////////////////////////////////////////
 // Debugging helper functions
