@@ -849,6 +849,7 @@ int main(int argc, char **argv)
     for (int i = 0; i < options.benchmarkIterations; i++) {
         segment(image);
         printCSVLine();
+        printf("csv line\n");
     }
 
     return 0;
