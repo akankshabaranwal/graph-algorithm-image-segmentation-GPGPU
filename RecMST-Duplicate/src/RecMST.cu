@@ -593,7 +593,7 @@ void writeComponents(std::vector<unsigned int*>& d_hierarchy_levels, std::vector
 
 	// Extract filepath without extension
 	size_t lastindex = outFile.find_last_of("."); 
-	string rawOutName = outFile.substr(0, lastindex);
+	std::string rawOutName = outFile.substr(0, lastindex);
 
 	// Generate random colors for segments
 	char *component_colours = (char *) malloc(no_of_vertices_orig * CHANNEL_SIZE * sizeof(char));
@@ -834,7 +834,7 @@ const Options handleParams(int argc, char **argv) {
         }
         break;
     }
-    if (options.inFile == "empty" || options.outFile == "empty") {
+    if (options.inFile == "empty" || options.outFile == "empty") {
     	puts("Provide an input and output image!");
 		printUsage();
     }
