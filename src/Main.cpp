@@ -16,7 +16,7 @@ void printUsage() {
     puts("\t-k: K from Felzenszwalb algorithm (default: 200)");
     puts("\t-E: sigma for Gaussian filter (default: 1.0)");
     puts("\t-w: Number of iterations to perform during warmup (default: 1)");
-    puts("\t-s: Number of iterations to perform during benchmarking (default: 10)");
+    puts("\t-b: Number of iterations to perform during benchmarking (default: 10)");
     puts("\t-c: Use host side kernel launches instead of dynamic parallelism");
     puts("\t-s: Show the generated images");
     exit(1);
@@ -104,7 +104,7 @@ int main(int argc, char **argv)
     const Options options = handleParams(argc, argv);
 
     cv::Mat image = imread(options.inFile, cv::IMREAD_COLOR);
-    std::cout << image.rows * image.cols << std::endl;
+    //std::cout << image.rows * image.cols << std::endl;
 
     char *segmented_img;
 
