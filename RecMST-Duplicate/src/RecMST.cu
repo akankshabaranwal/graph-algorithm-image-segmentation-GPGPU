@@ -342,7 +342,7 @@ void createGraph(Mat image) {
 	// Create graphs. Kernels executed in different streams for concurrency
 	dim3 encode_threads;
 	dim3 encode_blocks;
-	SetImageGridThreadLen(no_of_rows, no_of_cols, no_of_vertices, &encode_threads, &encode_blocks);
+	SetImageGridThreadLen(no_of_rows, no_of_cols, no_of_vertices_orig, &encode_threads, &encode_blocks);
 
     int num_of_blocks, num_of_threads_per_block;
 
@@ -584,28 +584,32 @@ void HPGMST()
 }
 
 
-void writeComponents(std::vector<unsigned int*>& d_hierarchy_levels, std::vector<int>& hierarchy_level_sizes) {
-	// Write back hierarchy output
+void writeComponents(std::vector<unsigned int*>& d_hierarchy_levels, std::vector<int>& hierarchy_level_sizes, std::string outFile) {
+	int time;
+	std::chrono::high_resolution_clock::time_point start, end, start2, end2;
+	if (TIMING_MODE == TIME_PARTS) { // Start output creation timer
+		start = std::chrono::high_resolution_clock::now();
+	}
+
+	// Extract filepath without extension
+	size_t lastindex = outFile.find_last_of("."); 
+	string rawOutName = outFile.substr(0, lastindex);
+
 	// Generate random colors for segments
 	char *component_colours = (char *) malloc(no_of_vertices_orig * CHANNEL_SIZE * sizeof(char));
 
+
 	// Generate uniform [0, 1] float
 	curandGenerator_t gen;
-	
 	char* d_component_colours;
 	float *d_component_colours_float;
 	cudaMalloc( (void**) &d_component_colours_float, no_of_vertices_orig * CHANNEL_SIZE * sizeof(float));
 	cudaMalloc( (void**) &d_component_colours, no_of_vertices_orig * CHANNEL_SIZE * sizeof(char));
 
-
-	// Create a Mersenne Twister pseudorandom number generator
-	curandCreateGenerator(&gen , CURAND_RNG_PSEUDO_MTGP32);
-
-	// Set seed
-	curandSetPseudoRandomGeneratorSeed(gen, 1234ULL);
-
-	// Generate n floats on device
-	curandGenerateUniform(gen, d_component_colours_float, no_of_vertices_orig * CHANNEL_SIZE);
+	// Generate random floats
+	curandCreateGenerator(&gen , CURAND_RNG_PSEUDO_MTGP32); // Create a Mersenne Twister pseudorandom number generator
+	curandSetPseudoRandomGeneratorSeed(gen, 1234ULL); // Set seed
+	curandGenerateUniform(gen, d_component_colours_float, no_of_vertices_orig * CHANNEL_SIZE); // Generate n floats on device
 
 	// Convert floats to RGB char
 	int num_of_blocks, num_of_threads_per_block;
@@ -618,22 +622,14 @@ void writeComponents(std::vector<unsigned int*>& d_hierarchy_levels, std::vector
 	cudaFree(d_component_colours_float);
 
 
+	// Create hierarchy
 	unsigned int* d_prev_level_component;
-	cudaMalloc( (void**) &d_prev_level_component, sizeof(unsigned int)*no_of_vertices_orig);
+	cudaMalloc((void**) &d_prev_level_component, sizeof(unsigned int)*no_of_vertices_orig);
 
 	dim3 threads_pixels;
     dim3 grid_pixels;
-    if (no_of_vertices_orig < 1024) {
-        threads_pixels.x = no_of_rows;
-        threads_pixels.y = no_of_cols;
-        grid_pixels.x = 1;
-        grid_pixels.y = 1;
-    } else {
-        threads_pixels.x = 32;
-        threads_pixels.y = 32;
-        grid_pixels.x = no_of_rows / 32 + 1;
-        grid_pixels.y = no_of_cols / 32 + 1;
-    }
+	SetImageGridThreadLen(no_of_rows, no_of_cols, no_of_vertices_orig, &threads_pixels, &grid_pixels);
+
     InitPrevLevelComponents<<<grid_pixels, threads_pixels, 0>>>(d_prev_level_component, no_of_rows, no_of_cols);
 
     char* d_output_image;
@@ -647,18 +643,36 @@ void writeComponents(std::vector<unsigned int*>& d_hierarchy_levels, std::vector
 		CreateLevelOutput<<< grid_pixels, threads_pixels, 0>>>(d_output_image, d_component_colours, d_level, d_prev_level_component, no_of_rows, no_of_cols);
 	    cudaMemcpy(output, d_output_image, no_of_rows*no_of_cols*CHANNEL_SIZE*sizeof(char), cudaMemcpyDeviceToHost);
 
-		cv::Mat output_img = cv::Mat(no_of_rows, no_of_cols, CV_8UC3, output);
-		printf("Writing segmented_%d.png\n", l);
-		imwrite("segmented_" + std::to_string(l) + ".png", output_img);
-		//cudaFree(d_level);
 
+		if (TIMING_MODE == TIME_PARTS) { // Start output writing timer
+			start2 = std::chrono::high_resolution_clock::now();
+		}
+
+		cv::Mat output_img = cv::Mat(no_of_rows, no_of_cols, CV_8UC3, output);
+		fprintf(stderr, "Writing " + rawOutName + "_" + std::to_string(l) + ".png\n");
+		imwrite(rawOutName + "_" + std::to_string(l) + ".png", output_img);
+
+
+		if (TIMING_MODE == TIME_PARTS) { // Subtract writing time from output time
+			cudaDeviceSynchronize();
+			end2 = std::chrono::high_resolution_clock::now();
+			time -= std::chrono::duration_cast<std::chrono::microseconds>(end2 - start2).count();
+		}
+	}
+
+
+	if (TIMING_MODE == TIME_PARTS) { // End segmentation timer
+		cudaDeviceSynchronize();
+		end = std::chrono::high_resolution_clock::now();
+		time += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+		timings.push_back(time);
 	}
 
 	// Free memory
-	//cudaFree(d_component_colours_float);
 	cudaFree(d_component_colours);
 	cudaFree(d_prev_level_component);
 	cudaFree(d_output_image);
+	free(output);
 }
 
 void setGraphParams(unsigned int rows, unsigned int cols) {
@@ -678,7 +692,7 @@ void clearHierarchy(std::vector<unsigned int*>& d_hierarchy_levels, std::vector<
         hierarchy_level_sizes.clear();
 }
 
-void segment(Mat image) {
+void segment(Mat image, std::string outFile) {
 	std::chrono::high_resolution_clock::time_point start, end;
 
 	if (TIMING_MODE == TIME_COMPLETE) { // Start whole execution timer
@@ -728,12 +742,12 @@ void segment(Mat image) {
 		timings.push_back(time);
 	}
 
-	// Write segmentation hierarchy
-	writeComponents(d_hierarchy_levels, hierarchy_level_sizes);
-	clearHierarchy(d_hierarchy_levels, hierarchy_level_sizes);
-
 	// Free GPU segmentation memory
 	FreeMem();
+
+	// Write segmentation hierarchy
+	writeComponents(d_hierarchy_levels, hierarchy_level_sizes, outFile);
+	clearHierarchy(d_hierarchy_levels, hierarchy_level_sizes);
 }
 
 
@@ -754,14 +768,13 @@ void printUsage() {
 
 void printCSVHeader() {
 	if (TIMING_MODE == TIME_COMPLETE) {
-		 printf("total\n");
+		 printf("total\n"); // Excluding output: gaussian + graph creation + segmentation
 	} else {
 		printf("gaussian, graph creation, segmentation, output\n");
 	}
 }
 
 void printCSVLine() {
-	printf("timing size %d\n", timings.size());
 	if (timings.size() > 0) {
 		printf("%d", timings[0]);
 		for (int i = 1; i < timings.size(); i++) {
@@ -821,8 +834,8 @@ const Options handleParams(int argc, char **argv) {
         }
         break;
     }
-    if (options.inFile == "empty") {
-    	puts("Provide an image!");
+    if (options.inFile == "empty" || options.outFile == "empty") {
+    	puts("Provide an input and output image!");
 		printUsage();
     }
 
@@ -842,13 +855,13 @@ int main(int argc, char **argv)
 
 	// Warm up
     for (int i = 0; i < options.warmupIterations; i++) {
-    	segment(image);
+    	segment(image, options.outFile);
     }
 
     // Benchmark
     timings.clear();
     for (int i = 0; i < options.benchmarkIterations; i++) {
-        segment(image);
+        segment(image, options.outFile);
         printCSVLine();
     }
 
