@@ -235,66 +235,91 @@ __global__ void CreateUVWArray(int32_t *BitEdgeList, int32_t *OnlyEdge, int numE
     }
 }
 
-//FIXME: Add code for clearing of flag array before every place it has been used
-int SortUVW(int32_t *UV, int32_t *W, int numEdges, int *flag3)
+__global__ void CreateFlag3Array(int32_t *UV, int32_t *W, int numEdges, int *flag3, int *MinMaxScanArray)
 {
-    //12.2
-    thrust::sort_by_key(thrust::device, UV, UV + numEdges, W);
-    cudaDeviceSynchronize();
-    printf("\n Printing UVW array after SortUVW: ");
-    for(int i = 0; i< numEdges;i++)
-    {
-        printf("%d %d %d , ", UV[i]>>16, UV[i]%(2<<15), W[i]);
-    }
-    printf("\n");
 
-    int new_edge_size = numEdges;
     int32_t prev_supervertexid_u, prev_supervertexid_v, supervertexid_u, supervertexid_v;
-    // TODO: Check how to replace the min(newEdges part so that this can be parallelized.
-    flag3[0]=0;
-    for(int i=1;i<numEdges;i++)
+    int32_t tidx = blockIdx.x*blockDim.x+threadIdx.x;
+    int32_t num_threads = gridDim.x * blockDim.x;
+    MinMaxScanArray[tidx]=0;
+    for (uint idx = tidx+1; idx < numEdges; idx += num_threads)
     {
-        prev_supervertexid_u = UV[i-1]>>16; //TODO: Check if this needs to be 15 or 16
-        prev_supervertexid_v = UV[i-1] %(2<<15);
+        prev_supervertexid_u = UV[idx-1]>>16; //TODO: Check if this needs to be 15 or 16
+        prev_supervertexid_v = UV[idx-1] %(2<<15);
 
-        supervertexid_u = UV[i]>>16;
-        supervertexid_v = UV[i]%(2<<15);
-        flag3[i] = 0;
-        if((supervertexid_u!=INT_MAX) and (supervertexid_v!=INT_MAX) and (UV[i]!=INT_MAX))
+        supervertexid_u = UV[idx]>>16;
+        supervertexid_v = UV[idx]%(2<<15);
+        flag3[idx] = 0;
+        MinMaxScanArray[idx]=0;
+        if((supervertexid_u!=32767) and (supervertexid_v!=65536))
         {
-            if((prev_supervertexid_u !=supervertexid_v) || (prev_supervertexid_v!=supervertexid_v))
+            if((prev_supervertexid_u !=supervertexid_u) || (prev_supervertexid_v!=supervertexid_v))
             {
-                flag3[i] = 1;
+                flag3[idx] = 1;
             }
             else
             {
-                flag3[i] = 0;
-                new_edge_size = min(new_edge_size, i); // Basically we are setting new_edge_size to the last index wherever the value is not max.
+                flag3[idx] = 0;
+                MinMaxScanArray[idx]=idx;
             }
         }
     }
-    return new_edge_size;
 }
 
-//FIXME: The create flag array kernel calls are redundant. Replace them with a single kernel.
-__global__ void CreateFlag4Array(int *Representative, int *Flag4, int numSegments)
+__global__ void CreateNewEdgeList(int *BitEdgeList, int *compactLocations, int *newOnlyE, int*newOnlyW, int *UV, int *W, int *flag3, int new_edge_size, int *new_E_size, int *new_V_size, int *expanded_u)
 {
-    int vertex = blockIdx.x*blockDim.x+threadIdx.x;
-    if((vertex<numSegments)&&(vertex>0))
+    int32_t supervertexid_u, supervertexid_v;
+    int32_t tidx = blockIdx.x*blockDim.x+threadIdx.x;
+    int32_t num_threads = gridDim.x * blockDim.x;
+    int32_t edgeWeight;
+    int newLocation;
+
+    for (uint idx = tidx+1; idx < new_edge_size; idx += num_threads)
     {
-        if(Representative[vertex] != Representative[vertex-1])
-            Flag4[vertex]=1;
-        else
-            Flag4[vertex]=0;
+        new_E_size[idx] = 0;
+        new_V_size[idx] = 0;
+        if(flag3[idx])
+        {
+            supervertexid_u =UV[idx]>>16;
+            supervertexid_v =UV[idx]%(2<<15);
+            edgeWeight = W[idx];
+            newLocation = compactLocations[idx];
+            if((supervertexid_u!=32767) and (supervertexid_v!=65535))
+            {
+                newOnlyE[newLocation] = supervertexid_v;
+                newOnlyW[newLocation] = edgeWeight;
+                BitEdgeList[newLocation] = (edgeWeight * (2<<15)) + supervertexid_v;
+                expanded_u[newLocation] = supervertexid_u;
+                new_E_size[idx] = newLocation +1;
+                new_V_size[idx] = supervertexid_v +1;
+            }
+        }
+    }
+}
+
+__global__ void CreateFlag4Array(int *expanded_u, int *Flag4, int numEdges)
+{
+
+    int32_t tidx = blockIdx.x*blockDim.x+threadIdx.x;
+    int32_t num_threads = gridDim.x * blockDim.x;
+
+    for (uint idx = tidx+1; idx < numEdges; idx += num_threads)
+    {
+        Flag4[idx]=0;
+        if(expanded_u[idx-1]!=expanded_u[idx])
+        {
+            Flag4[idx]=1;
+        }
     }
 }
 
 __global__ void CreateNewVertexList(int *newVertexList, int *Flag4, int new_E_size, int *expanded_u)
 {
-    int idx = blockIdx.x*blockDim.x+threadIdx.x;
+    int32_t tidx = blockIdx.x*blockDim.x+threadIdx.x;
+    int32_t num_threads = gridDim.x * blockDim.x;
     int32_t id_u;
 
-    if(idx<new_E_size)
+    for (uint idx = tidx+1; idx < new_E_size; idx += num_threads)
     {
      if(Flag4[idx] == 1)
      {
@@ -307,7 +332,6 @@ __global__ void CreateNewVertexList(int *newVertexList, int *Flag4, int new_E_si
 //Create new edge list and vertex list
 void CreateNewEdgeVertexList(int *newBitEdgeList, int *newVertexList, int *UV, int *W, int *flag3, int new_edge_size, int *new_E_size, int *new_V_size, int *flag4)
 {
-    //Check if this can be parallelized? can we move the min (new_edge_size) part to somewhere before?
     int32_t supervertex_id_u, supervertex_id_v;
 
     //13.1 Create the Compact new edge list
@@ -317,10 +341,6 @@ void CreateNewEdgeVertexList(int *newBitEdgeList, int *newVertexList, int *UV, i
 
     //TODO: You can rename flag3 to compact_locations, so this way you dont need 2 arrays
     thrust::inclusive_scan(flag3, flag3 + new_edge_size, compact_locations, thrust::plus<int>());
-    //FIXME: Need to allocate memory for newBitEdgeList and newVertexList appropriately.
-
-    //int new_E_size = 0;
-    //int new_V_size =0;
 
     int *expand_u;
     cudaMallocManaged(&expand_u, new_edge_size * sizeof(int32_t));
@@ -328,8 +348,6 @@ void CreateNewEdgeVertexList(int *newBitEdgeList, int *newVertexList, int *UV, i
     int edge_weight;
     int new_location;
 
-    //new_V_size=0;
-    //new_E_size = 0;
     for(int i=0;i < new_edge_size; i++)
     {
         if(flag3[i])

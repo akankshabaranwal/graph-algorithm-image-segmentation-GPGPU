@@ -38,7 +38,10 @@ __global__ void CreateSuperVertexArray(int *SuperVertexId, int *Vertex, int *Fla
 void CreateUid(int *uid, int *flag, int numElements);
 __global__ void RemoveSelfEdges(int *BitEdgeList, int numEdges, int *uid, int *SuperVertexId);
 __global__ void CreateUVWArray(int32_t *BitEdgeList, int32_t *OnlyEdge, int numEdges, int *uid, int *SuperVertexId, int *UV, int *W);
-int SortUVW(int32_t *UV, int *W, int numEdges, int *flag3);
-int CreateNewEdgeVertexList(int *newBitEdgeList, int *newVertexList, int *UV, int *W, int *flag3, int new_edge_size, int *flag4);
+__global__ void CreateFlag3Array(int32_t *UV, int32_t *W, int numEdges, int *flag3, int *MinMaxScanArray);
+__global__ void CreateNewEdgeList( int *BitEdgeList, int *compactLocations, int *newOnlyE, int*newOnlyW, int *UV, int *W, int *flag3, int new_edge_size, int *new_E_size, int *new_V_size, int *expanded_u);
+__global__ void CreateFlag4Array(int *expanded_u, int *Flag4, int numEdges);
+__global__ void CreateNewVertexList(int *newVertexList, int *Flag4, int new_E_size, int *expanded_u);
+
 
 #endif //FELZENSZWALB_FASTMST_H

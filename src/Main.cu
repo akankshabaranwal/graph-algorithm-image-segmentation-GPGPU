@@ -34,7 +34,9 @@ int main(int argc, char **argv)
 
     //Convert image to graph
     int32_t *VertexList, *OnlyEdge, *OnlyVertex, *OnlyWeight, *BitEdgeList, *FlagList, *MinSegmentedList, *tempArray, *NWE, *Successor, *newSuccessor, *L, *Representative, *VertexIds;
+    int32_t *MinMaxScanArray;
     int32_t *new_E_size, *new_V_size;
+    int32_t *compactLocations, *expanded_u;
 
     edge *EdgeList;
 
@@ -60,6 +62,10 @@ int main(int argc, char **argv)
     cudaMallocManaged(&VertexIds, numVertices * sizeof(int32_t));
     cudaMallocManaged(&new_E_size, numEdges * sizeof(int32_t));
     cudaMallocManaged(&new_V_size, numEdges * sizeof(int32_t));
+    cudaMallocManaged(&MinMaxScanArray, numEdges * sizeof(int32_t));
+    cudaMallocManaged(&compactLocations, numEdges * sizeof(int32_t));
+    cudaMallocManaged(&expanded_u, numEdges * sizeof(int32_t));
+
 
     int *Flag2;
     cudaMallocManaged(&Flag2, numEdges * sizeof(int32_t));
@@ -107,6 +113,8 @@ int main(int argc, char **argv)
     cudaMallocManaged(&W,numEdges*sizeof(int64_t));
     int32_t *flag3;
     cudaMallocManaged(&flag3,numEdges*sizeof(int32_t));
+    int32_t *Flag4;
+    cudaMallocManaged(&Flag4,numEdges*sizeof(int32_t));
 
     numEdges = ImagetoGraphSerial(image, EdgeList, VertexList, BitEdgeList);
 
@@ -338,7 +346,7 @@ int main(int argc, char **argv)
         cudaDeviceSynchronize();
 
         printf("\n Uid\n");
-        for(int i =0; i< numVertices; i++)
+        for(int i =0; i< numEdges; i++)
         {
             printf("%d ,", uid[i]);
         }
@@ -383,16 +391,57 @@ int main(int argc, char **argv)
             printf("%d %d %d , ", UV[i]>>16, UV[i]%(2<<15), W[i]);
         }
         printf("\n");
+        //12.2 Sort the UVW Array
+        thrust::sort_by_key(thrust::device, UV, UV + numEdges, W);
+        cudaDeviceSynchronize();
+        printf("\n Printing UVW array after SortUVW: ");
+        for(int i = 0; i< numEdges;i++)
+        {
+            printf("%d %d %d , ", UV[i]>>16, UV[i]%(2<<15), W[i]);
+        }
+        printf("\n");
+        flag3[0]=0;
+        CreateFlag3Array<<<numBlock,numthreads>>>(UV, W, numEdges, flag3, MinMaxScanArray);
 
-        int new_edge_size = SortUVW(UV, W, numEdges, flag3);
+        int *new_edge_size = thrust::max_element(thrust::device, MinMaxScanArray, MinMaxScanArray + numEdges);
+        cudaDeviceSynchronize();
+        printf("new_edge_size %d", *new_edge_size);
+        thrust::inclusive_scan(flag3, flag3 + *new_edge_size, compactLocations, thrust::plus<int>());
+        cudaDeviceSynchronize();
+
+        printf("Printing flag3 array\n");
+        for(int i = 0; i< numEdges;i++)
+        {
+            printf("%d, ", flag3[i]);
+        }
+        printf("\n");
+        CreateNewEdgeList<<<numBlock,numthreads>>>( BitEdgeList, compactLocations, OnlyEdge, OnlyWeight, UV, W, flag3, *new_edge_size, new_E_size, new_V_size, expanded_u);
+        int *new_E_sizeptr = thrust::max_element(thrust::device, new_E_size, new_E_size + numEdges);
+        int *new_V_sizeptr = thrust::max_element(thrust::device, new_V_size, new_V_size + numEdges);
+        cudaDeviceSynchronize();
+        numVertices = *new_V_sizeptr;
+        numEdges = *new_E_sizeptr;
+        printf("%d, %d ", *new_E_sizeptr, *new_V_sizeptr);
+        CreateFlag4Array<<<numBlock,numthreads>>>(expanded_u, Flag4, *new_E_size);
+        CreateNewVertexList<<<numBlock,numthreads>>>(OnlyVertex, Flag4, *new_E_size, expanded_u);
+
+        //12.3 Create Flag3 array. This gives the new_edge_size variable
+
+        //13.1 Create CompactLocations array based on Flag3 above. Scan
+
+        //13.2 Create expanded_u array
+
 
         /*
         //flag3 could be renamed to compact location
         numVertices = CreateNewEdgeVertexList(BitEdgeList, VertexList, UV, W, flag3, new_edge_size, flag4);
 
-        //numEdges = new_edge_size; //This is incorrect. Need to return new_E_size as well
-        printf("\n numVertices: %d numEdges %d", numVertices, numEdges);*/
-        numVertices = 1;
+        //numEdges = new_edge_size; //This is incorrect. Need to return new_E_size as well*/
+        cudaDeviceSynchronize();
+
+        printf("\n numVertices: %d numEdges %d", numVertices, numEdges);
+
+        //numVertices = 1;
     }
 
     return 0;
