@@ -14,6 +14,7 @@ void printUsage() {
     puts("\t-i: Path to input file (default: data/beach.png)");
     puts("\t-o: Path to output file (default: segmented.png)");
     puts("\t-k: K from Felzenszwalb algorithm (default: 200)");
+    puts("\t-E: sigma for Gaussian filter (default: 1.0)");
     puts("\t-w: Number of iterations to perform during warmup (default: 1)");
     puts("\t-s: Number of iterations to perform during benchmarking (default: 10)");
     puts("\t-c: Use host side kernel launches instead of dynamic parallelism");
@@ -25,7 +26,7 @@ const Options handleParams(int argc, char **argv) {
     Options options = Options();
     for(;;)
     {
-        switch(getopt(argc, argv, "chsi:o:w:b:k:"))
+        switch(getopt(argc, argv, "chsi:o:w:b:k:E:"))
         {
             case 'c': {
                 options.useCPU = true;
@@ -55,6 +56,10 @@ const Options handleParams(int argc, char **argv) {
                 options.k = atoi(optarg);
                 continue;
             }
+            case 'E': {
+                options.sigma = atof(optarg);
+                continue;
+            }
             case '?':
             case 'h':
             default : {
@@ -80,7 +85,7 @@ char *segment_wrapper(cv::Mat image, Options options, bool isBenchmarking) {
 
     // Gaussian blur
     dev_image.upload(image);
-    filter = cv::cuda::createGaussianFilter(CV_8UC3, CV_8UC3, cv::Size(5, 5), 1.0);
+    filter = cv::cuda::createGaussianFilter(CV_8UC3, CV_8UC3, cv::Size(5, 5), options.sigma);
     filter->apply(dev_image, dev_output);
 
     // Segmentation
@@ -89,7 +94,7 @@ char *segment_wrapper(cv::Mat image, Options options, bool isBenchmarking) {
     // Stop timer
     end = std::chrono::high_resolution_clock::now();
 
-    auto time_span = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+    auto time_span = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
     if (isBenchmarking) std::cout << time_span.count() << std::endl;
     return img;
 }

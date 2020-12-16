@@ -34,7 +34,7 @@ void find_min_edges_sort(uint4 vertices[], uint2 edges[], min_edge min_edges[], 
     uint index = blockDim.x * blockIdx.x + threadIdx.x;
     uint num_threads = gridDim.x * blockDim.x;
     for (uint tid = index; tid < vertices_length; tid += num_threads) {
-        uint4 vertice = vertices[tid];
+        uint vertice_comp = vertices[tid].y;
         min_edge min;
         min.weight = UINT_MAX;
         min.src_comp = 0;
@@ -43,8 +43,8 @@ void find_min_edges_sort(uint4 vertices[], uint2 edges[], min_edge min_edges[], 
             // Maybe it would be better to just check if it's not in the same component? We would not need to remove internal edges
             if (edge.x != 0) {
                 if (edge.y < min.weight) {
-                    min.src_comp = vertice.y;
-                    min.dest_comp = vertices[edge.x - 1].y; //edge.z;
+                    min.src_comp = vertice_comp;
+                    min.dest_comp = vertices[edge.x - 1].y;
                     min.weight = edge.y;
                 }
             }
@@ -233,7 +233,6 @@ void merge(uint4 vertices[], min_edge min_edges[], uint *num_components, uint up
         uint4 dest = vertices[min_edge.dest_comp - 1];
         uint src_diff = src.w + (k / src.z);
         uint dest_diff = dest.w + (k / dest.z);
-        __syncthreads();
 
         if (min_edge.weight <= min(src_diff, dest_diff)) {
             atomicSub_system(num_components, 1);
