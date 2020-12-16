@@ -212,3 +212,7 @@ Temporary Items
 
 # CMake build folder in instructions
 out/
+
+# Python
+__pycache__
+.ipynb_checkpoints
