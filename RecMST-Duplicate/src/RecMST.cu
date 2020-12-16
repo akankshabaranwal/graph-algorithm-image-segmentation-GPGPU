@@ -649,7 +649,7 @@ void writeComponents(std::vector<unsigned int*>& d_hierarchy_levels, std::vector
 		}
 
 		cv::Mat output_img = cv::Mat(no_of_rows, no_of_cols, CV_8UC3, output);
-		fprintf(stderr, "Writing " + rawOutName + "_" + std::to_string(l) + ".png\n");
+		fprintf(stderr, "Writing " + rawOutName.c_str() + "_" + std::to_string(l).c_str() + ".png\n");
 		imwrite(rawOutName.c_str() + "_" + std::to_string(l).c_str() + ".png", output_img);
 
 
