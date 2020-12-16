@@ -124,6 +124,7 @@ int cur_hierarchy_size; 									// Size current hierarchy
 
 enum timing_mode {NO_TIME, TIME_COMPLETE, TIME_PARTS};
 enum timing_mode TIMING_MODE;
+std::vector<double> timings;
 
 ////////////////////////////////////////////////
 // Debugging helper functions
@@ -305,34 +306,38 @@ void FreeMem()
 // Create graph in compressed adjacency list
 ////////////////////////////////////////////////
 void createGraph(Mat image) {
-	struct timeval t1, t2;
+	std::chrono::high_resolution_clock::time_point start, end;
 
-   	GpuMat dev_image, d_blurred;; 	// Released automatically in destructor
+   	GpuMat dev_image, d_blurred;; 	 // Released automatically in destructor
    	cv::Ptr<cv::cuda::Filter> filter;
    	
-	if (TIMING_MODE == TIME_PARTS) {
-		gettimeofday(&t1, 0);
+
+	if (TIMING_MODE == TIME_PARTS) { // Start gaussian filter timer
+		start = std::chrono::high_resolution_clock::now();
 	}
+
 
 	// Apply gaussian filter
     dev_image.upload(image);
     filter = cv::cuda::createGaussianFilter(CV_8UC3, CV_8UC3, cv::Size(5, 5), 1.0);
     filter->apply(dev_image, d_blurred);
 	
-	if (TIMING_MODE == TIME_PARTS) {
+
+	if (TIMING_MODE == TIME_PARTS) { // End gaussian filter timer
 		cudaDeviceSynchronize();
-		gettimeofday(&t2, 0);
-		double time = (1000000.0*(t2.tv_sec-t1.tv_sec) + t2.tv_usec-t1.tv_usec)/1000.0;
-		printf("Gaussian time:  %3.1f ms \n", time);
+		end = std::chrono::high_resolution_clock::now();
+		int time = (int) std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+		timings.push_back(time);
 	}
 
-   	// Allocate GPU segmentation memory
+
+	if (TIMING_MODE == TIME_PARTS) { // Start graph creation timer
+		start = std::chrono::high_resolution_clock::now();
+	}
+
+	// Allocate GPU segmentation memory
 	Init();
 
-	// Create graph
-	if (TIMING_MODE == TIME_PARTS) {
-		gettimeofday(&t1, 0);
-	}
 
 	// Create graphs. Kernels executed in different streams for concurrency
 	dim3 encode_threads;
@@ -354,25 +359,26 @@ void createGraph(Mat image) {
 
     size_t pitch = d_blurred.step;
 
-    // Inner graph
-    createInnerGraphKernel<<< encode_blocks, encode_threads>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
+    // Create inner graph
+    createInnerGraphKernel<<< encode_blocks, encode_threads, 0>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
 
-    // Outer graph
-   	createFirstRowGraphKernel<<< grid_row, threads_row>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
-   	createLastRowGraphKernel<<< grid_row, threads_row>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
+    // Create outer graph
+   	createFirstRowGraphKernel<<< grid_row, threads_row, 1>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
+   	createLastRowGraphKernel<<< grid_row, threads_row, 2>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
 
-   	createFirstColumnGraphKernel<<< grid_col, threads_col>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
-   	createLastColumnGraphKernel<<< grid_col, threads_col>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
+   	createFirstColumnGraphKernel<<< grid_col, threads_col, 3>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
+   	createLastColumnGraphKernel<<< grid_col, threads_col, 4>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
 
-    // Corners
-	createCornerGraphKernel<<< grid_corner, threads_corner>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
+    // Create corners
+	createCornerGraphKernel<<< grid_corner, threads_corner, 5>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
 	
 	cudaDeviceSynchronize(); // Needed to synchronise streams!
 
 	if (TIMING_MODE == TIME_PARTS) {
-		gettimeofday(&t2, 0);
-		double time = (1000000.0*(t2.tv_sec-t1.tv_sec) + t2.tv_usec-t1.tv_usec)/1000.0;
-		printf("Graph creation time:  %3.1f ms \n", time);
+		//cudaDeviceSynchronize();
+		end = std::chrono::high_resolution_clock::now();
+		int time = (int) std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+		timings.push_back(time);
 	}
 
 
@@ -680,6 +686,81 @@ void writeComponents(std::vector<unsigned int*>& d_hierarchy_levels, std::vector
 	cudaFree(d_output_image);
 }
 
+void setGraphParams(unsigned int rows, unsigned int cols) {
+	no_of_rows = rows;
+    no_of_cols = cols;
+	no_of_vertices = no_of_rows * no_of_cols;
+	no_of_vertices_orig = no_of_vertices;
+	no_of_edges = 8 + 6 * (no_of_cols - 2) + 6 * (no_of_rows - 2) + 4 * (no_of_cols - 2) * (no_of_rows - 2);
+	no_of_edges_orig = no_of_edges;
+}
+
+void clearHierarchy(std::vector<unsigned int*>& d_hierarchy_levels, std::vector<int>& hierarchy_level_sizes) {
+	for (int l = 0; l < d_hierarchy_levels.size(); l++) {
+			cudaFree(d_hierarchy_levels[l]);
+		}
+        d_hierarchy_levels.clear();
+        hierarchy_level_sizes.clear();
+}
+
+void segment(Mat image) {
+	std::chrono::high_resolution_clock::time_point start, end;
+
+	if (TIMING_MODE == TIME_COMPLETE) { // Start whole execution timer
+		start = std::chrono::high_resolution_clock::now();
+	}
+
+
+	// Reset num vertices in edges in case of multiple iterations
+	no_of_edges = no_of_edges_orig;
+	no_of_vertices = no_of_vertices_orig;
+
+	std::vector<unsigned int*> d_hierarchy_levels;	// Vector containing pointers to all hierarchy levels (don't dereference on CPU, device pointers)
+	std::vector<int> hierarchy_level_sizes;			// Size of each hierarchy level
+
+	// Graph creation
+	createGraph(image);
+
+
+	if (TIMING_MODE == TIME_PARTS) { // Start segmentation timer
+		start = std::chrono::high_resolution_clock::now();
+	}
+	
+	// Segmentation
+	do
+	{
+	    HPGMST();
+
+	    d_hierarchy_levels.push_back(d_new_supervertexIDs);
+	    hierarchy_level_sizes.push_back(cur_hierarchy_size);
+	    cudaMalloc( (void**) &d_new_supervertexIDs, sizeof(unsigned int)*cur_hierarchy_size);
+
+	    printf(stderr, "Vertices: %d\n", no_of_vertices);
+	}
+	while(no_of_vertices>1);
+
+	if (TIMING_MODE == TIME_PARTS) { // End segmentation timer
+		cudaDeviceSynchronize();
+		end = std::chrono::high_resolution_clock::now();
+		int time = (int) std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+		timings.push_back(time);
+	}
+
+	if (TIMING_MODE == TIME_COMPLETE) { // End whole execution timer
+		cudaDeviceSynchronize();
+		end = std::chrono::high_resolution_clock::now();
+		int time = (int) std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+		timings.push_back(time);
+	}
+
+	// Write segmentation hierarchy
+	writeComponents(d_hierarchy_levels, hierarchy_level_sizes);
+	clearHierarchy(d_hierarchy_levels, hierarchy_level_sizes);
+
+	// Free GPU segmentation memory
+	FreeMem();
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // Program main
@@ -694,6 +775,26 @@ void printUsage() {
     puts("\t-b: Number of iterations to perform during benchmarking");
     puts("\t-t: Timing mode: complete / parts (default complete)");
     exit(1);
+}
+
+void printCSVHeader() {
+	if (TIMING_MODE == TIME_COMPLETE) {
+		 printf("total\n");
+	} else {
+		printf("gaussian, graph creation, segmentation, output\n");
+	}
+}
+
+void printCSVLine() {
+	if (timings.size() > 0) {
+		printf("%d", timings[0]);
+		for (int i = 1; i < timings.size(); i++) {
+			printf(",%d", timings[0]);
+		}
+		printf("\n");
+		timings.clear();
+	}
+	
 }
 
 const Options handleParams(int argc, char **argv) {
@@ -752,92 +853,16 @@ const Options handleParams(int argc, char **argv) {
     return options;
 }
 
-void setGraphParams(unsigned int rows, unsigned int cols) {
-	no_of_rows = rows;
-    no_of_cols = cols;
-	no_of_vertices = no_of_rows * no_of_cols;
-	no_of_vertices_orig = no_of_vertices;
-	no_of_edges = 8 + 6 * (no_of_cols - 2) + 6 * (no_of_rows - 2) + 4 * (no_of_cols - 2) * (no_of_rows - 2);
-	no_of_edges_orig = no_of_edges;
-}
-
-void clearHierarchy(std::vector<unsigned int*>& d_hierarchy_levels, std::vector<int>& hierarchy_level_sizes) {
-	for (int l = 0; l < d_hierarchy_levels.size(); l++) {
-			cudaFree(d_hierarchy_levels[l]);
-		}
-        d_hierarchy_levels.clear();
-        hierarchy_level_sizes.clear();
-}
-
-void segment(Mat image) {
-	struct timeval t1, t2;
-
-	if (TIMING_MODE == TIME_COMPLETE) {
-		gettimeofday(&t1, 0);
-	}
-
-
-	// Reset num vertices in edges in case of multiple iterations
-	no_of_edges = no_of_edges_orig;
-	no_of_vertices = no_of_vertices_orig;
-
-	std::vector<unsigned int*> d_hierarchy_levels;	// Vector containing pointers to all hierarchy levels (don't dereference on CPU, device pointers)
-	std::vector<int> hierarchy_level_sizes;			// Size of each hierarchy level
-
-
-	// Graph creation
-	createGraph(image);
-
-
-	if (TIMING_MODE == TIME_PARTS) {
-		gettimeofday(&t1, 0);
-	}
-	
-	
-	// Segmentation
-	do
-	{
-	    HPGMST();
-
-	    d_hierarchy_levels.push_back(d_new_supervertexIDs);
-	    hierarchy_level_sizes.push_back(cur_hierarchy_size);
-	    cudaMalloc( (void**) &d_new_supervertexIDs, sizeof(unsigned int)*cur_hierarchy_size);
-
-	    printf("%d\n", no_of_vertices);
-	}
-	while(no_of_vertices>1);
-
-	if (TIMING_MODE == TIME_COMPLETE) {
-		cudaDeviceSynchronize();
-		gettimeofday(&t2, 0);
-		double time = (1000000.0*(t2.tv_sec-t1.tv_sec) + t2.tv_usec-t1.tv_usec)/1000.0;
-		printf("Total time:  %3.1f ms \n", time);
-	}
-
-	if (TIMING_MODE == TIME_PARTS) {
-		cudaDeviceSynchronize();
-		gettimeofday(&t2, 0);
-		double time = (1000000.0*(t2.tv_sec-t1.tv_sec) + t2.tv_usec-t1.tv_usec)/1000.0;
-		printf("Segmentation time:  %3.1f ms \n", time);
-	}
-
-	// Write segmentation hierarchy
-	writeComponents(d_hierarchy_levels, hierarchy_level_sizes);
-	clearHierarchy(d_hierarchy_levels, hierarchy_level_sizes);
-
-	// Free GPU segmentation memory
-	FreeMem();
-}
-
-
 int main(int argc, char **argv)
 {
     const Options options = handleParams(argc, argv);
 
     // Read image
     Mat image = imread(options.inFile, IMREAD_COLOR);
-    printf("Size of image obtained is: Rows: %d, Columns: %d, Pixels: %d\n", image.rows, image.cols, image.rows * image.cols);
+    printf(stderr, "Size of image obtained is: Rows: %d, Columns: %d, Pixels: %d\n", image.rows, image.cols, image.rows * image.cols);
    	setGraphParams(image.rows, image.cols);
+
+   	printCSVHeader();
 
 	// Warm up
     for (int i = 0; i < options.warmupIterations; i++) {
@@ -845,13 +870,11 @@ int main(int argc, char **argv)
     }
 
     // Benchmark
+    timings.clear();
     for (int i = 0; i < options.benchmarkIterations; i++) {
         segment(image);
-
+        printCSVLine();
     }
-
-
-	
 
     return 0;
 }
