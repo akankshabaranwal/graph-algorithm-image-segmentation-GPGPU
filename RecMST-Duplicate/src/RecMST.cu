@@ -641,7 +641,7 @@ void writeComponents(std::vector<unsigned int*>& d_hierarchy_levels, std::vector
 		std::string outfilename = rawOutName + std::string("_")  + std::to_string(l) + std::string(".png");
 		std::string outmessage = std::string("Writing ") + outfilename.c_str() + std::string("\n");
 
-		fprintf(stderr, "%s", outmessage);
+		fprintf(stderr, "%s", outmessage.c_str());
 		imwrite(outfilename, output_img);
 	}
 
