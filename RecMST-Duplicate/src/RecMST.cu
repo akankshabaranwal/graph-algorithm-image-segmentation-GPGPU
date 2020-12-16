@@ -761,10 +761,11 @@ void printCSVHeader() {
 }
 
 void printCSVLine() {
+	printf("timing size %d\n", timings.size());
 	if (timings.size() > 0) {
 		printf("%d", timings[0]);
 		for (int i = 1; i < timings.size(); i++) {
-			printf(",%d", timings[0]);
+			printf(",%d", timings[i]);
 		}
 		printf("\n");
 		timings.clear();
@@ -849,7 +850,6 @@ int main(int argc, char **argv)
     for (int i = 0; i < options.benchmarkIterations; i++) {
         segment(image);
         printCSVLine();
-        printf("csv line\n");
     }
 
     return 0;
