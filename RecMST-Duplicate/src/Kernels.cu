@@ -593,7 +593,7 @@ __global__ void PropagateRepresentativeID(unsigned int *d_successor, unsigned in
 		unsigned int succ = d_successor[tid];
 		unsigned int newsucc = d_successor[succ];
 		if(succ!=newsucc) { //Execution goes on
-            // printf("d_successor_copy[%d]=%d \n", tid, newsucc); // TODO
+            printf("d_successor_copy[%d]=%d \n", tid, newsucc); // TODO
 			d_successor_copy[tid] = newsucc; //cannot have input and output in the same array!!!!!
 			*d_succchange=true;
 		}
