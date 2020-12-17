@@ -492,7 +492,7 @@ __global__ void AppendKernel_1(unsigned long long int *d_segmented_min_scan_inpu
 		unsigned long long int val=d_weight[tid];
 		val=val<<MOVEBITS;
 		val=val|d_edges[tid];
-        val<<MOVEBITS; // TODO
+        val = val<<MOVEBITS; // TODO
         val = val|tid; // TODO
 		d_segmented_min_scan_input[tid]=val;
 	}
