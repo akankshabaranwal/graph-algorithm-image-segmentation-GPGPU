@@ -95,7 +95,7 @@ __global__ void createCornerGraphKernel(unsigned char *image, unsigned int *d_ve
 	        other_g = image[other_img_idx + 1];
 	        other_b = image[other_img_idx + 2];
 	    	distance = SCALE * sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
-	    	d_weight[write_offset+1] = (unsigned int) round(distance);
+            d_weight[write_offset] = (unsigned int) round(distance);
     	}
        
 
@@ -108,7 +108,7 @@ __global__ void createCornerGraphKernel(unsigned char *image, unsigned int *d_ve
 	        other_g = image[other_img_idx + 1];
 	        other_b = image[other_img_idx + 2];
 	    	distance = SCALE * sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
-	    	d_weight[write_offset+2] = (unsigned int) round(distance);
+	    	d_weight[write_offset+1] = (unsigned int) round(distance);
     	}
         
 
@@ -121,7 +121,7 @@ __global__ void createCornerGraphKernel(unsigned char *image, unsigned int *d_ve
 	        other_g = image[other_img_idx + 1];
 	        other_b = image[other_img_idx + 2];
 	    	distance = SCALE * sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
-	    	d_weight[write_offset+3] = (unsigned int) round(distance);
+	    	d_weight[write_offset+1] = (unsigned int) round(distance);
     	}
 	}
 }
