@@ -203,7 +203,7 @@ __global__ void createLastRowGraphKernel(unsigned char *image, unsigned int *d_v
     	unsigned int first_row_offset = 4 + 3 * (no_of_cols-2);
     	unsigned int extra_cur_row_offset = 3 + (row-1) * (6 + 4 * (no_of_cols-2));
     	unsigned int extra_cur_col_offset = 3 * (col-1);
-    	unsigned int write_offset = first_row_offset + extra_cur_row_offset + extra_cur_col_offset;
+    	unsigned int write_offset = first_row_offset + extra_cur_row_offset + extra_cur_col_offset - 1;
 
     	unsigned char other_r;
     	unsigned char other_g;
