@@ -4,6 +4,7 @@
 
 #include <stdio.h>
 #include <iostream>
+#include <chrono>
 
 #include "mst.h"
 #include "sort.h"
@@ -544,6 +545,138 @@ char *compute_segments(void *input, uint x, uint y, size_t pitch, bool use_cpu, 
 
     cudaFree(output_dev);
     checkErrors("Free output_dev");
+
+    return output;
+}
+
+char *compute_segments_partial(void *input, uint x, uint y, size_t pitch, bool use_cpu, uint k) {
+    std::chrono::high_resolution_clock::time_point start, end;
+
+    start = std::chrono::high_resolution_clock::now();
+    uint4 *vertices;
+    uint2 *edges;
+    uint2 *sources;
+    min_edge *min_edges;
+    min_edge_wrapper *wrappers;
+    uint num_vertices = (x) * (y);
+    uint *num_components;
+    uint *did_change;
+
+    cudaMalloc(&vertices, num_vertices*sizeof(uint4));
+    checkErrors("Malloc vertices");
+    cudaMalloc(&edges, num_vertices*NUM_NEIGHBOURS*sizeof(uint2));
+    checkErrors("Malloc edges");
+    cudaMalloc(&min_edges, num_vertices*sizeof(min_edge)); // max(min_edges) == vertices.length
+    checkErrors("Malloc min_edges");
+    cudaMalloc(&wrappers, num_vertices*sizeof(min_edge_wrapper)); // max(min_edges) == vertices.length
+    checkErrors("Malloc min_edge wrappers");
+    cudaMalloc(&sources, num_vertices*sizeof(uint2));
+    checkErrors("Malloc sources");
+    cudaMalloc(&num_components, sizeof(uint));
+    checkErrors("Malloc num components");
+    cudaMalloc(&did_change, sizeof(uint));
+    checkErrors("Malloc did change");
+
+    cudaMemcpyAsync(num_components, &num_vertices, sizeof(uint), cudaMemcpyHostToDevice);
+    checkErrors("Memcpy num_vertices");
+
+    // Write to the matrix from image
+    // cudaOccupancyScheduler?
+    dim3 encode_threads;
+    dim3 encode_blocks;
+    if (num_vertices < 1024) {
+        encode_threads.x = x;
+        encode_threads.y = y;
+        encode_blocks.x = 1;
+        encode_blocks.y = 1;
+    } else {
+        encode_threads.x = 32;
+        encode_threads.y = 32;
+        encode_blocks.x = x / 32 + 1;
+        encode_blocks.y = y / 32 + 1;
+    }
+
+    encode<<<encode_blocks, encode_threads>>>((u_char*)input, vertices, edges, x, y, pitch);
+    cudaDeviceSynchronize();
+    end = std::chrono::high_resolution_clock::now();
+
+    auto time_span_encode = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    std::cout << time_span_encode.count() << std::endl;
+    checkErrors("encode()");
+
+    // Segment matrix
+    //cudaSetDeviceFlags(cudaDeviceBlockingSync);
+    start = std::chrono::high_resolution_clock::now();
+    if (!use_cpu) {
+        segment<<<1, 1>>>(vertices, edges, min_edges, wrappers, sources, num_components, did_change, k);
+        cudaDeviceSynchronize();
+    } else {
+        segment_cpu(vertices, edges, min_edges, wrappers, sources, num_components, did_change, num_vertices, k);
+    }
+    checkErrors("segment()");
+    cudaDeviceSynchronize();
+
+    // Free everything we can
+    cudaFree(edges);
+    checkErrors("Free edges");
+    cudaFree(min_edges);
+    checkErrors("Free min_edges");
+    cudaFree(wrappers);
+    checkErrors("Free min_edge_wrappers");
+    cudaFree(num_components);
+    checkErrors("Free num_components");
+    cudaFree(did_change);
+    checkErrors("Free did_change");
+    cudaFree(sources);
+    checkErrors("Free sources");
+    end = std::chrono::high_resolution_clock::now();
+
+    auto time_span_segment = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    std::cout << time_span_segment.count() << std::endl;
+
+    start = std::chrono::high_resolution_clock::now();
+    // Setup random colours for components
+    dim3 decode_threads;
+    dim3 decode_blocks;
+    if (num_vertices <= 1024) {
+        decode_threads.x = num_vertices;
+        decode_blocks.x = 1;
+    } else {
+        decode_threads.x = 1024;
+        decode_blocks.x = num_vertices / 1024 + 1;
+    }
+
+    char *component_colours = (char *) malloc(num_vertices * CHANNEL_SIZE * sizeof(char));
+    get_component_colours(component_colours, num_vertices);
+    char *component_colours_dev;
+    cudaMalloc(&component_colours_dev, num_vertices * CHANNEL_SIZE * sizeof(char));
+    cudaMemcpyAsync(component_colours_dev, component_colours, num_vertices * CHANNEL_SIZE * sizeof(char), cudaMemcpyHostToDevice);
+    char *output_dev;
+    cudaMalloc(&output_dev, num_vertices * CHANNEL_SIZE * sizeof(char));
+
+    // Write image back from segmented matrix
+    decode<<<decode_blocks, decode_threads>>>(vertices, output_dev, component_colours_dev, num_vertices);
+    cudaDeviceSynchronize();
+    checkErrors("decode()");
+
+    // Free rest
+    cudaFree(vertices);
+    checkErrors("Free vertices");
+    cudaFree(component_colours_dev);
+    checkErrors("Free component_colours_dev");
+
+    //Copy image data back from GPU
+    char *output = (char*) malloc(x*y*CHANNEL_SIZE*sizeof(char));
+
+    cudaMemcpy(output, output_dev, x*y*CHANNEL_SIZE*sizeof(char), cudaMemcpyDeviceToHost);
+    checkErrors("Memcpy output");
+
+    cudaFree(output_dev);
+    checkErrors("Free output_dev");
+    end = std::chrono::high_resolution_clock::now();
+
+    auto time_span_decode = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    std::cout << time_span_decode.count() << std::endl;
 
     return output;
 }

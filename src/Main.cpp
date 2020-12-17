@@ -26,8 +26,12 @@ const Options handleParams(int argc, char **argv) {
     Options options = Options();
     for(;;)
     {
-        switch(getopt(argc, argv, "chsi:o:w:b:k:E:"))
+        switch(getopt(argc, argv, "pchsi:o:w:b:k:E:"))
         {
+            case 'p': {
+                options.partial = true;
+                continue;
+            }
             case 'c': {
                 options.useCPU = true;
                 continue;
@@ -89,13 +93,18 @@ char *segment_wrapper(cv::Mat image, Options options, bool isBenchmarking) {
     filter->apply(dev_image, dev_output);
 
     // Segmentation
-    img = compute_segments(dev_output.cudaPtr(), image.rows, image.cols, dev_output.step, options.useCPU, options.k);
+    if (!options.partial) {
+        img = compute_segments(dev_output.cudaPtr(), image.rows, image.cols, dev_output.step, options.useCPU,options.k);
+    }
+    else {
+        img = compute_segments_partial(dev_output.cudaPtr(), image.rows, image.cols, dev_output.step, options.useCPU,options.k);
+    }
 
     // Stop timer
     end = std::chrono::high_resolution_clock::now();
 
     auto time_span = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-    if (isBenchmarking) std::cout << time_span.count() << std::endl;
+    if (isBenchmarking && !options.partial) std::cout << time_span.count() << std::endl;
     return img;
 }
 

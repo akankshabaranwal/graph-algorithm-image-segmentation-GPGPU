@@ -11,6 +11,7 @@ class Options
 public:
     bool useCPU = false;
     bool show = false;
+    bool partial = false;
     int warmupIterations = 1;
     int benchmarkIterations = 10;
     float sigma = 1.0f;
