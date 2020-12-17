@@ -101,7 +101,7 @@ __global__ void createCornerGraphKernel(unsigned char *image, unsigned int *d_ve
 
     	// Top node
     	if (tid == 2 || tid == 3) {
-    		d_edge[write_offset+2] = top_node;
+    		d_edge[write_offset+1] = top_node;
 
 	        other_img_idx = (row-1) * pitch + col * CHANNEL_SIZE;
 	        other_r = image[other_img_idx];
@@ -114,7 +114,7 @@ __global__ void createCornerGraphKernel(unsigned char *image, unsigned int *d_ve
 
     	// Bottom node
     	if (tid == 0 || tid == 1) {
-    		d_edge[write_offset+3] = bottom_node;
+    		d_edge[write_offset+1] = bottom_node;
 
 	        other_img_idx = (row+1) * pitch + col * CHANNEL_SIZE;
 	        other_r = image[other_img_idx];
