@@ -769,7 +769,7 @@ void printCSVLine() {
 
 const Options handleParams(int argc, char **argv) {
     Options options = Options();
-    TIMING_MODE = NO_TIME;
+    TIMING_MODE = TIME_COMPLETE;
     for(;;)
     {
         switch(getopt(argc, argv, "hi:o:w:b:t:"))
@@ -790,16 +790,8 @@ const Options handleParams(int argc, char **argv) {
                 options.benchmarkIterations = atoi(optarg);
                 continue;
             }
-            case 't': {
-            	if (std::string(optarg) == "complete") {
-            		TIMING_MODE = TIME_COMPLETE;
-            	} else if (std::string(optarg) == "parts") {
-            		TIMING_MODE = TIME_PARTS;
-            	} else {
-            		puts("Invalid timing option!");
-            		printUsage();
-            		break;
-            	}
+             case 'p': {
+                TIMING_MODE = TIME_PARTS;
                 continue;
             }
             case '?':
