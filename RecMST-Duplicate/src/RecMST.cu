@@ -359,13 +359,24 @@ void createGraph(Mat image) {
 
     size_t pitch = d_blurred.step;
 
-    unsigned int *weights = (unsigned int *) malloc(no_of_edges_orig * sizeof(unsigned int));
+    unsigned int *h_weight = (unsigned int *) malloc(no_of_edges_orig * sizeof(unsigned int));
     for (int i = 0; i < no_of_edges_orig; i++) {
-    	weights[i] = 123456789;
+    	h_weight[i] = 123456789;
     }
 
-    cudaMemcpy(d_weight, weights, no_of_edges_orig * sizeof(unsigned int), cudaMemcpyHostToDevice);
+    unsigned int *h_edge = (unsigned int *) malloc(no_of_edges_orig * sizeof(unsigned int));
+    for (int i = 0; i < no_of_edges_orig; i++) {
+    	h_edge[i] = 123456789;
+    }
 
+    unsigned int *h_vertex = (unsigned int *) malloc(no_of_vertices_orig * sizeof(unsigned int));
+    for (int i = 0; i < no_of_vertices_orig; i++) {
+    	h_vertex[i] = 123456789;
+    }
+
+    cudaMemcpy(d_weight, h_weight, no_of_edges_orig * sizeof(unsigned int), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_edge, h_edge, no_of_edges_orig * sizeof(unsigned int), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_vertex, h_vertex, no_of_vertices_orig * sizeof(unsigned int), cudaMemcpyHostToDevice);
 
     // Create inner graph
     createInnerGraphKernel<<< encode_blocks, encode_threads, 0>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
@@ -382,26 +393,33 @@ void createGraph(Mat image) {
 	
 	cudaDeviceSynchronize(); // Needed to synchronise streams!
 
-	cudaMemcpy(weights, d_weight, no_of_edges_orig * sizeof(unsigned int), cudaMemcpyDeviceToHost);
+	cudaMemcpy(h_weight, d_weight, no_of_edges_orig * sizeof(unsigned int), cudaMemcpyDeviceToHost);
+	cudaMemcpy(h_weight, d_edge, no_of_edges_orig * sizeof(unsigned int), cudaMemcpyDeviceToHost);
+	cudaMemcpy(h_vertex, d_vertex, no_of_vertices_orig * sizeof(unsigned int), cudaMemcpyDeviceToHost);
 
-	bool wrong = false;
-	for (int i = 0; i < no_of_edges_orig; i++) {
-    	if (weights[i] == 123456789) {
-    		printf("Wrong weight %d\n", i);
-    		wrong = true;
-    	}
+	for (int i = 0; i < no_of_edges; i++) {
+            printf("%d ", h_weight[i]);
     }
+
+    printf("\n\n");
+
+    for (int i = 0; i < no_of_edges; i++) {
+            printf("%d ", h_edge[i]);
+    }
+
+    printf("\n\n");
+
+    for (int i = 0; i < no_of_vertices; i++) {
+            printf("%d ", h_vertex[i]);
+    }
+
+    printf("\n\n");
 
 	if (TIMING_MODE == TIME_PARTS) {
 		end = std::chrono::high_resolution_clock::now();
 		int time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 		timings.push_back(time);
 	}
-
-	if (wrong) {
-		exit(1);
-	}
-
 
 	fprintf(stderr, "Image read successfully into graph with %d vertices and %d edges\n", no_of_vertices, no_of_edges);
 }
