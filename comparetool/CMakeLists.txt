@@ -4,6 +4,10 @@ cmake_minimum_required(VERSION 3.17)
 project(comparetool LANGUAGES CXX)
 set(CMAKE_VERBOSE_MAKEFILE ON)
 
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build." FORCE)
+endif()
+
 include(../cmake/OpenCV.cmake)
 
 set(CMAKE_CXX_STANDARD  14)
