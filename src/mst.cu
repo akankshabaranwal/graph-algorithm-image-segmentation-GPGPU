@@ -35,6 +35,7 @@ void find_min_edges_sort(uint4 vertices[], uint2 edges[], min_edge min_edges[], 
     uint num_threads = gridDim.x * blockDim.x;
     for (uint tid = index; tid < vertices_length; tid += num_threads) {
         uint vertice_comp = vertices[tid].y;
+        //vertices[tid].z = 1;
         min_edge min;
         min.weight = UINT_MAX;
         min.src_comp = 0;
@@ -190,6 +191,7 @@ void path_compression(uint4 vertices[], uint num_vertices) {
 
             vertice->y = parent->x;
             atomicAdd_system(&(parent->z), vertice->z);
+            //atomicAdd_system(&(parent->z), 1);
             atomicMax_system(&(parent->w), vertice->w);
         }
     }
@@ -283,7 +285,7 @@ void segment(uint4 vertices[], uint2 edges[], min_edge min_edges[], min_edge_wra
     }
 
     //printf("N components: %d\n", curr_n_comp);
-    while (curr_n_comp != prev_n_components) {
+    while (curr_n_comp != prev_n_components && curr_n_comp > 1) {
         if (curr_n_comp < 1024) {
             threads.x = curr_n_comp;
             blocks.x = 1;

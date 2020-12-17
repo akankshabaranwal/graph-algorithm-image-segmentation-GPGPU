@@ -7,6 +7,11 @@
 
 #include "custom_types.h"
 
+__device__ __forceinline__
+uint get_edge_weight(u_char this_r, u_char this_g, u_char this_b, u_char other_r, u_char other_g, u_char other_b) {
+    return sqrtf(powf(this_r-other_r, 2.0f) + powf(this_g-other_g, 2.0f) + powf(this_b-other_b, 2.0f));
+}
+
 // Kernel to encode graph
 __global__
 void encode(u_char *image, uint4 vertices[], uint2 edges[], uint x_len, uint y_len, size_t pitch) {
@@ -47,7 +52,7 @@ void encode(u_char *image, uint4 vertices[], uint2 edges[], uint x_len, uint y_l
             other_b = image[other_start + 2];
             edge = &edges[this_id * NUM_NEIGHBOURS];
             edge->x = edge_id + 1;
-            edge->y = sqrtf(powf(this_r-other_r, 2.0f) + powf(this_g-other_g, 2.0f) + powf(this_b-other_b, 2.0f));
+            edge->y = get_edge_weight(this_r, this_g, this_b, other_r, other_g, other_b);
         }
 
         edge_id = prev_row;
@@ -57,7 +62,7 @@ void encode(u_char *image, uint4 vertices[], uint2 edges[], uint x_len, uint y_l
         other_b = image[other_start + 2];
         edge = &edges[this_id * NUM_NEIGHBOURS + 1];
         edge->x = edge_id + 1;
-        edge->y = sqrtf(powf(this_r-other_r, 2.0f) + powf(this_g-other_g, 2.0f) + powf(this_b-other_b, 2.0f));
+        edge->y = get_edge_weight(this_r, this_g, this_b, other_r, other_g, other_b);
 
         if (!is_last_col) {
             edge_id = prev_row + 1;
@@ -67,7 +72,7 @@ void encode(u_char *image, uint4 vertices[], uint2 edges[], uint x_len, uint y_l
             other_b = image[other_start + 2];
             edge = &edges[this_id * NUM_NEIGHBOURS + 2];
             edge->x = edge_id + 1;
-            edge->y = sqrtf(powf(this_r-other_r, 2.0f) + powf(this_g-other_g, 2.0f) + powf(this_b-other_b, 2.0f));
+            edge->y = get_edge_weight(this_r, this_g, this_b, other_r, other_g, other_b);
         }
     }
 
@@ -81,7 +86,7 @@ void encode(u_char *image, uint4 vertices[], uint2 edges[], uint x_len, uint y_l
             other_b = image[other_start + 2];
             edge = &edges[this_id * NUM_NEIGHBOURS + 3];
             edge->x = edge_id + 1;
-            edge->y = sqrtf(powf(this_r-other_r, 2.0f) + powf(this_g-other_g, 2.0f) + powf(this_b-other_b, 2.0f));
+            edge->y = get_edge_weight(this_r, this_g, this_b, other_r, other_g, other_b);
         }
 
         edge_id = next_row;
@@ -91,7 +96,7 @@ void encode(u_char *image, uint4 vertices[], uint2 edges[], uint x_len, uint y_l
         other_b = image[other_start + 2];
         edge = &edges[this_id * NUM_NEIGHBOURS + 4];
         edge->x = edge_id + 1;
-        edge->y = sqrtf(powf(this_r-other_r, 2.0f) + powf(this_g-other_g, 2.0f) + powf(this_b-other_b, 2.0f));
+        edge->y = get_edge_weight(this_r, this_g, this_b, other_r, other_g, other_b);
 
         if (!is_last_col) {
             edge_id = next_row + 1;
@@ -101,7 +106,7 @@ void encode(u_char *image, uint4 vertices[], uint2 edges[], uint x_len, uint y_l
             other_b = image[other_start + 2];
             edge = &edges[this_id * NUM_NEIGHBOURS + 5];
             edge->x = edge_id + 1;
-            edge->y = sqrtf(powf(this_r-other_r, 2.0f) + powf(this_g-other_g, 2.0f) + powf(this_b-other_b, 2.0f));
+            edge->y = get_edge_weight(this_r, this_g, this_b, other_r, other_g, other_b);
         }
     }
 
@@ -113,7 +118,7 @@ void encode(u_char *image, uint4 vertices[], uint2 edges[], uint x_len, uint y_l
         other_b = image[other_start + 2];
         edge = &edges[this_id * NUM_NEIGHBOURS + 6];
         edge->x = edge_id + 1;
-        edge->y = sqrtf(powf(this_r-other_r, 2.0f) + powf(this_g-other_g, 2.0f) + powf(this_b-other_b, 2.0f));
+        edge->y = get_edge_weight(this_r, this_g, this_b, other_r, other_g, other_b);
     }
 
     if (!is_last_col) {
@@ -124,7 +129,7 @@ void encode(u_char *image, uint4 vertices[], uint2 edges[], uint x_len, uint y_l
         other_b = image[other_start + 2];
         edge = &edges[this_id * NUM_NEIGHBOURS + 7];
         edge->x = edge_id + 1;
-        edge->y = sqrtf(powf(this_r-other_r, 2.0f) + powf(this_g-other_g, 2.0f) + powf(this_b-other_b, 2.0f));
+        edge->y = get_edge_weight(this_r, this_g, this_b, other_r, other_g, other_b);
     }
 }
 
