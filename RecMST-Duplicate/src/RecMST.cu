@@ -467,6 +467,7 @@ void HPGMST()
 	bool succchange;
 	do
 	{
+		printf("stuck\n");
 		succchange=false; //if no thread changes this value, the loop stops
 		cudaMemcpy( d_succchange, &succchange, sizeof(bool), cudaMemcpyHostToDevice);
 		//Reusing Vertex Flag
