@@ -491,13 +491,15 @@ __global__ void AppendKernel_1(unsigned long long int *d_segmented_min_scan_inpu
 	if(tid<no_of_edges) {
 		unsigned long long int val=d_weight[tid];
 
-        if (tid < d_edges[tid]) {
+
+
+        /*if (tid < d_edges[tid]) {
             val = val<<MOVEBITS; // TODO
             val = val|tid; // TODO
         } else {
             val = val<<MOVEBITS; // TODO
             val = val|d_edges[tid]; // TODO
-        }
+        }*/
         
 
 		val=val<<MOVEBITS;

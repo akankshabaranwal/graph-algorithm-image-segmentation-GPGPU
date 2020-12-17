@@ -359,6 +359,14 @@ void createGraph(Mat image) {
 
     size_t pitch = d_blurred.step;
 
+    unsigned int *weights = (char *) malloc(no_of_edges_orig * sizeof(unsigned int));
+    for (int i = 0; i < no_of_edges_orig; i++) {
+    	weights[i] = 123456789;
+    }
+
+    cudaMemcpy(d_weight, weights, no_of_edges_orig * sizeof(unsigned int), cudaMemcpyHostToDevice);
+
+
     // Create inner graph
     createInnerGraphKernel<<< encode_blocks, encode_threads, 0>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
 
@@ -373,6 +381,14 @@ void createGraph(Mat image) {
 	createCornerGraphKernel<<< grid_corner, threads_corner, 5>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
 	
 	cudaDeviceSynchronize(); // Needed to synchronise streams!
+
+	cudaMemcpy(weights, d_weight, no_of_edges_orig * sizeof(unsigned int), cudaMemcpyDeviceToHost);
+
+	for (int i = 0; i < no_of_edges_orig; i++) {
+    	if (weights[i] == 123456789) {
+    		printf("Wrong weight %d", weights[i]);
+    	}
+    }
 
 	if (TIMING_MODE == TIME_PARTS) {
 		end = std::chrono::high_resolution_clock::now();
