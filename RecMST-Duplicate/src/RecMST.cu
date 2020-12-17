@@ -387,7 +387,7 @@ void createGraph(Mat image) {
 	bool wrong = false;
 	for (int i = 0; i < no_of_edges_orig; i++) {
     	if (weights[i] == 123456789) {
-    		printf("Wrong weight %d\n", weights[i]);
+    		printf("Wrong weight %d\n", i);
     		wrong = true;
     	}
     }
