@@ -24,13 +24,31 @@ Example:
 
 import csv
 import datetime
+import multiprocessing
 import os
 import pathlib
+import shutil
 import subprocess
 import sys
 import time
+from functools import partial
 
 from docopt import docopt
+
+
+def comparetool(compare_tool_path, output_path, ground_truth_path):
+
+    print(f"**     /     Comparing with {ground_truth_path}")
+    
+    stdout = subprocess.check_output([str(compare_tool_path), str(output_path), str(ground_truth_path)])
+    stdout = stdout.decode('ascii').split('\n')
+    
+    out_N, gt_N, asa, useg, _ = stdout
+    out_N, gt_N, asa, useg = int(out_N), int(gt_N), float(asa), float(useg)
+
+    print(f"**     /     ASA {asa:.3f} US Err: {useg:.3f} ({out_N} / {gt_N}GT segments) ")
+
+    return output_path, ground_truth_path, out_N, gt_N, asa, useg
 
 if __name__ == "__main__":
     args = docopt(__doc__)
@@ -52,7 +70,7 @@ if __name__ == "__main__":
         sys.exit(1)
 
     executable = pathlib.Path(command.split()[0])
-    if not executable.exists():
+    if not executable.exists() and not shutil.which(executable):
         print(f"Specified executable in COMMAND, '{executable}', does not exist. Exiting.")
         sys.exit(1)
 
@@ -89,21 +107,15 @@ if __name__ == "__main__":
             print("**     /     COMMAND ^ Failed to generate output. Re-trying in 1 second.")
             time.sleep(1)
             os.system(new_command)
-        
 
-        for ground_truth_path in sorted(ground_truth_dir.glob(input_path.stem + '*')):
-            print(f"**     /     Comparing with {ground_truth_path}")
-
-            stdout = subprocess.check_output([str(compare_tool_path), str(output_path), str(ground_truth_path)])
-            stdout = stdout.decode('ascii').split('\n')
+        with multiprocessing.Pool(multiprocessing.cpu_count()) as pool:
+            ground_truth_paths = sorted(ground_truth_dir.glob(input_path.stem + '*'))
             
-            out_N, gt_N, asa, useg, _ = stdout
-            out_N, gt_N, asa, useg = int(out_N), int(gt_N), float(asa), float(useg)
+            results = pool.map(partial(comparetool, compare_tool_path, output_path), ground_truth_paths)
+            for output_path, ground_truth_path, out_N, gt_N, asa, useg in results:
+                csv_writer.writerow([output_path, ground_truth_path, out_N, gt_N, asa, useg])
 
-            print(f"**     /     ASA {asa:.3f} US Err: {useg:.3f} ({out_N} / {gt_N}GT segments) ")
 
-            csv_writer.writerow([output_path, ground_truth_path, out_N, gt_N, asa, useg])
-        
         since = time.time() - start
         eta = (since / (idx + 1)) * (500 - idx)
 
