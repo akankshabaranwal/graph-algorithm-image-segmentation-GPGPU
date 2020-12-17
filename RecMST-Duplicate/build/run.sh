@@ -1,3 +1,3 @@
 cmake ../
 cmake --build .
-./felz ../data/data_beach.png 
+./felz -i ../data/loop.jpg -o ./segmented.png
