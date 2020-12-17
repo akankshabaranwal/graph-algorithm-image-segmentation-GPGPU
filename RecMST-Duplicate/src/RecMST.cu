@@ -384,9 +384,11 @@ void createGraph(Mat image) {
 
 	cudaMemcpy(weights, d_weight, no_of_edges_orig * sizeof(unsigned int), cudaMemcpyDeviceToHost);
 
+	bool wrong = false;
 	for (int i = 0; i < no_of_edges_orig; i++) {
     	if (weights[i] == 123456789) {
-    		printf("Wrong weight %d", weights[i]);
+    		printf("Wrong weight %d\n", weights[i]);
+    		wrong = true;
     	}
     }
 
@@ -394,6 +396,10 @@ void createGraph(Mat image) {
 		end = std::chrono::high_resolution_clock::now();
 		int time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 		timings.push_back(time);
+	}
+
+	if (wrong) {
+		exit(1);
 	}
 
 
