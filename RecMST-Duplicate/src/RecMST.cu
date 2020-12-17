@@ -475,6 +475,7 @@ void HPGMST()
 		CopyToSucc<<< grid_vertexlen, threads_vertexlen, 0>>>(d_successor, d_successor_copy, no_of_vertices); // for conflicts
 
 		cudaMemcpy( &succchange, d_succchange, sizeof(bool), cudaMemcpyDeviceToHost);
+		printf("stuck\n");
 	}
 	while(succchange);
 
