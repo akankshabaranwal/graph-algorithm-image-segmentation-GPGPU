@@ -490,10 +490,13 @@ __global__ void AppendKernel_1(unsigned long long int *d_segmented_min_scan_inpu
 	unsigned int tid = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
 	if(tid<no_of_edges) {
 		unsigned long long int val=d_weight[tid];
-		val=val<<MOVEBITS;
-		val=val|d_edges[tid];
+
         val = val<<MOVEBITS; // TODO
         val = val|tid; // TODO
+
+		val=val<<MOVEBITS;
+		val=val|d_edges[tid];
+     
 		d_segmented_min_scan_input[tid]=val;
 	}
 }
@@ -546,7 +549,7 @@ __global__ void MakeSucessorArray(unsigned int *d_successor, unsigned int *d_ver
 		} else {
 			end = no_of_edges-1; // Last segment: end = last edge
 		}
-		unsigned long long int mask = pow(2.0,2*MOVEBITS)-1; // Mask to extract vertex ID MWOE // TODO
+		unsigned long long int mask = pow(2.0,MOVEBITS)-1; // Mask to extract vertex ID MWOE // TODO
 		d_successor[tid] = d_segmented_min_scan_output[end]&mask; // Get vertex part of each (weight|to_vertex_id) element
 	}
 }
