@@ -131,7 +131,7 @@ __global__ void createFirstRowGraphKernel(unsigned char *image, unsigned int *d_
     unsigned int row = 0;
     unsigned int col = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
 
-    if (col > 0 && col < no_of_cols) {
+    if (col > 0 && col < no_of_cols - 1) {
         unsigned int left_node = row * no_of_cols + col - 1;
         unsigned int right_node = row * no_of_cols + col + 1;
         unsigned int bottom_node = (row+1) * no_of_cols + col;
@@ -189,7 +189,7 @@ __global__ void createLastRowGraphKernel(unsigned char *image, unsigned int *d_v
     unsigned int row = no_of_rows-1;;
     unsigned int col = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
 
-    if (col > 0 && col < no_of_cols) {
+    if (col > 0 && col < no_of_cols - 1) {
         unsigned int left_node = row * no_of_cols + col - 1;
         unsigned int right_node = row * no_of_cols + col + 1;
         unsigned int top_node = (row - 1) * no_of_cols + col;
@@ -215,7 +215,6 @@ __global__ void createLastRowGraphKernel(unsigned char *image, unsigned int *d_v
 
         // Left node
         d_edge[write_offset] = left_node;
-        printf("d_edge[%d] = %d;", write_offset, left_node);
 
         other_img_idx = row * pitch + (col - 1) * CHANNEL_SIZE;
         other_r = image[other_img_idx];
@@ -251,7 +250,7 @@ __global__ void createFirstColumnGraphKernel(unsigned char *image, unsigned int 
     unsigned int row = blockDim.x * blockIdx.x + threadIdx.x;
     unsigned int col = 0;
 
-    if (row > 0 && row < no_of_rows) {
+    if (row > 0 && row < no_of_rows - 1) {
         unsigned int right_node = row * no_of_cols + col + 1;
         unsigned int top_node = (row - 1) * no_of_cols + col;
         unsigned int bottom_node = (row+1) * no_of_cols + col;
@@ -284,7 +283,7 @@ __global__ void createFirstColumnGraphKernel(unsigned char *image, unsigned int 
         distance = SCALE * sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
         d_weight[write_offset] = (unsigned int) round(distance);
 
-                // Bottom node
+        // Bottom node
         d_edge[write_offset+1] = bottom_node;
 
         other_img_idx = (row+1) * pitch + col * CHANNEL_SIZE;
@@ -313,7 +312,7 @@ __global__ void createLastColumnGraphKernel(unsigned char *image, unsigned int *
     unsigned int row = blockDim.x * blockIdx.x + threadIdx.x;
     unsigned int col = no_of_cols - 1;
 
-    if (row > 0 && col > 0 && row < no_of_rows && col < no_of_cols) {
+    if (row > 0 && row < no_of_rows - 1) {
         unsigned int left_node = row * no_of_cols + col - 1;
         unsigned int top_node = (row - 1) * no_of_cols + col;
         unsigned int bottom_node = (row+1) * no_of_cols + col;
@@ -376,7 +375,7 @@ __global__ void createInnerGraphKernel(unsigned char *image, unsigned int *d_ver
     unsigned int row = blockDim.x * blockIdx.x + threadIdx.x;
     unsigned int col = blockDim.y * blockIdx.y + threadIdx.y;
 
-    if (row > 0 && col > 0 && row < no_of_rows && col < no_of_cols) {
+    if (row > 0 && col > 0 && row < no_of_rows - 1 && col < no_of_cols - 1) {
         unsigned int left_node = row * no_of_cols + col - 1;
         unsigned int right_node = row * no_of_cols + col + 1;
         unsigned int top_node = (row - 1) * no_of_cols + col;
