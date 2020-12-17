@@ -19,20 +19,18 @@ Example:
   python3 scripts/benchmark_segments.py \\
       csv/cuda-mst-naive-K20-E1.csv     \\
       dumps/cuda-mst-naive-K20-E1/      \\
-      "./out/felz -w 0 -b 1 -k 20 -E 1.0 -i '@INPUT@' -o '@OUTPUT@'"
+      "./out/felz -c -w 0 -b 1 -k 20 -E 1.0 -i '@INPUT@' -o '@OUTPUT@' > /dev/null"
 """
 
 import csv
 import datetime
 import os
 import pathlib
+import subprocess
 import sys
 import time
 
-import numpy
 from docopt import docopt
-
-from compare_segments import asa_score, find_segments, underseg_error
 
 if __name__ == "__main__":
     args = docopt(__doc__)
@@ -41,6 +39,11 @@ if __name__ == "__main__":
     ground_truth_dir = pathlib.Path('dataset/BSDS500/ground_truth/')
     if not input_dir.exists() or not ground_truth_dir.exists():
         print("Cannot find BSDS500 in 'dataset/', please run from the root of the project as 'scripts/benchmark_segments.py'")
+        sys.exit(1)
+
+    compare_tool_path  = pathlib.Path('comparetool/out/comparetool')
+    if not compare_tool_path.exists():
+        print("Cannot find comparetool in 'comparetool/out/', please build it there.")
         sys.exit(1)
 
     command = args['COMMAND']
@@ -66,7 +69,7 @@ if __name__ == "__main__":
         print(f"Failed to create CSV_FILE, '{args['CSV_FILE']}'. Exiting.")
         sys.exit(1)
 
-    csv_writer.writerow(['output', 'ground_truth', 'asa_score', 'ue_score'])
+    csv_writer.writerow(['output', 'ground_truth', 'out_N', 'gt_N', 'asa_score', 'ue_score'])
     
     print(f"Started at {datetime.datetime.utcnow() + datetime.timedelta(+1, 3600)} UTC+1 (Europe/Zurich)")
     print()
@@ -91,19 +94,15 @@ if __name__ == "__main__":
         for ground_truth_path in sorted(ground_truth_dir.glob(input_path.stem + '*')):
             print(f"**     /     Comparing with {ground_truth_path}")
 
-            with open(output_path, 'rb') as f:
-                segments_in = find_segments(f)
-
-            with open(ground_truth_path, 'rb') as f:
-                segments_gt = find_segments(f)
+            stdout = subprocess.check_output([str(compare_tool_path), str(output_path), str(ground_truth_path)])
+            stdout = stdout.decode('ascii').split('\n')
             
-            in_N, gt_N = numpy.unique(segments_in).size, numpy.unique(segments_gt).size 
-            print(f"**     /     Input segments: {in_N} Ground truth segments: {gt_N}")
+            out_N, gt_N, asa, useg, _ = stdout
+            out_N, gt_N, asa, useg = int(out_N), int(gt_N), float(asa), float(useg)
 
-            asa, useg = asa_score(segments_in, segments_gt), underseg_error(segments_in, segments_gt)
-            print(f"**     /     ASA: {asa:.3f} USErr: {useg:.3f}")
+            print(f"**     /     ASA {asa:.3f} US Err: {useg:.3f} ({out_N} / {gt_N}GT segments) ")
 
-            csv_writer.writerow([output_path, ground_truth_path, asa, useg])
+            csv_writer.writerow([output_path, ground_truth_path, out_N, gt_N, asa, useg])
         
         since = time.time() - start
         eta = (since / (idx + 1)) * (500 - idx)
