@@ -437,35 +437,16 @@ void checkErrors(const char *identifier) {
 }
 
 char *compute_segments(void *input, uint x, uint y, size_t pitch, bool use_cpu, uint k) {
+    uint num_vertices = (x) * (y);
     uint4 *vertices;
     uint2 *edges;
-    uint2 *sources;
-    min_edge *min_edges;
-    min_edge_wrapper *wrappers;
-    uint num_vertices = (x) * (y);
-    uint *num_components;
-    uint *did_change;
 
     cudaMalloc(&vertices, num_vertices*sizeof(uint4));
     checkErrors("Malloc vertices");
     cudaMalloc(&edges, num_vertices*NUM_NEIGHBOURS*sizeof(uint2));
     checkErrors("Malloc edges");
-    cudaMalloc(&min_edges, num_vertices*sizeof(min_edge)); // max(min_edges) == vertices.length
-    checkErrors("Malloc min_edges");
-    cudaMalloc(&wrappers, num_vertices*sizeof(min_edge_wrapper)); // max(min_edges) == vertices.length
-    checkErrors("Malloc min_edge wrappers");
-    cudaMalloc(&sources, num_vertices*sizeof(uint2));
-    checkErrors("Malloc sources");
-    cudaMalloc(&num_components, sizeof(uint));
-    checkErrors("Malloc num components");
-    cudaMalloc(&did_change, sizeof(uint));
-    checkErrors("Malloc did change");
-
-    cudaMemcpyAsync(num_components, &num_vertices, sizeof(uint), cudaMemcpyHostToDevice);
-    checkErrors("Memcpy num_vertices");
 
     // Write to the matrix from image
-    // cudaOccupancyScheduler?
     dim3 encode_threads;
     dim3 encode_blocks;
     if (num_vertices < 1024) {
@@ -481,16 +462,52 @@ char *compute_segments(void *input, uint x, uint y, size_t pitch, bool use_cpu, 
     }
 
     encode<<<encode_blocks, encode_threads>>>((u_char*)input, vertices, edges, x, y, pitch);
+    uint2 *sources;
+    min_edge *min_edges;
+    min_edge_wrapper *wrappers;
+    uint *num_components;
+    uint *did_change;
+
+    cudaMalloc(&num_components, sizeof(uint));
+    checkErrors("Malloc num components");
+    cudaMemcpyAsync(num_components, &num_vertices, sizeof(uint), cudaMemcpyHostToDevice);
+    checkErrors("Memcpy num_vertices");
+
+    cudaMalloc(&min_edges, num_vertices*sizeof(min_edge)); // max(min_edges) == vertices.length
+    checkErrors("Malloc min_edges");
+    cudaMalloc(&wrappers, num_vertices*sizeof(min_edge_wrapper)); // max(min_edges) == vertices.length
+    checkErrors("Malloc min_edge wrappers");
+    cudaMalloc(&sources, num_vertices*sizeof(uint2));
+    checkErrors("Malloc sources");
+    cudaMalloc(&did_change, sizeof(uint));
+    checkErrors("Malloc did change");
+
     checkErrors("encode()");
 
     // Segment matrix
     //cudaSetDeviceFlags(cudaDeviceBlockingSync);
     if (!use_cpu) {
         segment<<<1, 1>>>(vertices, edges, min_edges, wrappers, sources, num_components, did_change, k);
-        cudaDeviceSynchronize();
     } else {
         segment_cpu(vertices, edges, min_edges, wrappers, sources, num_components, did_change, num_vertices, k);
     }
+
+    // Setup random colours for components
+    dim3 decode_threads;
+    dim3 decode_blocks;
+    if (num_vertices <= 1024) {
+        decode_threads.x = num_vertices;
+        decode_blocks.x = 1;
+    } else {
+        decode_threads.x = 1024;
+        decode_blocks.x = num_vertices / 1024 + 1;
+    }
+
+    char *component_colours = (char *) malloc(num_vertices * CHANNEL_SIZE * sizeof(char));
+    get_component_colours(component_colours, num_vertices);
+
+    char *output = (char*) malloc(x*y*CHANNEL_SIZE*sizeof(char));
+    cudaDeviceSynchronize();
     checkErrors("segment()");
 
     // Free everything we can
@@ -507,27 +524,17 @@ char *compute_segments(void *input, uint x, uint y, size_t pitch, bool use_cpu, 
     cudaFree(sources);
     checkErrors("Free sources");
 
-    // Setup random colours for components
-    dim3 decode_threads;
-    dim3 decode_blocks;
-    if (num_vertices <= 1024) {
-        decode_threads.x = num_vertices;
-        decode_blocks.x = 1;
-    } else {
-        decode_threads.x = 1024;
-        decode_blocks.x = num_vertices / 1024 + 1;
-    }
-
-    char *component_colours = (char *) malloc(num_vertices * CHANNEL_SIZE * sizeof(char));
-    get_component_colours(component_colours, num_vertices);
     char *component_colours_dev;
     cudaMalloc(&component_colours_dev, num_vertices * CHANNEL_SIZE * sizeof(char));
     cudaMemcpyAsync(component_colours_dev, component_colours, num_vertices * CHANNEL_SIZE * sizeof(char), cudaMemcpyHostToDevice);
+
     char *output_dev;
-    cudaMalloc(&output_dev, num_vertices * CHANNEL_SIZE * sizeof(char ));
+    cudaMalloc(&output_dev, num_vertices * CHANNEL_SIZE * sizeof(char));
+
 
     // Write image back from segmented matrix
     decode<<<decode_blocks, decode_threads>>>(vertices, output_dev, component_colours_dev, num_vertices);
+    free(component_colours);
     cudaDeviceSynchronize();
     checkErrors("decode()");
 
@@ -538,8 +545,6 @@ char *compute_segments(void *input, uint x, uint y, size_t pitch, bool use_cpu, 
     checkErrors("Free component_colours_dev");
 
     //Copy image data back from GPU
-    char *output = (char*) malloc(x*y*CHANNEL_SIZE*sizeof(char));
-
     cudaMemcpy(output, output_dev, x*y*CHANNEL_SIZE*sizeof(char), cudaMemcpyDeviceToHost);
     checkErrors("Memcpy output");
 
@@ -566,19 +571,6 @@ char *compute_segments_partial(void *input, uint x, uint y, size_t pitch, bool u
     checkErrors("Malloc vertices");
     cudaMalloc(&edges, num_vertices*NUM_NEIGHBOURS*sizeof(uint2));
     checkErrors("Malloc edges");
-    cudaMalloc(&min_edges, num_vertices*sizeof(min_edge)); // max(min_edges) == vertices.length
-    checkErrors("Malloc min_edges");
-    cudaMalloc(&wrappers, num_vertices*sizeof(min_edge_wrapper)); // max(min_edges) == vertices.length
-    checkErrors("Malloc min_edge wrappers");
-    cudaMalloc(&sources, num_vertices*sizeof(uint2));
-    checkErrors("Malloc sources");
-    cudaMalloc(&num_components, sizeof(uint));
-    checkErrors("Malloc num components");
-    cudaMalloc(&did_change, sizeof(uint));
-    checkErrors("Malloc did change");
-
-    cudaMemcpyAsync(num_components, &num_vertices, sizeof(uint), cudaMemcpyHostToDevice);
-    checkErrors("Memcpy num_vertices");
 
     // Write to the matrix from image
     // cudaOccupancyScheduler?
@@ -597,6 +589,21 @@ char *compute_segments_partial(void *input, uint x, uint y, size_t pitch, bool u
     }
 
     encode<<<encode_blocks, encode_threads>>>((u_char*)input, vertices, edges, x, y, pitch);
+
+    cudaMalloc(&min_edges, num_vertices*sizeof(min_edge)); // max(min_edges) == vertices.length
+    checkErrors("Malloc min_edges");
+    cudaMalloc(&wrappers, num_vertices*sizeof(min_edge_wrapper)); // max(min_edges) == vertices.length
+    checkErrors("Malloc min_edge wrappers");
+    cudaMalloc(&sources, num_vertices*sizeof(uint2));
+    checkErrors("Malloc sources");
+    cudaMalloc(&num_components, sizeof(uint));
+    checkErrors("Malloc num components");
+    cudaMalloc(&did_change, sizeof(uint));
+    checkErrors("Malloc did change");
+
+    cudaMemcpyAsync(num_components, &num_vertices, sizeof(uint), cudaMemcpyHostToDevice);
+    checkErrors("Memcpy num_vertices");
+
     cudaDeviceSynchronize();
     end = std::chrono::high_resolution_clock::now();
 
@@ -609,12 +616,11 @@ char *compute_segments_partial(void *input, uint x, uint y, size_t pitch, bool u
     start = std::chrono::high_resolution_clock::now();
     if (!use_cpu) {
         segment<<<1, 1>>>(vertices, edges, min_edges, wrappers, sources, num_components, did_change, k);
-        cudaDeviceSynchronize();
     } else {
         segment_cpu(vertices, edges, min_edges, wrappers, sources, num_components, did_change, num_vertices, k);
     }
-    checkErrors("segment()");
     cudaDeviceSynchronize();
+    checkErrors("segment()");
 
     // Free everything we can
     cudaFree(edges);
@@ -629,6 +635,7 @@ char *compute_segments_partial(void *input, uint x, uint y, size_t pitch, bool u
     checkErrors("Free did_change");
     cudaFree(sources);
     checkErrors("Free sources");
+
     end = std::chrono::high_resolution_clock::now();
 
     auto time_span_segment = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
@@ -656,6 +663,7 @@ char *compute_segments_partial(void *input, uint x, uint y, size_t pitch, bool u
 
     // Write image back from segmented matrix
     decode<<<decode_blocks, decode_threads>>>(vertices, output_dev, component_colours_dev, num_vertices);
+    free(component_colours);
     cudaDeviceSynchronize();
     checkErrors("decode()");
 
