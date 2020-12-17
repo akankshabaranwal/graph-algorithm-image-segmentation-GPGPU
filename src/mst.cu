@@ -61,39 +61,30 @@ void reset_wrappers(min_edge_wrapper wrappers[], uint length) {
     uint num_threads = gridDim.x * blockDim.x;
 
     for (uint min_edge_id = tid; min_edge_id < length; min_edge_id += num_threads) {
-        wrappers[min_edge_id].edge.src_comp = 0;
+        wrappers[min_edge_id].edge.x = 0;
         wrappers[min_edge_id].locked = 0;
     }
 }
 
 __global__
-void filter_min_edges(min_edge min_edges[], min_edge_wrapper new_min_edges[], uint length) {
+void filter_min_edges_test(min_edge min_edges[], min_edge_wrapper new_min_edges[], uint length) {
     uint tid = blockDim.x * blockIdx.x + threadIdx.x;
     uint num_threads = gridDim.x * blockDim.x;
 
     for (uint min_edge_id = tid; min_edge_id < length; min_edge_id += num_threads) {
         min_edge our = min_edges[min_edge_id];
-        uint id = our.src_comp;
+        if (our.src_comp < 1) continue;
+        uint id = our.src_comp - 1;
 
-        uint lock;
-        min_edge volatile *their_ptr = &(new_min_edges[id].edge);
+        volatile uint2 *their_ptr = &(new_min_edges[id].edge);
         bool exit = false;
         while(!exit) {
-            if (compare_min_edges_volatile(&our, their_ptr) < 0) {
-                lock = atomicCAS_system(&(new_min_edges[id].locked), 0, 1);
+            if (compare(our.weight, their_ptr->x, their_ptr->y) < 0) {
+                unsigned long long new_edge = our.weight;
+                new_edge <<= 32;
+                new_edge |= our.dest_comp;
+                atomicExch_system((unsigned long long *)&new_min_edges[id].edge, new_edge);
                 __threadfence_system();
-
-                if (lock == 0) {
-                    // Super duper make sure we can write
-                    if (compare_min_edges_volatile(&our, their_ptr) < 0) {
-                        new_min_edges[id].edge = our;
-                        __threadfence_system();
-                    }
-                    atomicExch_system(&(new_min_edges[id].locked), 0);
-                    __threadfence_system();
-                    exit = true;
-                }
-                __syncthreads();
             } else {
                 exit = true;
             }
@@ -106,10 +97,12 @@ void compact_min_edge_wrappers(min_edge min_edges[], min_edge_wrapper wrappers[]
     uint tid = blockDim.x * blockIdx.x + threadIdx.x;
     uint num_threads = gridDim.x * blockDim.x;
     for (int index = tid; index < n_vertices; index += num_threads) {
-        min_edge edge = wrappers[index].edge;
-        if (edge.src_comp != 0) {
+        uint2 edge = wrappers[index].edge;
+        if (edge.x != 0) {
             uint pos = atomicAdd_system(pos_counter, 1);
-            min_edges[pos] = edge;
+            min_edges[pos].src_comp = index + 1;
+            min_edges[pos].dest_comp = edge.x;
+            min_edges[pos].weight = edge.y;
         }
     }
 }
@@ -136,7 +129,7 @@ void update_destinations(min_edge min_edges[], uint num_components, uint2 source
         uint weight = edge->weight;
         uint new_dest = sources[dest - 1].x;
         uint new_weight = sources[dest - 1].y;
-        if (((new_dest == src) || (new_dest != src && new_dest != dest && weight == new_weight)) && src < dest) {
+        if (((new_dest == src) || (new_dest != src && new_dest != dest && weight >= new_weight)) && src < dest) {
             edge->dest_comp = new_dest;
             *did_change = 1;
         }
@@ -188,7 +181,9 @@ void path_compression(uint4 vertices[], uint num_vertices) {
 
         if (vertice->x != vertice->y) {
             uint4 *parent = &vertices[vertice->y - 1];
-            while(parent->y != parent->x) {parent = &vertices[parent->y - 1]; if (false) printf("Parent %d -> %d\n", parent->x, parent->y);}
+            while(parent->y != parent->x) {
+                parent = &vertices[parent->y - 1];
+            }
 
             vertice->y = parent->x;
             atomicAdd_system(&(parent->z), vertice->z);
@@ -252,7 +247,7 @@ void debug_print_min_edges(min_edge min_edges[], uint length) {
         if (min_edges[i].src_comp == 0) continue;
         //printf("[%d]: %d(%d) -(%d)-> %d (%d)\n", i, min_edges[i].src_comp, min_edges[i].src_id, min_edges[i].weight, min_edges[i].dest_comp, min_edges[i].dest_id);
         //printf("[%d]: %d -(%d)-> %d\n", i, min_edges[i].src_comp, min_edges[i].weight, min_edges[i].dest_comp);
-        printf("%d -(%d)-> %d\n", min_edges[i].src_comp, min_edges[i].weight, min_edges[i].dest_comp);
+        printf("%d -(%d)-> X\n", min_edges[i].src_comp, min_edges[i].weight, min_edges[i].dest_comp);
     }
     printf("\n");
 }
@@ -302,13 +297,13 @@ void segment(uint4 vertices[], uint2 edges[], min_edge min_edges[], min_edge_wra
         if (counter > 0) {
             //printf("Sort\n");
             reset_wrappers<<<blocks.y, threads.y>>>(wrappers, n_vertices);
-            filter_min_edges<<<blocks.y, threads.y>>>(min_edges, wrappers, n_vertices);
+            filter_min_edges_test<<<blocks.y, threads.y>>>(min_edges, wrappers, n_vertices);
             cudaDeviceSynchronize();
-            //printf("%d: %d %d\n", 10068, wrappers[10068].edge.dest_comp, wrappers[10068].edge.weight);
 
             //printf("Compact\n");
             *did_change = 0;
             compact_min_edge_wrappers<<<blocks.y, threads.y>>>(min_edges, wrappers, n_vertices, did_change);
+            cudaDeviceSynchronize();
             //debug_print_min_edges<<<1, 1>>>(min_edges, curr_n_comp);
             //return;
         }
@@ -386,7 +381,7 @@ void segment_cpu(uint4 vertices[], uint2 edges[], min_edge min_edges[], min_edge
         if (counter > 0) {
             //printf("Sort\n");
             reset_wrappers<<<blocks.y, threads.y>>>(wrappers, n_vertices);
-            filter_min_edges<<<blocks.y, threads.y>>>(min_edges, wrappers, n_vertices);
+            filter_min_edges_test<<<blocks.y, threads.y>>>(min_edges, wrappers, n_vertices);
             cudaDeviceSynchronize();
 
             //printf("Compact\n");

@@ -9,12 +9,23 @@
 
 __device__ __forceinline__
 int compare_min_edges_volatile(min_edge *left, min_edge volatile *right) {
-    if (left->src_comp == 0 && right->src_comp == 0) return 0;
-    if (left->src_comp == 0) return 1;
-    if (right->src_comp == 0) return -1;
-    uint component_diff = left->src_comp - right->src_comp;
-    if (component_diff != 0) return component_diff;
+    bool is_left_comp_zero = left->src_comp == 0;
+    bool is_right_comp_zero = right->src_comp == 0;
+
+    if (is_left_comp_zero && is_right_comp_zero) return 0;
+    if (is_right_comp_zero) return -1;
+    if (is_left_comp_zero) return 1;
+
     return left->weight - right->weight;
+}
+
+__device__ __forceinline__
+int compare(uint left_weight, uint right_comp, uint right_weight) {
+    bool is_right_comp_zero = right_comp == 0;
+
+    if (is_right_comp_zero) return -1;
+
+    return left_weight - right_weight;
 }
 
 __device__ __forceinline__

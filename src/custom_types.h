@@ -15,8 +15,13 @@ typedef struct {
     uint new_int_diff;
 } min_edge;
 
+typedef struct {
+    uint weight;
+    uint dest_comp;
+} short_edge;
+
 typedef struct{
-    min_edge edge;
+    uint2 edge;
     uint locked;
 } min_edge_wrapper;
 
