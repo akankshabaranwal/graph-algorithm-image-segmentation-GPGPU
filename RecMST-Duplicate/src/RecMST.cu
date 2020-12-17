@@ -394,7 +394,7 @@ void createGraph(Mat image) {
 	cudaDeviceSynchronize(); // Needed to synchronise streams!
 
 	cudaMemcpy(h_weight, d_weight, no_of_edges_orig * sizeof(unsigned int), cudaMemcpyDeviceToHost);
-	cudaMemcpy(h_weight, d_edge, no_of_edges_orig * sizeof(unsigned int), cudaMemcpyDeviceToHost);
+	cudaMemcpy(h_edge, d_edge, no_of_edges_orig * sizeof(unsigned int), cudaMemcpyDeviceToHost);
 	cudaMemcpy(h_vertex, d_vertex, no_of_vertices_orig * sizeof(unsigned int), cudaMemcpyDeviceToHost);
 
 	for (int i = 0; i < no_of_edges; i++) {
