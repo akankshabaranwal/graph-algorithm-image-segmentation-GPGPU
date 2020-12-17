@@ -88,7 +88,7 @@ __global__ void createCornerGraphKernel(unsigned char *image, unsigned int *d_ve
     	
     	// Right node
     	if (tid == 0 || tid == 2) {
-    		d_edge[write_offset+1] = right_node;
+    		d_edge[write_offset] = right_node;
 
 	        other_img_idx = row * pitch + (col + 1) * CHANNEL_SIZE;
 	        other_r = image[other_img_idx];
