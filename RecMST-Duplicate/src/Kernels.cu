@@ -496,11 +496,8 @@ __global__ void AppendKernel_1(unsigned long long int *d_segmented_min_scan_inpu
     if(tid<no_of_edges) {
         unsigned long long int val=d_weight[tid];
 
-
-
-        val = val<<MOVEBITS; // TODO
-            val = val|tid; // TODO
-        
+        //val = val<<MOVEBITS; // TODO
+        //val = val|tid; // TODO
 
         val=val<<MOVEBITS;
         val=val|d_edges[tid];
@@ -601,7 +598,7 @@ __global__ void PropagateRepresentativeID(unsigned int *d_successor, unsigned in
         unsigned int succ = d_successor[tid];
         unsigned int newsucc = d_successor[succ];
         if(succ!=newsucc) { //Execution goes on
-            printf("d_successor_copy[%d]=%d \n", tid, newsucc); // TODO
+            //printf("d_successor_copy[%d]=%d \n", tid, newsucc); // TODO
             d_successor_copy[tid] = newsucc; //cannot have input and output in the same array!!!!!
             *d_succchange=true;
         }
