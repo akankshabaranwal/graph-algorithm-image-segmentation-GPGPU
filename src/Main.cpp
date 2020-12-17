@@ -19,6 +19,7 @@ void printUsage() {
     puts("\t-b: Number of iterations to perform during benchmarking (default: 10)");
     puts("\t-c: Use host side kernel launches instead of dynamic parallelism");
     puts("\t-s: Show the generated images");
+    puts("\t-p: Show partial times in the following order: gaussian filter, graph creation, segmentation, image creation");
     exit(1);
 }
 
@@ -79,6 +80,9 @@ const Options handleParams(int argc, char **argv) {
 }
 
 char *segment_wrapper(cv::Mat image, Options options, bool isBenchmarking) {
+    if (!isBenchmarking) std::cout.setstate(std::ios_base::failbit);
+    else std::cout.clear();
+
     char *img;
     cv::Ptr<cv::cuda::Filter> filter;
     cv::cuda::GpuMat dev_image, dev_output;
@@ -91,6 +95,11 @@ char *segment_wrapper(cv::Mat image, Options options, bool isBenchmarking) {
     dev_image.upload(image);
     filter = cv::cuda::createGaussianFilter(CV_8UC3, CV_8UC3, cv::Size(5, 5), options.sigma);
     filter->apply(dev_image, dev_output);
+    if (options.partial)  {
+        end = std::chrono::high_resolution_clock::now();
+        auto time_span = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+        std::cout << time_span.count() << std::endl;
+    }
 
     // Segmentation
     if (!options.partial) {
@@ -104,7 +113,7 @@ char *segment_wrapper(cv::Mat image, Options options, bool isBenchmarking) {
     end = std::chrono::high_resolution_clock::now();
 
     auto time_span = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-    if (isBenchmarking && !options.partial) std::cout << time_span.count() << std::endl;
+    if (!options.partial) std::cout << time_span.count() << std::endl;
     return img;
 }
 
