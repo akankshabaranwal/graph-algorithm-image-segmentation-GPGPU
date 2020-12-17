@@ -99,7 +99,7 @@ __global__ void createCornerGraphKernel(unsigned char *image, unsigned int *d_ve
         }
        
 
-                // Bottom node
+        // Bottom node
         if (tid == 0 || tid == 1) {
             d_edge[write_offset+1] = bottom_node;
 
@@ -215,6 +215,7 @@ __global__ void createLastRowGraphKernel(unsigned char *image, unsigned int *d_v
 
         // Left node
         d_edge[write_offset] = left_node;
+        printf("d_edge[%d] = %d;", write_offset, left_node);
 
         other_img_idx = row * pitch + (col - 1) * CHANNEL_SIZE;
         other_r = image[other_img_idx];
