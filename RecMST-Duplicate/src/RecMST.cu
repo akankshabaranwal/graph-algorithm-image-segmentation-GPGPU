@@ -359,7 +359,7 @@ void createGraph(Mat image) {
 
     size_t pitch = d_blurred.step;
 
-    unsigned int *weights = (char *) malloc(no_of_edges_orig * sizeof(unsigned int));
+    unsigned int *weights = (unsigned int *) malloc(no_of_edges_orig * sizeof(unsigned int));
     for (int i = 0; i < no_of_edges_orig; i++) {
     	weights[i] = 123456789;
     }
