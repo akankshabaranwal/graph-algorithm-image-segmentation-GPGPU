@@ -1,0 +1,19 @@
+#!/bin/bash
+
+if [ "$#" -ne 3 ]; then
+    echo Usage: scripts/seg_wrapper INPUT OUTPUT S
+    exit 1
+fi
+
+mkdir -p /tmp/seg_out/
+cp "$1" /tmp/seg_out/input.jpg
+
+mogrify -format ppm /tmp/seg_out/*.jpg
+bin/x86_64/linux/release/segmentationTreeThrust -b 1 -i /tmp/seg_out/input.ppm -o /tmp/seg_out/output.ppm &> /dev/null
+mogrify -format png /tmp/seg_out/*.ppm
+
+if [ ! -f /tmp/seg_out/output_$3.png ]; then
+    touch /tmp/seg_out/output_$3.png
+fi
+
+mv /tmp/seg_out/output_$3.png $2
