@@ -1,0 +1,10 @@
+#!/bin/bash
+
+if [ "$#" -ne 3 ]; then
+    echo Usage: scripts/felz_wrapper INPUT OUTPUT S
+    exit 1
+fi
+
+mkdir -p /tmp/felz_out/
+out/felz -i $1 -o /tmp/felz_out/out.png
+mv /tmp/felz_out/out_$3.png $2
