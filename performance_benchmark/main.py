@@ -22,6 +22,10 @@ import subprocess
 # - Use the headers gaussian, graph, segment, output, complete to indicate what a particular CSV column corresponds to
 
 # TODO create directories if don't exist
+# TODO: add retry and timeout parameters
+# TODO: write to one CSV
+# TODO: lots of small segments in naive algo makes hard to compare
+# TODO: add benchmarking flag to code to avoid writing to disk
 
 def dir_path(string):
     if os.path.isdir(string):
