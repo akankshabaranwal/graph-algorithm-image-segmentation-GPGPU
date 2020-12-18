@@ -40,11 +40,17 @@ def comparetool(compare_tool_path, output_path, ground_truth_path):
 
     print(f"**     /     Comparing with {ground_truth_path}")
     
-    stdout = subprocess.check_output([str(compare_tool_path), str(output_path), str(ground_truth_path)])
-    stdout = stdout.decode('ascii').split('\n')
+    try:
+        stdout = subprocess.check_output([str(compare_tool_path), str(output_path), str(ground_truth_path)])
+        stdout = stdout.decode('ascii').split('\n')
     
-    out_N, gt_N, asa, useg, _ = stdout
-    out_N, gt_N, asa, useg = int(out_N), int(gt_N), float(asa), float(useg)
+        out_N, gt_N, asa, useg, _ = stdout
+        out_N, gt_N, asa, useg = int(out_N), int(gt_N), float(asa), float(useg)
+    except:
+        import traceback; traceback.print_exc()
+
+        print(f"**     /     Exception when running comparetool. Skipping {ground_truth_path}.")
+        return output_path, ground_truth_path, 0, 0, float('nan'), float('nan')
 
     print(f"**     /     ASA {asa:.3f} US Err: {useg:.3f} ({out_N} / {gt_N}GT segments) ")
 
