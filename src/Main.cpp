@@ -98,7 +98,7 @@ char *segment_wrapper(cv::Mat image, Options options, bool isBenchmarking) {
     if (options.partial)  {
         end = std::chrono::high_resolution_clock::now();
         auto time_span = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-        std::cout << time_span.count() << std::endl;
+        std::cout << time_span.count() << ",";
     }
 
     // Segmentation
@@ -130,6 +130,13 @@ int main(int argc, char **argv)
     for (int i = 0; i < options.warmupIterations; ++i) {
         segmented_img = segment_wrapper(image, options, false);
         free(segmented_img);
+    }
+
+    if (options.partial) {
+        puts("gaussian,graph,segmentation,output");
+    }
+    else {
+        puts("total");
     }
 
     // Benchmark

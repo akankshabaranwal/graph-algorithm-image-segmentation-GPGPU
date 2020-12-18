@@ -603,7 +603,7 @@ char *compute_segments_partial(void *input, uint x, uint y, size_t pitch, bool u
     end = std::chrono::high_resolution_clock::now();
 
     auto time_span_encode = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-    std::cout << time_span_encode.count() << std::endl;
+    std::cout << time_span_encode.count() << ",";
     checkErrors("encode()");
 
     // Segment matrix
@@ -634,7 +634,7 @@ char *compute_segments_partial(void *input, uint x, uint y, size_t pitch, bool u
     end = std::chrono::high_resolution_clock::now();
 
     auto time_span_segment = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-    std::cout << time_span_segment.count() << std::endl;
+    std::cout << time_span_segment.count() << ",";
 
     start = std::chrono::high_resolution_clock::now();
     // Setup random colours for components
