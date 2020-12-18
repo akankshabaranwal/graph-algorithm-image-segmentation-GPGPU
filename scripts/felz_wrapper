@@ -6,7 +6,7 @@ if [ "$#" -ne 3 ]; then
 fi
 
 mkdir -p /tmp/felz_out/
-out/felz -i $1 -o /tmp/felz_out/out.png
+out/felz -i $1 -o /tmp/felz_out/out.png 2> /dev/null
 
 if [ ! -f /tmp/felz_out/out_$3.png ]; then
     touch /tmp/felz_out/out_$3.png
