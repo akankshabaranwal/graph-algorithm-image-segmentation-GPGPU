@@ -126,6 +126,8 @@ enum timing_mode {NO_TIME, TIME_COMPLETE, TIME_PARTS};
 enum timing_mode TIMING_MODE;
 std::vector<int> timings;
 
+bool NO_WRITE = false;
+
 ////////////////////////////////////////////////
 // Debugging helper functions
 ////////////////////////////////////////////////
@@ -474,7 +476,6 @@ void HPGMST()
 		CopyToSucc<<< grid_vertexlen, threads_vertexlen, 0>>>(d_successor, d_successor_copy, no_of_vertices); // for conflicts
 
 		cudaMemcpy( &succchange, d_succchange, sizeof(bool), cudaMemcpyDeviceToHost);
-		//printf("stuck\n");
 	}
 	while(succchange);
 
@@ -585,6 +586,11 @@ void HPGMST()
 
 
 void writeComponents(std::vector<unsigned int*>& d_hierarchy_levels, std::vector<int>& hierarchy_level_sizes, std::string outFile) {
+	std::chrono::high_resolution_clock::time_point start, end;
+	if (TIMING_MODE == TIME_PARTS || TIMING_MODE == TIME_COMPLETE) { // Start write timer
+		start = std::chrono::high_resolution_clock::now();
+	}
+
 	// Extract filepath without extension
 	size_t lastindex = outFile.find_last_of("."); 
 	std::string rawOutName = outFile.substr(0, lastindex);
@@ -637,14 +643,26 @@ void writeComponents(std::vector<unsigned int*>& d_hierarchy_levels, std::vector
 		CreateLevelOutput<<< grid_pixels, threads_pixels, 0>>>(d_output_image, d_component_colours, d_level, d_prev_level_component, no_of_rows, no_of_cols);
 	    cudaMemcpy(output, d_output_image, no_of_rows*no_of_cols*CHANNEL_SIZE*sizeof(char), cudaMemcpyDeviceToHost);
 
-		cv::Mat output_img = cv::Mat(no_of_rows, no_of_cols, CV_8UC3, output);
-		std::string outfilename = rawOutName + std::string("_")  + std::to_string(l) + std::string(".png");
-		std::string outmessage = std::string("Writing ") + outfilename.c_str() + std::string("\n");
+	    if (!NO_WRITE) {
+	    	cv::Mat output_img = cv::Mat(no_of_rows, no_of_cols, CV_8UC3, output);
+			std::string outfilename = rawOutName + std::string("_")  + std::to_string(l) + std::string(".png");
+			std::string outmessage = std::string("Writing ") + outfilename.c_str() + std::string("\n");
 
-		fprintf(stderr, "%s", outmessage.c_str());
-		imwrite(outfilename, output_img);
+			fprintf(stderr, "%s", outmessage.c_str());
+			imwrite(outfilename, output_img);
+	    }
 	}
 
+	if (TIMING_MODE == TIME_PARTS || TIMING_MODE == TIME_COMPLETE) { // End write timer
+		cudaDeviceSynchronize();
+		end = std::chrono::high_resolution_clock::now();
+		int time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+		if (TIMING_MODE == TIME_PARTS) {
+			timings.push_back(time);
+		} else {
+			timings[0] += time;
+		}
+	}
 
 	// Free memory
 	cudaFree(d_component_colours);
@@ -723,10 +741,8 @@ void segment(Mat image, std::string outFile, bool output) {
 	// Free GPU segmentation memory
 	FreeMem();
 
-	if (output) {
-		// Write segmentation hierarchy
-		writeComponents(d_hierarchy_levels, hierarchy_level_sizes, outFile);
-	}
+	// Write segmentation hierarchy
+	writeComponents(d_hierarchy_levels, hierarchy_level_sizes, outFile);
 
 	clearHierarchy(d_hierarchy_levels, hierarchy_level_sizes);
 }
@@ -744,6 +760,7 @@ void printUsage() {
     puts("\t-w: Number of iterations to perform during warmup");
     puts("\t-b: Number of iterations to perform during benchmarking");
     puts("\t-t: Timing mode: complete / parts (default complete)");
+    puts("\t-n: Don't write images to disk (for benchmarking purposes)");
     exit(1);
 }
 
@@ -751,7 +768,7 @@ void printCSVHeader() {
 	if (TIMING_MODE == TIME_COMPLETE) {
 		 printf("total\n"); // Excluding output: gaussian + graph creation + segmentation
 	} else {
-		printf("gaussian, graph creation, segmentation\n");
+		printf("gaussian, graph, segmentation, output\n");
 	}
 }
 
@@ -759,7 +776,7 @@ void printCSVLine() {
 	if (timings.size() > 0) {
 		printf("%d", timings[0]);
 		for (int i = 1; i < timings.size(); i++) {
-			printf(",%d", timings[i]);
+			printf(", %d", timings[i]);
 		}
 		printf("\n");
 		timings.clear();
@@ -790,9 +807,13 @@ const Options handleParams(int argc, char **argv) {
                 options.benchmarkIterations = atoi(optarg);
                 continue;
             }
-             case 'p': {
+            case 'p': {
                 TIMING_MODE = TIME_PARTS;
                 continue;
+            }
+            case 'n': {
+            	NO_WRITE = true;
+            	continue;
             }
             case '?':
             case 'h':
