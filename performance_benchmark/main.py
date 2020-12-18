@@ -21,7 +21,7 @@ import subprocess
 # - don't print warmup round timings to stdout
 # - Use the headers gaussian, graph, segment, output, complete to indicate what a particular CSV column corresponds to
 
-# TODO in implementation change t to p parameter
+# TODO create directories if don't exist
 
 def dir_path(string):
     if os.path.isdir(string):
@@ -101,7 +101,7 @@ def execute(executable, image, segment_output_directory, bench_output_directory,
     tqdm.write("Executing {} {}".format(executable, command_msg))
 
     # Execute program
-    myout = subprocess.Popen(command_params, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    myout = subprocess.Popen(command_params, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stdout, stderr = myout.communicate()
 
     exitcode = myout.returncode
