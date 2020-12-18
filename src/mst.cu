@@ -476,7 +476,10 @@ char *compute_segments(void *input, uint x, uint y, size_t pitch, bool use_cpu, 
     checkErrors("Malloc sources");
     cudaMalloc(&did_change, sizeof(uint));
     checkErrors("Malloc did change");
+    char *component_colours_dev;
+    cudaMalloc(&component_colours_dev, num_vertices * CHANNEL_SIZE * sizeof(char));
 
+    cudaDeviceSynchronize();
     checkErrors("encode()");
 
     // Segment matrix
@@ -500,6 +503,7 @@ char *compute_segments(void *input, uint x, uint y, size_t pitch, bool use_cpu, 
 
     char *component_colours = (char *) malloc(num_vertices * CHANNEL_SIZE * sizeof(char));
     get_component_colours(component_colours, num_vertices);
+    cudaMemcpyAsync(component_colours_dev, component_colours, num_vertices * CHANNEL_SIZE * sizeof(char), cudaMemcpyHostToDevice);
 
     char *output = (char*) malloc(x*y*CHANNEL_SIZE*sizeof(char));
     cudaDeviceSynchronize();
@@ -519,9 +523,7 @@ char *compute_segments(void *input, uint x, uint y, size_t pitch, bool use_cpu, 
     cudaFree(sources);
     checkErrors("Free sources");
 
-    char *component_colours_dev;
-    cudaMalloc(&component_colours_dev, num_vertices * CHANNEL_SIZE * sizeof(char));
-    cudaMemcpyAsync(component_colours_dev, component_colours, num_vertices * CHANNEL_SIZE * sizeof(char), cudaMemcpyHostToDevice);
+
 
     char *output_dev;
     cudaMalloc(&output_dev, num_vertices * CHANNEL_SIZE * sizeof(char));
@@ -603,7 +605,7 @@ char *compute_segments_partial(void *input, uint x, uint y, size_t pitch, bool u
     end = std::chrono::high_resolution_clock::now();
 
     auto time_span_encode = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-    std::cout << time_span_encode.count() << std::endl;
+    std::cout << time_span_encode.count() << ",";
     checkErrors("encode()");
 
     // Segment matrix
@@ -634,7 +636,7 @@ char *compute_segments_partial(void *input, uint x, uint y, size_t pitch, bool u
     end = std::chrono::high_resolution_clock::now();
 
     auto time_span_segment = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-    std::cout << time_span_segment.count() << std::endl;
+    std::cout << time_span_segment.count() << ",";
 
     start = std::chrono::high_resolution_clock::now();
     // Setup random colours for components
