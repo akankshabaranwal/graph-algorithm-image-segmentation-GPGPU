@@ -7,4 +7,9 @@ fi
 
 mkdir -p /tmp/felz_out/
 out/felz -i $1 -o /tmp/felz_out/out.png
+
+if [ ! -f /tmp/felz_out/out_$3.png ]; then
+    touch /tmp/felz_out/out_$3.png
+fi
+
 mv /tmp/felz_out/out_$3.png $2
