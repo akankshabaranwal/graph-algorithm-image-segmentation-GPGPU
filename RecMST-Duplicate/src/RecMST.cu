@@ -789,7 +789,7 @@ const Options handleParams(int argc, char **argv) {
     TIMING_MODE = TIME_COMPLETE;
     for(;;)
     {
-        switch(getopt(argc, argv, "hi:o:w:b:t:"))
+        switch(getopt(argc, argv, "pnhi:o:w:b:"))
         {
             case 'i': {
                 options.inFile = std::string(optarg);
