@@ -9,6 +9,7 @@ import numpy as np
 
 
 def find_segments(file):
+    # import pdb; pdb.set_trace()
     color_image = imageio.imread(file.read())
     W, H, C = color_image.shape
 
@@ -32,6 +33,7 @@ def interesect(segments1, segid1, segments2, segid2):
 
 # Achievable Segmentation Accuracy
 def asa_score(segments_in, segments_gt):
+    # import pdb; pdb.set_trace()
     N_in = np.max(segments_in) + 1
     N_gt = np.max(segments_gt) + 1
     
@@ -47,6 +49,7 @@ def asa_score(segments_in, segments_gt):
 
 # Under Segmentation Error
 def underseg_error(segments_in, segments_gt):
+    # import pdb; pdb.set_trace()
     N_in = np.max(segments_in) + 1
     N_gt = np.max(segments_gt) + 1
     
