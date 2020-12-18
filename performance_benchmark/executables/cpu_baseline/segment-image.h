@@ -58,7 +58,7 @@ static inline float diff(image<float> *r, image<float> *g, image<float> *b,
  * num_ccs: number of connected components in the segmentation.
  */
 image<rgb> *segment_image(image<rgb> *im, float sigma, float c, int min_size,
-			  int *num_ccs, int partial) {
+			  int *num_ccs, bool partial) {
 
   std::chrono::high_resolution_clock::time_point start, end;
   if (partial) { // Start gaussian timer

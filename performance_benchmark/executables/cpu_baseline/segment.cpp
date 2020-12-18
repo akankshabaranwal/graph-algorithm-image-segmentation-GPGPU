@@ -22,23 +22,91 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
 #include <misc.h>
 #include <pnmfile.h>
 #include <chrono>
+#include <unistd.h>
 #include "segment-image.h"
 
+float sigma;
+float k;
+int min_size;
+int warmup;
+int benchmark;
+bool partial;
+char* in_path;
+char* out_path;
+
+void printUsage() {
+    puts("Usage: ./segment -i [input image path] -o [output image path]");
+    puts("Options:");
+    puts("\t-i: Path to input file (eg: data/beach.ppm)");
+    puts("\t-o: Path to output file (eg: segmented.ppm)");
+    puts("\t-s: Sigma");
+    puts("\t-k: K");
+    puts("\t-m: Min segment size");
+    puts("Benchmarking options");
+    puts("\t-w: Number of iterations to perform during warmup");
+    puts("\t-b: Number of iterations to perform during benchmarking");
+    puts("\t-p: If want to do partial timings");
+    exit(1);
+}
+
+void handleParams(int argc, char **argv) {
+    for(;;)
+    {
+        switch(getopt(argc, argv, "phi:o:s:k:m:w:b:"))
+        {
+            case 'i': {
+                in_path = optarg;
+                continue;
+            }
+            case 'o': {
+                out_path = optarg;
+                continue;
+            }
+            case 's': {
+                sigma = atof(optarg);
+                continue;
+            }
+            case 'k': {
+                k = atof(optarg);
+                continue;
+            }
+            case 'm': {
+                min_size = atoi(optarg);
+                continue;
+            }
+            case 'w': {
+                warmup = atoi(optarg);
+                continue;
+            }
+            case 'b': {
+                benchmark = atoi(optarg);
+                continue;
+            }
+            case 'p': {
+                partial = true;
+                continue;
+            }
+            case '?':
+            case 'h':
+            default : {
+                printUsage();
+                break;
+            }
+
+            case -1:  {
+                break;
+            }
+        }
+        break;
+    }
+}
+
+
 int main(int argc, char **argv) {
-  if (argc != 9) {
-    fprintf(stderr, "usage: %s sigma k min input(ppm) output(ppm) warmup benchmark partial(0:complete,1:partial)\n", argv[0]);
-    return 1;
-  }
-  
-  float sigma = atof(argv[1]);
-  float k = atof(argv[2]);
-  int min_size = atoi(argv[3]);
-  int warmup = atoi(argv[6]);
-  int benchmark = atoi(argv[7]);
-	int partial = atoi(argv[8]);
+  handleParams(argc, argv);
 
   fprintf(stderr, "loading input image.\n");
-  image<rgb> *input = loadPPM(argv[4]);
+  image<rgb> *input = loadPPM(in_path);
 	
   fprintf(stderr, "processing\n");
   int num_ccs; 
@@ -58,7 +126,7 @@ int main(int argc, char **argv) {
       image<rgb> *seg = segment_image(input, sigma, k, min_size, &num_ccs, partial);
       printf("\n");
       if (i == benchmark-1) {
-        savePPM(seg, argv[5]);
+        savePPM(seg, out_path);
       }
     } else {
       std::chrono::high_resolution_clock::time_point start, end;
@@ -68,7 +136,7 @@ int main(int argc, char **argv) {
       int time_span = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
       printf("%d\n", time_span);
       if (i == benchmark-1) {
-        savePPM(seg, argv[5]);
+        savePPM(seg, out_path);
       }
     }
   }

@@ -1012,8 +1012,8 @@ void buildGraph(const vector<uchar3> &image,
 void printUsage() {
     puts("Usage: ./segmentationTreeThrust -i [input image path] -o [output image path]");
     puts("Options:");
-    puts("\t-i: Path to input file (default: data/beach.png)");
-    puts("\t-o: Path to output file (default: segmented.png)");
+    puts("\t-i: Path to input file (eg: data/beach.ppm)");
+    puts("\t-o: Path to output file (eg: segmented.ppm)");
     puts("Benchmarking options");
     puts("\t-w: Number of iterations to perform during warmup");
     puts("\t-b: Number of iterations to perform during benchmarking");
