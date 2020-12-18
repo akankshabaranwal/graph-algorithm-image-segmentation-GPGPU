@@ -46,6 +46,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
+#include <unistd.h>
 
 // C++ stuff
 #include <iostream>
@@ -759,7 +760,7 @@ void printUsage() {
     puts("Benchmarking options");
     puts("\t-w: Number of iterations to perform during warmup");
     puts("\t-b: Number of iterations to perform during benchmarking");
-    puts("\t-t: Timing mode: complete / parts (default complete)");
+    puts("\t-p: If want to do partial timings");
     puts("\t-n: Don't write images to disk (for benchmarking purposes)");
     exit(1);
 }
