@@ -5,15 +5,19 @@ if [ "$#" -ne 3 ]; then
     exit 1
 fi
 
-mkdir -p /tmp/seg_out/
+rm -r /tmp/seg_out/ 2> /dev/null
+mkdir /tmp/seg_out/
 cp "$1" /tmp/seg_out/input.jpg
 
 mogrify -format ppm /tmp/seg_out/*.jpg
 bin/x86_64/linux/release/segmentationTreeThrust -b 1 -i /tmp/seg_out/input.ppm -o /tmp/seg_out/output.ppm &> /dev/null
+
+ls -v /tmp/seg_out/output_*.ppm | tac | cat -n | while read n f; do mv -n "$f" "/tmp/seg_out/outputR_$((n - 1)).ppm"; done
 mogrify -format png /tmp/seg_out/*.ppm
 
-if [ ! -f /tmp/seg_out/output_$3.png ]; then
-    touch /tmp/seg_out/output_$3.png
+
+if [ ! -f /tmp/seg_out/outputR_$3.png ]; then
+    touch /tmp/seg_out/outputR_$3.png
 fi
 
-mv /tmp/seg_out/output_$3.png $2
+cp /tmp/seg_out/outputR_$3.png $2
