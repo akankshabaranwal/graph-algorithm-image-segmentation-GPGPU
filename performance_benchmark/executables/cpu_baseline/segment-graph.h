@@ -35,63 +35,45 @@ bool operator<(const edge &a, const edge &b) {
   return a.w < b.w;
 }
 
- /**
- * @brief Segment a graph, a disjoint-set forest representing the segmentation
- * @author Pedro Felzenszwalb, Alexander Freytag
- * @date 27-03-2014 ( dd-mm-yyyy, last updated)
- * 
- * @param[in] i_numVertices: number of vertices in graph
- * @param[in] i_numEdges: number of edges in graph
- * @param[in] edges: array of edges
- * @param[in] c: constant for treshold function
- * 
- * @param[out] u universe (disjoint-set forest representing the segmentation)
+/*
+ * Segment a graph
+ *
+ * Returns a disjoint-set forest representing the segmentation.
+ *
+ * num_vertices: number of vertices in graph.
+ * num_edges: number of edges in graph
+ * edges: array of edges.
+ * c: constant for treshold function.
  */
-universe *segment_graph( const int i_numVertices, 
-                         const int i_numEdges, 
-                         edge *edges, 
-                         const float c
-                       )
-{ 
+universe *segment_graph(int num_vertices, int num_edges, edge *edges, 
+			float c) { 
   // sort edges by weight
-  // note: if weights occure more then once, this might lead to non-deterministic (non-reproducable) behaviour, since
-  // "Equivalent elements are not guaranteed to keep their original relative order"
-  //  std::sort(edges, edges + i_numEdges);
-  
-  // adaptation: use stable_sort instead, which will keep the relative position of equal elements :)
-  std::stable_sort(edges, edges + i_numEdges);
+  std::sort(edges, edges + num_edges);
 
   // make a disjoint-set forest
-  universe *u = new universe(i_numVertices);
+  universe *u = new universe(num_vertices);
 
   // init thresholds
-  float *threshold = new float[i_numVertices];
-  for (int i = 0; i < i_numVertices; i++)
-  {
+  float *threshold = new float[num_vertices];
+  for (int i = 0; i < num_vertices; i++)
     threshold[i] = THRESHOLD(1,c);
-  }
-  
-
 
   // for each edge, in non-decreasing weight order...
-  for (int i = 0; i < i_numEdges; i++)
-  {
+  for (int i = 0; i < num_edges; i++) {
     edge *pedge = &edges[i];
     
     // components conected by this edge
     int a = u->find(pedge->a);
     int b = u->find(pedge->b);
-    if (a != b)
-    {
-      if ( (pedge->w <= threshold[a]) && (pedge->w <= threshold[b]) )
-      {
-        u->join(a, b);
-        a = u->find(a);
-        threshold[a] = pedge->w + THRESHOLD(u->size(a), c);
+    if (a != b) {
+      if ((pedge->w <= threshold[a]) &&
+	  (pedge->w <= threshold[b])) {
+	u->join(a, b);
+	a = u->find(a);
+	threshold[a] = pedge->w + THRESHOLD(u->size(a), c);
       }
     }
   }
-    
 
   // free up
   delete threshold;

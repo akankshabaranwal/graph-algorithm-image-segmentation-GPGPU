@@ -25,31 +25,56 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
 #include "segment-image.h"
 
 int main(int argc, char **argv) {
-  if (argc != 6) {
-    fprintf(stderr, "usage: %s sigma k min input(ppm) output(ppm)\n", argv[0]);
+  if (argc != 9) {
+    fprintf(stderr, "usage: %s sigma k min input(ppm) output(ppm) warmup benchmark partial(0:complete,1:partial)\n", argv[0]);
     return 1;
   }
-
+  
   float sigma = atof(argv[1]);
   float k = atof(argv[2]);
   int min_size = atoi(argv[3]);
+  int warmup = atoi(argv[6]);
+  int benchmark = atoi(argv[7]);
+	int partial = atoi(argv[8]);
 
-  printf("loading input image.\n");
+  fprintf(stderr, "loading input image.\n");
   image<rgb> *input = loadPPM(argv[4]);
+	
+  fprintf(stderr, "processing\n");
+  int num_ccs; 
 
-  printf("processing\n");
-  int num_ccs;
-  image<rgb> *w = segment_image(input, sigma, k, min_size, &num_ccs);
-  std::chrono::high_resolution_clock::time_point start, end;
-  start = std::chrono::high_resolution_clock::now();
-  image<rgb> *seg = segment_image(input, sigma, k, min_size, &num_ccs);
-  end = std::chrono::high_resolution_clock::now();
-  auto time_span = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-  savePPM(seg, argv[5]);
+  for (int i = 0; i < warmup; i++) {
+    image<rgb> *w = segment_image(input, sigma, k, min_size, &num_ccs, 0);
+  }
 
-  printf("got %d components\n", num_ccs);
-  printf("done! uff...thats hard work.\n");
-  printf("Took: %d us\n", time_span.count());
+  if (partial) {
+    printf("gaussian, graph, segmentation, output\n");  
+  } else {
+    printf("total\n");
+  }
+
+  for (int i = 0; i < benchmark; i++) {
+    if (partial) {
+      image<rgb> *seg = segment_image(input, sigma, k, min_size, &num_ccs, partial);
+      printf("\n");
+      if (i == benchmark-1) {
+        savePPM(seg, argv[5]);
+      }
+    } else {
+      std::chrono::high_resolution_clock::time_point start, end;
+      start = std::chrono::high_resolution_clock::now();
+      image<rgb> *seg = segment_image(input, sigma, k, min_size, &num_ccs, partial);
+      end = std::chrono::high_resolution_clock::now();
+      int time_span = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+      printf("%d\n", time_span);
+      if (i == benchmark-1) {
+        savePPM(seg, argv[5]);
+      }
+    }
+  }
+
+  fprintf(stderr,"got %d components\n", num_ccs);
+  fprintf(stderr,"done! uff...thats hard work.\n");
 
   return 0;
 }
