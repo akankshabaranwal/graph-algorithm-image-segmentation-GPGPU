@@ -359,7 +359,7 @@ void createGraph(Mat image) {
 
     size_t pitch = d_blurred.step;
 
-    /*unsigned int *h_weight = (unsigned int *) malloc(no_of_edges_orig * sizeof(unsigned int));
+    unsigned int *h_weight = (unsigned int *) malloc(no_of_edges_orig * sizeof(unsigned int));
     for (int i = 0; i < no_of_edges_orig; i++) {
     	h_weight[i] = 123456789;
     }
@@ -376,7 +376,7 @@ void createGraph(Mat image) {
 
     cudaMemcpy(d_weight, h_weight, no_of_edges_orig * sizeof(unsigned int), cudaMemcpyHostToDevice);
     cudaMemcpy(d_edge, h_edge, no_of_edges_orig * sizeof(unsigned int), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_vertex, h_vertex, no_of_vertices_orig * sizeof(unsigned int), cudaMemcpyHostToDevice);*/ // TODO
+    cudaMemcpy(d_vertex, h_vertex, no_of_vertices_orig * sizeof(unsigned int), cudaMemcpyHostToDevice); // TODO
 
     // Create inner graph
     createInnerGraphKernel<<< encode_blocks, encode_threads, 0>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
@@ -393,7 +393,7 @@ void createGraph(Mat image) {
 	
 	cudaDeviceSynchronize(); // Needed to synchronise streams!
 
-	/*cudaMemcpy(h_weight, d_weight, no_of_edges_orig * sizeof(unsigned int), cudaMemcpyDeviceToHost);
+	cudaMemcpy(h_weight, d_weight, no_of_edges_orig * sizeof(unsigned int), cudaMemcpyDeviceToHost);
 	cudaMemcpy(h_edge, d_edge, no_of_edges_orig * sizeof(unsigned int), cudaMemcpyDeviceToHost);
 	cudaMemcpy(h_vertex, d_vertex, no_of_vertices_orig * sizeof(unsigned int), cudaMemcpyDeviceToHost);
 
@@ -413,7 +413,7 @@ void createGraph(Mat image) {
             printf("%d ", h_vertex[i]);
     }
 
-    printf("\n\n");*/ // TODO
+    printf("\n\n"); // TODO
 
 	if (TIMING_MODE == TIME_PARTS) {
 		end = std::chrono::high_resolution_clock::now();
