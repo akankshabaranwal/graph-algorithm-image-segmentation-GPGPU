@@ -22,7 +22,6 @@ import subprocess
 # - don't print warmup round timings to stdout
 # - Use the headers gaussian, graph, segment, output, complete to indicate what a particular CSV column corresponds to
 
-# TODO: add retry and timeout parameters
 # TODO: write to one CSV
 # TODO: lots of small segments in naive algo makes hard to compare
 # TODO: add benchmarking flag to code to avoid writing to disk
