@@ -12,12 +12,12 @@ set(CMAKE_CXX_STANDARD_REQUIRED  TRUE)
 include_directories( ${OpenCV_INCLUDE_DIRS} "/home/akanksha/dphpc/project/graph-algorithm-image-segmentation/moderngpu-1.1/include")
 
 add_executable(felz
-	"${CMAKE_SOURCE_DIR}/src/Main.cu" "${CMAKE_SOURCE_DIR}/src/CreateGraph.h" "${CMAKE_SOURCE_DIR}/src/CreateGraph.cu" "${CMAKE_SOURCE_DIR}/moderngpu-1.1/src/mgpucontext.cu" "${CMAKE_SOURCE_DIR}/moderngpu-1.1/src/mgpuutil.cpp" src/FastMST.h src/FastMST.cu)
+	"${CMAKE_SOURCE_DIR}/src/Main.cu" "${CMAKE_SOURCE_DIR}/src/CreateGraph.h" "${CMAKE_SOURCE_DIR}/src/CreateGraph.cu" "${CMAKE_SOURCE_DIR}/moderngpu-1.1/src/mgpucontext.cu" "${CMAKE_SOURCE_DIR}/moderngpu-1.1/src/mgpuutil.cpp" src/FastMST.h src/FastMST.cu src/RecolorImage.cu src/RecolorImage.h)
 
 set_property(TARGET felz PROPERTY CUDA_ARCHITECTURES 61)
 
 target_include_directories(felz PRIVATE ${OpenCV_INCLUDE_DIRS})
-target_link_libraries(felz PRIVATE ${OpenCV_LIBS})
+target_link_libraries(felz PRIVATE ${OpenCV_LIBS} -lcurand)
 
 if(WIN32)
     set_property(TARGET felz PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")

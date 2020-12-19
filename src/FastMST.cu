@@ -272,7 +272,8 @@ __global__ void CreateNewEdgeList(int *BitEdgeList, int *compactLocations, int *
             if((supervertexid_u!=32767) and (supervertexid_v!=65535))
             {
                 newOnlyE[newLocation] = supervertexid_v;
-                newOnlyW[newLocation] = edgeWeight;
+                newOnlyW[newLocation] = (edgeWeight*(2<<15))+newLocation;
+
                 BitEdgeList[newLocation] = (edgeWeight * (2<<15)) + supervertexid_v;
                 expanded_u[newLocation] = supervertexid_u;
                 new_E_size[idx] = newLocation +1;
