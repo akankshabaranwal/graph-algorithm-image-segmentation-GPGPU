@@ -1,2 +1,0 @@
-# Graph algorithm image segmentation
-
