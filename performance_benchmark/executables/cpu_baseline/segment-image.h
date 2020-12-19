@@ -58,10 +58,10 @@ static inline float diff(image<float> *r, image<float> *g, image<float> *b,
  * num_ccs: number of connected components in the segmentation.
  */
 image<rgb> *segment_image(image<rgb> *im, float sigma, float c, int min_size,
-			  int *num_ccs, bool partial) {
+			  int *num_ccs, bool partial, bool warmup) {
 
   std::chrono::high_resolution_clock::time_point start, end;
-  if (partial) { // Start gaussian timer
+  if (partial && !warmup) { // Start gaussian timer
     start = std::chrono::high_resolution_clock::now();
   }
   int width = im->width();
@@ -86,13 +86,13 @@ image<rgb> *segment_image(image<rgb> *im, float sigma, float c, int min_size,
   delete g;
   delete b;
 
-  if (partial) { // End segmentation timer
+  if (partial && !warmup) { // End segmentation timer
     end = std::chrono::high_resolution_clock::now();
     int time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
     printf("%d", time);
   }
  
-  if (partial) { // Start graph timer
+  if (partial && !warmup) { // Start graph timer
     start = std::chrono::high_resolution_clock::now();
   }
 
@@ -134,13 +134,13 @@ image<rgb> *segment_image(image<rgb> *im, float sigma, float c, int min_size,
   delete smooth_g;
   delete smooth_b;
 
-  if (partial) { // End graph timer
+  if (partial && !warmup) { // End graph timer
     end = std::chrono::high_resolution_clock::now();
     int time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
     printf(", %d", time);
   }
 
-  if (partial) { // Start segment timer
+  if (partial && !warmup) { // Start segment timer
     start = std::chrono::high_resolution_clock::now();
   }
 
@@ -157,13 +157,13 @@ image<rgb> *segment_image(image<rgb> *im, float sigma, float c, int min_size,
   delete [] edges;
   *num_ccs = u->num_sets();
 
-  if (partial) { // End segment timer
+  if (partial && !warmup) { // End segment timer
     end = std::chrono::high_resolution_clock::now();
     int time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
     printf(", %d", time);
   }
 
-  if (partial) { // Start output timer
+  if (partial && !warmup) { // Start output timer
     start = std::chrono::high_resolution_clock::now();
   }
 
@@ -185,7 +185,7 @@ image<rgb> *segment_image(image<rgb> *im, float sigma, float c, int min_size,
   delete [] colors;  
   delete u;
 
-  if (partial) { // End output timer
+  if (partial && !warmup) { // End output timer
     end = std::chrono::high_resolution_clock::now();
     int time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
     printf(", %d", time);

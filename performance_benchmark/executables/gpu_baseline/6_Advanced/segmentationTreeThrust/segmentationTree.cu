@@ -1023,28 +1023,28 @@ void printUsage() {
 }
 
 
-void algo_wrapper(uint imageWidth, uint imageHeight, bool no_output_local) {
+void algo_wrapper(uint imageWidth, uint imageHeight, bool no_output_local, bool warmup) {
     std::chrono::high_resolution_clock::time_point start, end;
 
-    if (!partial) {
+    if (!partial && !warmup) {
         start = std::chrono::high_resolution_clock::now();
     }
 
-    if (partial) {
+    if (partial && !warmup) {
         start = std::chrono::high_resolution_clock::now();
     }
 
     Graph graph;
     buildGraph(in_image, imageWidth, imageHeight, graph);
 
-    if (partial) {
+    if (partial && !warmup) {
         cudaDeviceSynchronize();
         end = std::chrono::high_resolution_clock::now();
         int time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
         printf("0, %d", time);
     }
 
-    if (partial) {
+    if (partial && !warmup) {
         start = std::chrono::high_resolution_clock::now();
     }
 
@@ -1056,7 +1056,7 @@ void algo_wrapper(uint imageWidth, uint imageHeight, bool no_output_local) {
     SegmentationTreeBuilder algo;
     float elapsedTime = algo.run(graph, segmentations);
 
-    if (partial) {
+    if (partial && !warmup) {
         cudaDeviceSynchronize();
         end = std::chrono::high_resolution_clock::now();
         int time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
@@ -1065,20 +1065,20 @@ void algo_wrapper(uint imageWidth, uint imageHeight, bool no_output_local) {
 
     cerr << "* Dumping levels for each tree..." << endl << endl;
 
-    if (partial) {
+    if (partial && !warmup) {
         start = std::chrono::high_resolution_clock::now();
     }
 
     segmentations.dump(imageWidth, imageHeight, no_output_local);
 
-    if (partial) {
+    if (partial && !warmup) {
         cudaDeviceSynchronize();
         end = std::chrono::high_resolution_clock::now();
         int time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
         printf(", %d\n", time);
     }
 
-    if (!partial) {
+    if (!partial && !warmup) {
         cudaDeviceSynchronize();
         end = std::chrono::high_resolution_clock::now();
         int time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
@@ -1153,15 +1153,11 @@ int main(int argc, char **argv)
     }
 
     for (int i = 0; i < w; i++) {
-        algo_wrapper(imageWidth, imageHeight, true);
+        algo_wrapper(imageWidth, imageHeight, true, true);
     }
 
     for (int i = 0; i < b; i++) {
-        if (i == b-1) {
-            algo_wrapper(imageWidth, imageHeight, no_output);
-        } else {
-            algo_wrapper(imageWidth, imageHeight, true);
-        }
+        algo_wrapper(imageWidth, imageHeight, no_output, false);
     }
     
 }

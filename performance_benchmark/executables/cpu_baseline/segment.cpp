@@ -112,7 +112,7 @@ int main(int argc, char **argv) {
   int num_ccs; 
 
   for (int i = 0; i < warmup; i++) {
-    image<rgb> *w = segment_image(input, sigma, k, min_size, &num_ccs, 0);
+    image<rgb> *w = segment_image(input, sigma, k, min_size, &num_ccs, 0, true);
   }
 
   if (partial) {
@@ -123,7 +123,7 @@ int main(int argc, char **argv) {
 
   for (int i = 0; i < benchmark; i++) {
     if (partial) {
-      image<rgb> *seg = segment_image(input, sigma, k, min_size, &num_ccs, partial);
+      image<rgb> *seg = segment_image(input, sigma, k, min_size, &num_ccs, partial, false);
       printf("\n");
       if (i == benchmark-1) {
         savePPM(seg, out_path);
@@ -131,7 +131,7 @@ int main(int argc, char **argv) {
     } else {
       std::chrono::high_resolution_clock::time_point start, end;
       start = std::chrono::high_resolution_clock::now();
-      image<rgb> *seg = segment_image(input, sigma, k, min_size, &num_ccs, partial);
+      image<rgb> *seg = segment_image(input, sigma, k, min_size, &num_ccs, partial, false);
       end = std::chrono::high_resolution_clock::now();
       int time_span = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
       printf("%d\n", time_span);
