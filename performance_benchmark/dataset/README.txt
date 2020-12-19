@@ -1,3 +1,3 @@
-Berkeley Segmentation Data Set and Benchmarks 500 (BSDS500)
+7680 x 4320 Wallpaper used as source to create different sizes
 
-https://www2.eecs.berkeley.edu/Research/Projects/CS/vision/grouping/resources.html#bsds500
+Retrieved from: https://www.hdwallpapers.in/alps_castle_lake_mountain_oberhofen_switzerland_4k_8k_hd_nature-wallpapers.html
