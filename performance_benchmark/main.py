@@ -184,7 +184,7 @@ def benchmark(input_directory, segment_output_directory, bench_output_directory,
     createInfoFile(input_directory, segment_output_directory, bench_output_directory, executable, n_warmup, n_benchmark, partial, special_args, retries, timeout)
 
     for i in tqdm(range(0, len(image_paths)), total=len(image_paths), desc="Benchmarking progress", unit= " images", file=sys.stdout):
-        execute(executable, image_paths[i], segment_output_directory, bench_output_directory, n_warmup, n_benchmark, partial, special_args, retries, timeout)
+        execute_wrapper(executable, image_paths[i], segment_output_directory, bench_output_directory, n_warmup, n_benchmark, partial, special_args, retries, timeout)
 
     return 0
 
