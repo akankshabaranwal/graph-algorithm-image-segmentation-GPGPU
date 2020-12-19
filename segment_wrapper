@@ -1,0 +1,29 @@
+#!/bin/bash
+
+pushd () {
+    command pushd "$@" > /dev/null
+}
+
+popd () {
+    command popd "$@" > /dev/null
+}
+
+if [ "$#" -ne 3 ]; then
+    echo Usage: scripts/segment_wrapper INPUT OUTPUT S
+    exit 1
+fi
+
+
+cp $1 out/INPUT.jpg
+
+pushd out/
+mogrify -format ppm INPUT.jpg
+popd
+
+./segment -b 1 -k $3 -s 1.0 -m 20 -i out/INPUT.ppm -o out/OUTPUT.ppm &> /dev/null
+
+pushd out/
+mogrify -format png OUTPUT.ppm
+popd
+
+cp out/OUTPUT.png $2
