@@ -5,12 +5,14 @@
 #include "CreateGraph.h"
 #include "moderngpu.cuh"		// Include all MGPU kernels.
 #include "FastMST.h"
+#include "RecolorImage.h"
 
 using namespace cv;
 using namespace cv::cuda;
 using namespace mgpu;
 // TODO: Add the error handling code from:
 //  http://cuda-programming.blogspot.com/2013/01/vector-addition-in-cuda-cuda-cc-program.html
+
 int main(int argc, char **argv)
 {
     Mat image, output;
@@ -18,7 +20,7 @@ int main(int argc, char **argv)
 
     image = imread("data/beach.png", IMREAD_COLOR);
     int scale_percent = 10; // percent of original size
-    cv::resize(image, image, cv::Size(), 0.05, 0.05);//Debugging using beach scaled down by 0.05, 0.05
+    //cv::resize(image, image, cv::Size(), 0.05, 0.05);
 
     printf("Size of image obtained is: Rows: %d, Columns: %d, Pixels: %d\n", image.rows, image.cols, image.rows * image.cols);
 
@@ -69,7 +71,7 @@ int main(int argc, char **argv)
 
     int *Flag2;
     cudaMallocManaged(&Flag2, numEdges * sizeof(int32_t));
-    int *SuperVertexId;
+    int32_t *SuperVertexId;
     cudaMallocManaged(&SuperVertexId, numVertices * sizeof(int32_t));
 
     int *uid;
@@ -114,7 +116,7 @@ int main(int argc, char **argv)
     /**** MST Starts ****/
     bool DidReduce; //Boolean to check if more segments got created or not
     DidReduce = 1;
-
+/*
     printf("Vertex\n");
     for (int i = 0; i < numVertices; i++)
     {
@@ -141,12 +143,13 @@ int main(int argc, char **argv)
         tmp_Wt = BitEdgeList[i]>>16;
         printf("%d, ", tmp_Wt);
         OnlyWeight[i]=(tmp_Wt * (2<<15)) + i;
-    }
+    }*/
+
+    std::vector<int32_t*> d_hierarchy_levels;	// Vector containing pointers to all hierarchy levels (don't dereference on CPU, device pointers)
+    std::vector<int> hierarchy_level_sizes;			// Size of each hierarchy level
 
     while(numVertices>1)
     {
-        printf("\n*****************\n");
-        printf("\n*****************\n");
 
         printf("\nStarting new iteration\n");
         if(numVertices>1024)
@@ -184,7 +187,7 @@ int main(int argc, char **argv)
             printf("CUDA Error: Mark Segments%s\n", cudaGetErrorString(err));
             exit(-1);
         }
-        printf("\n Printing Only Weight Array Indices before minsegment: \n");
+     /*   printf("\n Printing Only Weight Array Indices before minsegment: \n");
         for(int i =0; i< numVertices; i++)
         {
             printf("%d ,", OnlyWeight[i]%(2<<15));
@@ -193,7 +196,7 @@ int main(int argc, char **argv)
         for(int i =0; i< numEdges; i++)
         {
             printf("%d ,", BitEdgeList[i]);
-        }
+        }*/
         //3. Segmented min scan
         SegmentedReduction(*context, VertexList, BitEdgeList, MinSegmentedList, numEdges, numVertices);
         SegmentedReduction(*context, VertexList, OnlyWeight, tempArray, numEdges, numVertices);
@@ -205,7 +208,7 @@ int main(int argc, char **argv)
             exit(-1);
         }
         cudaDeviceSynchronize();
-        printf("\n Printing MinSegment Array Values: \n");
+       /* printf("\n Printing MinSegment Array Values: \n");
         for(int i =0; i< numVertices; i++)
         {
             printf("%d ,", MinSegmentedList[i]);
@@ -224,7 +227,7 @@ int main(int argc, char **argv)
         for(int i =0; i< numVertices; i++)
         {
             printf("%d ,", tempArray[i]%(2<<15));
-        }
+        }*/
         // Create NWE array
         CreateNWEArray<<<numBlock, numthreads>>>(NWE, tempArray, numVertices);
         err = cudaGetLastError();        // Get error code
@@ -234,11 +237,11 @@ int main(int argc, char **argv)
             exit(-1);
         }
         cudaDeviceSynchronize();
-        printf("\n Printing NWE Array: \n");
+        /*printf("\n Printing NWE Array: \n");
         for(int i =0; i< numVertices; i++)
         {
             printf("%d ,", NWE[i]);
-        }
+        }*/
         //4. Find Successor array of each vertex
         FindSuccessorArray<<<numBlock, numthreads>>>(Successor, BitEdgeList, NWE, numVertices);
         err = cudaGetLastError();        // Get error code
@@ -248,13 +251,13 @@ int main(int argc, char **argv)
             exit(-1);
         }
         cudaDeviceSynchronize();
-
+/*
         printf("\nPrinting Successor Array: \n");
         for(int i =0; i< numVertices; i++)
         {
             printf("%d ,", Successor[i]);
         }
-
+*/
         RemoveCycles<<<numBlock, numthreads>>>(Successor, numVertices);
         err = cudaGetLastError();        // Get error code
         if ( err != cudaSuccess )
@@ -263,12 +266,12 @@ int main(int argc, char **argv)
             exit(-1);
         }
         cudaDeviceSynchronize();
-
+/*
         printf("\n After removing cycles printing Successor Array: \n");
         for(int i =0; i< numVertices; i++)
         {
             printf("%d ,", Successor[i]);
-        }
+        }*/
 
         //C. Merging vertices and assigning IDs to supervertices
         //7. Propagate representative vertex IDs using pointer doubling
@@ -277,12 +280,12 @@ int main(int argc, char **argv)
         PropagateRepresentativeVertices(Successor, numVertices);
 
         cudaDeviceSynchronize();
-        printf("\n After propagating representative vertices printing Successor Array: \n");
+       /* printf("\n After propagating representative vertices printing Successor Array: \n");
         for(int i =0; i< numVertices; i++)
         {
             if(Successor[i]!=18145)
           printf("%d ,", Successor[i]);
-        }
+        }*/
 
         //8, 9 Append appendSuccessorArray
         appendSuccessorArray<<<numBlock, numthreads>>>(Representative, VertexIds, Successor, numVertices);
@@ -295,7 +298,7 @@ int main(int argc, char **argv)
         }
         cudaDeviceSynchronize();
 
-        printf("\n Representative array \n");
+       /* printf("\n Representative array \n");
         for(int i =0; i< numVertices; i++)
         {
             printf("%d ,", Representative[i]);
@@ -305,7 +308,7 @@ int main(int argc, char **argv)
         for(int i =0; i< numVertices; i++)
         {
             printf("%d ,", VertexIds[i]);
-        }
+        }*/
         //cudaDeviceSynchronize();
         //9. Create F2, Assign new IDs based on Flag2 array
         cudaDeviceSynchronize();
@@ -316,7 +319,7 @@ int main(int argc, char **argv)
 
         cudaDeviceSynchronize();
 
-        printf("\n Sorted representative array \n");
+      /*  printf("\n Sorted representative array \n");
         for(int i =0; i< numVertices; i++)
         {
             printf("%d ,", Representative[i]);
@@ -333,7 +336,7 @@ int main(int argc, char **argv)
         {
             printf("%d ,", Flag2[i]);
         }
-
+*/
         //D. Finding the Supervertex ids and storing it in an array
         CreateSuperVertexArray<<<numBlock,numthreads>>>(SuperVertexId, VertexIds, Flag2, numVertices);
         err = cudaGetLastError();        // Get error code
@@ -343,17 +346,17 @@ int main(int argc, char **argv)
             exit(-1);
         }
         cudaDeviceSynchronize();
-       printf("\n SuperVertexIds\n");
+   /*    printf("\n SuperVertexIds\n");
         for(int i =0; i< numVertices; i++)
         {
             printf("%d ,", SuperVertexId[i]);
-        }
+        }*/
 
         //Create UID array. 10.2
         CreateUid(uid, flag, numEdges); //Isnt this same as the vertex list??
         cudaDeviceSynchronize();
 
-        printf("\n Uid\n");
+    /*    printf("\n Uid\n");
         for(int i =0; i< numEdges; i++)
         {
             printf("%d ,", uid[i]);
@@ -362,7 +365,7 @@ int main(int argc, char **argv)
         for (int i = 0; i < numEdges; i++)
         {
             printf("%d, ", OnlyEdge[i]);
-        }
+        }*/
         //11. Removing self edges
         RemoveSelfEdges<<<numBlock,numthreads>>>(OnlyEdge, numEdges, uid, SuperVertexId);
         err = cudaGetLastError();        // Get error code
@@ -373,7 +376,7 @@ int main(int argc, char **argv)
         }
         cudaDeviceSynchronize();
 
-        printf("\n SuperVertex\n");
+    /*    printf("\n SuperVertex\n");
         for(int i =0; i< numVertices; i++)
         {
             printf("%d ,", SuperVertexId[i]);
@@ -383,7 +386,7 @@ int main(int argc, char **argv)
         {
             if(OnlyEdge[i]!=INT_MAX)
             printf("%d, ", OnlyEdge[i]);
-        }
+        }*/
         //E 12.
         CreateUVWArray<<<numBlock,numthreads>>>(BitEdgeList, OnlyEdge, numEdges, uid, SuperVertexId, UV, W);
         err = cudaGetLastError();        // Get error code
@@ -393,40 +396,40 @@ int main(int argc, char **argv)
             exit(-1);
         }
         cudaDeviceSynchronize();
-        printf("\n Printing UVW array: before calling SortUVW");
+      /*  printf("\n Printing UVW array: before calling SortUVW");
         for(int i = 0; i< numEdges;i++)
         {
             printf("%d %d %d , ", UV[i]>>16, UV[i]%(2<<15), W[i]);
         }
-        printf("\n");
+        printf("\n");*/
         //12.2 Sort the UVW Array
         thrust::sort_by_key(thrust::device, UV, UV + numEdges, W);
         cudaDeviceSynchronize();
-        printf("\n Printing UVW array after SortUVW: ");
+        /*printf("\n Printing UVW array after SortUVW: ");
         for(int i = 0; i< numEdges;i++)
         {
             printf("%d %d %d , ", UV[i]>>16, UV[i]%(2<<15), W[i]);
         }
-        printf("\n");
+        printf("\n");*/
         flag3[0]=1;
         CreateFlag3Array<<<numBlock,numthreads>>>(UV, W, numEdges, flag3, MinMaxScanArray);
         int *new_edge_size = thrust::max_element(thrust::device, MinMaxScanArray, MinMaxScanArray + numEdges);
         cudaDeviceSynchronize();
-        //*new_edge_size = *new_edge_size+1;
-        printf("\nnew_edge_size %d", *new_edge_size);
+        *new_edge_size = *new_edge_size+1;
+        //printf("\nnew_edge_size %d", *new_edge_size);
 
         thrust::inclusive_scan(flag3, flag3 + *new_edge_size, compactLocations, thrust::plus<int>());
         cudaDeviceSynchronize();
-        printf("\n Printing compact locations array before subtract\n");
+        /*printf("\n Printing compact locations array before subtract\n");
         for(int i = 0; i< *new_edge_size;i++)
         {
             printf("%d, ", compactLocations[i]);
         }
-        printf("\n");
+        printf("\n");*/
         ResetCompactLocationsArray<<<numBlock,numthreads>>>(compactLocations, *new_edge_size);
         cudaDeviceSynchronize();
+        /*
         printf("\nPrinting inputs for CreatNewEdgeList\n");
-
         printf("\n Printing flag3 array\n");
         for(int i = 0; i< *new_edge_size;i++)
         {
@@ -445,7 +448,7 @@ int main(int argc, char **argv)
         {
             printf("%d %d %d, ", UV[i]>>16, UV[i]%(2<<15), W[i]);
         }
-        printf("\n");
+        printf("\n");*/
         CreateNewEdgeList<<<numBlock,numthreads>>>( BitEdgeList, compactLocations, OnlyEdge, OnlyWeight, UV, W, flag3, *new_edge_size, new_E_size, new_V_size, expanded_u);
         int *new_E_sizeptr = thrust::max_element(thrust::device, new_E_size, new_E_size + *new_edge_size);
         int *new_V_sizeptr = thrust::max_element(thrust::device, new_V_size, new_V_size + *new_edge_size);
@@ -453,6 +456,7 @@ int main(int argc, char **argv)
         numVertices = *new_V_sizeptr;
         numEdges = *new_E_sizeptr;
         cudaDeviceSynchronize();
+        /*
         printf("\nAfter CreateNewEdgeList\n");
 
         printf("\nPrinting E\n");
@@ -466,12 +470,13 @@ int main(int argc, char **argv)
         printf("\nPrinting expanded_u\n");
         for(int i=0; i< numEdges;i++)
             printf("%d, ", expanded_u[i]);
-
+*/
         Flag4[0]=1;
         CreateFlag4Array<<<numBlock,numthreads>>>(expanded_u, Flag4, numEdges);
 
         cudaDeviceSynchronize();
 
+        /*
         printf("\nPrinting expanded_u\n");
         for(int i=0; i<numEdges; i++)
                 printf("%d, ", expanded_u[i]);
@@ -479,11 +484,18 @@ int main(int argc, char **argv)
         printf("\nPrinting Flag4\n");
         for(int i=0; i<numEdges; i++)
             printf("%d, ", Flag4[i]);
+        */
 
         CreateNewVertexList<<<numBlock,numthreads>>>(OnlyVertex, Flag4, numEdges, expanded_u);
 
+        err = cudaGetLastError();        // Get error code
+        if ( err != cudaSuccess )
+        {
+            printf("CUDA Error: CreateNewVertexList%s\n", cudaGetErrorString(err));
+            exit(-1);
+        }
         cudaDeviceSynchronize();
-
+/*
         printf("\n numVertices: %d numEdges %d", numVertices, numEdges);
 
         printf("\nPrinting new Vertex List:\n");
@@ -497,9 +509,13 @@ int main(int argc, char **argv)
         printf("\nPrinting new Weight List:\n");
         for(int i=0;i<numEdges;i++)
             printf("%d, ", OnlyWeight[i]);
+*/
+        d_hierarchy_levels.push_back(SuperVertexId);
+        hierarchy_level_sizes.push_back(numVertices);
 
-        numVertices=1;
+        //numVertices=1;
     }
-
+    std::string outFile="test";
+    writeComponents(d_hierarchy_levels, image.rows*image.cols, 3, hierarchy_level_sizes, outFile, image.rows, image.cols);
     return 0;
 }
