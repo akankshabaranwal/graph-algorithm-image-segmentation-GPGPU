@@ -18,7 +18,7 @@ int main(int argc, char **argv)
 
     image = imread("data/beach.png", IMREAD_COLOR);
     int scale_percent = 10; // percent of original size
-    cv::resize(image, image, cv::Size(), 0.05, 0.05);
+    cv::resize(image, image, cv::Size(), 0.05, 0.05);//Debugging using beach scaled down by 0.05, 0.05
 
     printf("Size of image obtained is: Rows: %d, Columns: %d, Pixels: %d\n", image.rows, image.cols, image.rows * image.cols);
 
@@ -97,13 +97,6 @@ int main(int argc, char **argv)
     dev_output.download(output);
 
     int32_t tmp_V, tmp_Wt;
-    /*
-    for(int i =0; i<numEdges; i++)
-    {
-        tmp_V = BitEdgeList[i]% (2 << 15);
-        tmp_Wt = BitEdgeList[i]>>16;
-        printf("EdgeListV:%d, EdgeListWt:%d, BitVertex:%d, BitWt:%d\n", EdgeList[i].Vertex, EdgeList[i].Weight, tmp_V, tmp_Wt);
-    }*/
 
     int numthreads = 32;
     int numBlock = numVertices/numthreads;
@@ -148,17 +141,28 @@ int main(int argc, char **argv)
         tmp_Wt = BitEdgeList[i]>>16;
         printf("%d, ", tmp_Wt);
         OnlyWeight[i]=(tmp_Wt * (2<<15)) + i;
-       /* if ((int32_t(tmp_Wt) - int32_t(EdgeList[i].Weight))!=0);
-        {   printf("%d ", tmp_Wt - EdgeList[i].Weight);
-            printf("ERROR!!!");
-            exit(-1);
-        }*/
     }
-    //return 0;
 
     while(numVertices>1)
     {
-        printf("it\n");
+        printf("\n*****************\n");
+        printf("\n*****************\n");
+
+        printf("\nStarting new iteration\n");
+        if(numVertices>1024)
+        numthreads = min(1024,numVertices);
+        else if(numVertices>512)
+            numthreads = min(512,numVertices);
+        else if(numVertices>256)
+            numthreads = min(256,numVertices);
+        else if(numVertices>128)
+            numthreads = min(128,numVertices);
+        else if(numVertices>64)
+            numthreads = min(64,numVertices);
+        else
+            numthreads = min(32,numVertices);
+
+        numBlock = numVertices/numthreads;
 
         //1. The graph creation step above takes care of this
 
@@ -305,7 +309,11 @@ int main(int argc, char **argv)
         //cudaDeviceSynchronize();
         //9. Create F2, Assign new IDs based on Flag2 array
         cudaDeviceSynchronize();
-        SortedSplit(Representative, VertexIds, Successor, Flag2, numVertices);
+        //SortedSplit(Representative, VertexIds, Successor, Flag2, numVertices);
+        thrust::sort_by_key(thrust::device, Representative, Representative + numVertices, VertexIds);
+        CreateFlag2Array<<<numBlock, numthreads>>>(Representative, Flag2, numVertices);
+        thrust::inclusive_scan(Flag2, Flag2 + numVertices, Flag2, thrust::plus<int>());
+
         cudaDeviceSynchronize();
 
         printf("\n Sorted representative array \n");
@@ -400,48 +408,97 @@ int main(int argc, char **argv)
             printf("%d %d %d , ", UV[i]>>16, UV[i]%(2<<15), W[i]);
         }
         printf("\n");
-        flag3[0]=0;
+        flag3[0]=1;
         CreateFlag3Array<<<numBlock,numthreads>>>(UV, W, numEdges, flag3, MinMaxScanArray);
-
         int *new_edge_size = thrust::max_element(thrust::device, MinMaxScanArray, MinMaxScanArray + numEdges);
         cudaDeviceSynchronize();
-        printf("new_edge_size %d", *new_edge_size);
+        //*new_edge_size = *new_edge_size+1;
+        printf("\nnew_edge_size %d", *new_edge_size);
+
         thrust::inclusive_scan(flag3, flag3 + *new_edge_size, compactLocations, thrust::plus<int>());
         cudaDeviceSynchronize();
+        printf("\n Printing compact locations array before subtract\n");
+        for(int i = 0; i< *new_edge_size;i++)
+        {
+            printf("%d, ", compactLocations[i]);
+        }
+        printf("\n");
+        ResetCompactLocationsArray<<<numBlock,numthreads>>>(compactLocations, *new_edge_size);
+        cudaDeviceSynchronize();
+        printf("\nPrinting inputs for CreatNewEdgeList\n");
 
-        printf("Printing flag3 array\n");
-        for(int i = 0; i< numEdges;i++)
+        printf("\n Printing flag3 array\n");
+        for(int i = 0; i< *new_edge_size;i++)
         {
             printf("%d, ", flag3[i]);
         }
+
+        printf("\n Printing compact locations array\n");
+        for(int i = 0; i< *new_edge_size;i++)
+        {
+            printf("%d, ", compactLocations[i]);
+        }
+        printf("\n");
+        printf("\n Printing UVW array\n");
+
+        for(int i=0; i< *new_edge_size; i++)
+        {
+            printf("%d %d %d, ", UV[i]>>16, UV[i]%(2<<15), W[i]);
+        }
         printf("\n");
         CreateNewEdgeList<<<numBlock,numthreads>>>( BitEdgeList, compactLocations, OnlyEdge, OnlyWeight, UV, W, flag3, *new_edge_size, new_E_size, new_V_size, expanded_u);
-        int *new_E_sizeptr = thrust::max_element(thrust::device, new_E_size, new_E_size + numEdges);
-        int *new_V_sizeptr = thrust::max_element(thrust::device, new_V_size, new_V_size + numEdges);
+        int *new_E_sizeptr = thrust::max_element(thrust::device, new_E_size, new_E_size + *new_edge_size);
+        int *new_V_sizeptr = thrust::max_element(thrust::device, new_V_size, new_V_size + *new_edge_size);
         cudaDeviceSynchronize();
         numVertices = *new_V_sizeptr;
         numEdges = *new_E_sizeptr;
-        printf("%d, %d ", *new_E_sizeptr, *new_V_sizeptr);
-        CreateFlag4Array<<<numBlock,numthreads>>>(expanded_u, Flag4, *new_E_size);
-        CreateNewVertexList<<<numBlock,numthreads>>>(OnlyVertex, Flag4, *new_E_size, expanded_u);
+        cudaDeviceSynchronize();
+        printf("\nAfter CreateNewEdgeList\n");
 
-        //12.3 Create Flag3 array. This gives the new_edge_size variable
+        printf("\nPrinting E\n");
+        for(int i=0; i< numEdges;i++)
+            printf("%d, ", OnlyEdge[i]);
 
-        //13.1 Create CompactLocations array based on Flag3 above. Scan
+        printf("\nPrinting W\n");
+        for(int i=0; i< numEdges;i++)
+            printf("%d, ", OnlyWeight[i]);
 
-        //13.2 Create expanded_u array
+        printf("\nPrinting expanded_u\n");
+        for(int i=0; i< numEdges;i++)
+            printf("%d, ", expanded_u[i]);
 
+        Flag4[0]=1;
+        CreateFlag4Array<<<numBlock,numthreads>>>(expanded_u, Flag4, numEdges);
 
-        /*
-        //flag3 could be renamed to compact location
-        numVertices = CreateNewEdgeVertexList(BitEdgeList, VertexList, UV, W, flag3, new_edge_size, flag4);
+        cudaDeviceSynchronize();
 
-        //numEdges = new_edge_size; //This is incorrect. Need to return new_E_size as well*/
+        printf("\nPrinting expanded_u\n");
+        for(int i=0; i<numEdges; i++)
+                printf("%d, ", expanded_u[i]);
+
+        printf("\nPrinting Flag4\n");
+        for(int i=0; i<numEdges; i++)
+            printf("%d, ", Flag4[i]);
+
+        CreateNewVertexList<<<numBlock,numthreads>>>(OnlyVertex, Flag4, numEdges, expanded_u);
+
         cudaDeviceSynchronize();
 
         printf("\n numVertices: %d numEdges %d", numVertices, numEdges);
 
-        //numVertices = 1;
+        printf("\nPrinting new Vertex List:\n");
+        for(int i=0;i<numVertices;i++)
+            printf("%d, ", OnlyVertex[i]);
+
+        printf("\nPrinting new Edge List:\n");
+        for(int i=0;i<numEdges;i++)
+            printf("%d, ", OnlyEdge[i]);
+
+        printf("\nPrinting new Weight List:\n");
+        for(int i=0;i<numEdges;i++)
+            printf("%d, ", OnlyWeight[i]);
+
+        numVertices=1;
     }
 
     return 0;
