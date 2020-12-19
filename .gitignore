@@ -211,3 +211,7 @@ Temporary Items
 .apdisk
 
 segment
+
+# Python
+__pycache__
+.ipynb_checkpoints
