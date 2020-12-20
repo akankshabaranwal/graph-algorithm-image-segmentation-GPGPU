@@ -5,6 +5,8 @@ from superpixel import superpixel
 import matplotlib.pyplot as plt
 import numpy as np
 import random
+import argparse
+import os
 random.seed(10)
 
 def visualise(orig, segment, grayscale=False):
@@ -33,9 +35,17 @@ def random_rgb():
 
 
 if __name__ == '__main__':
-    img_path = 'data/beach.gif'
-    edge_path = 'data/beach_edge.jpg'
-    sigma = 1.5
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-i', help='Input directory (eg ./bds500/)', required=True)
+    parser.add_argument('-o', help='Output directory (eg ./bds500_measurements)', required=True)
+    parser.add_argument('-s', help='Segment directory (eg ./bds500_segments)', required=True)
+    parser.add_argument('-x', action='store_true', help='Orig python algo')
+    arg = parser.parse_args()
+
+    img_path = arg.i
+    edge_path = arg.o
+    img_name = os.path.splitext(os.path.basename(img_path))[0]
+    sigma = 1.0
     k = 500
     min = 50
 
@@ -51,9 +61,12 @@ if __name__ == '__main__':
     assert n_rows == edge.shape[0] and  n_cols == edge.shape[1] and len(edge.shape) == 2
 
     #segmentation_hierarchy = superpixel(image, edge, sigma, k, min)
-    segmentation_hierarchy = felzenswalb_edge(image, edge, sigma, k, min)
+    if arg.x:
+        segmentation_hierarchy = felzenswalb(image, sigma, k, min)
+    else:
+        segmentation_hierarchy = felzenswalb_edge(image, edge, sigma, k, min)
 
-    # segmentation_hierarchy = felzenswalb(image, sigma, k, min)
+    #
 
 
     colors = np.zeros(shape=(n_rows * n_cols, 3))
@@ -73,6 +86,5 @@ if __name__ == '__main__':
 
         is_grayscale = len(image.shape) < 3
 
-        imwrite('segment_{lev}.png'.format(lev=level), output)
-        #visualise(image.astype(int), output, grayscale=is_grayscale)
+        imwrite(os.path.join(arg.s, '{name}_{lev}.png'.format(name=img_name, lev=level)), output)
 

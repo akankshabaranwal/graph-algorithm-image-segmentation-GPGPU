@@ -12,9 +12,10 @@ int main() {
 
     // Inputs
     String modelFilename = dir + "model.yml.gz";
-    String inFilename = dir + "beach.jpg";
-    String outFilename = dir + "beach_edge.jpg";
-    String outFilename_nms = dir + "beach_edge_nms.jpg";
+    String name = "388016";
+    String inFilename = dir + "data/" + name + ".jpg";
+    String outFilename = dir + "data/" + name + "_edge.jpg";
+    String outFilename_nms = dir + "data/beach" + name + "_edge_nms.jpg";
 
     // Load source color image
     Mat image = imread(inFilename, 1);

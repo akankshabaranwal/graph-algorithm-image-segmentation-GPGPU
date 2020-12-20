@@ -13,15 +13,15 @@ using namespace cv::ximgproc;
 using namespace cv;
 using namespace std;
 
-
 void sobel1() {
     String dir = "/Users/amoryhoste/Library/Mobile Documents/com~apple~CloudDocs/Documents/School/Unief/Master/2e master/Design of Parallel and High-Performance Computing/project/graph-algorithm-image-segmentation/sobel/";
 
-    // Inputs
+    // Input
     String modelFilename = dir + "model.yml.gz";
-    String inFilename = dir + "beach.jpg";
-    String outFilename = dir + "beach_edge.jpg";
-    String outFilename_nms = dir + "beach_edge_nms.jpg";
+    String name = "388016";
+    String inFilename = dir + "data/" + name + ".jpg";
+    String outFilename = dir + "data/" + name + "_edge.jpg";
+    String outFilename_nms = dir + "data/beach" + name + "_edge_nms.jpg";
 
     // Load source color image
     Mat image = imread(inFilename, 1);
@@ -90,6 +90,6 @@ void sobel2() {
 
 int main( int argc, char** argv )
 {
-
+    sobel1();
 
 }
