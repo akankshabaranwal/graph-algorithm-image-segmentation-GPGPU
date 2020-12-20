@@ -14,7 +14,7 @@ double dissimilarity(Mat image, uint32_t row1, uint32_t col1, uint32_t row2, uin
 ////////////////////////////////////////////////////////////////////////////////////////////
 // Graph creation kernels. By Amory
 ////////////////////////////////////////////////////////////////////////////////////////////
-__global__ void createCornerGraphKernel(unsigned char *image, unsigned int *d_vertex, unsigned int *d_edge, unsigned int *d_weight, unsigned int no_of_rows, unsigned int no_of_cols, size_t pitch)
+__global__ void createCornerGraphKernel(unsigned char *image, unsigned int *d_vertex, unsigned int *d_edge, uint64_t *d_weight, unsigned int no_of_rows, unsigned int no_of_cols, size_t pitch)
 {
     unsigned int tid = blockIdx.x*1024 + threadIdx.x;
     if (tid < 4) {
@@ -89,7 +89,7 @@ __global__ void createCornerGraphKernel(unsigned char *image, unsigned int *d_ve
             other_g = image[other_img_idx + 1];
             other_b = image[other_img_idx + 2];
             distance = sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
-            d_weight[write_offset+1] = (unsigned int) round(distance);
+            d_weight[write_offset+1] = distance;
         }
 
         // Top node
@@ -101,13 +101,13 @@ __global__ void createCornerGraphKernel(unsigned char *image, unsigned int *d_ve
             other_g = image[other_img_idx + 1];
             other_b = image[other_img_idx + 2];
             distance = sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
-            d_weight[write_offset+1] = (unsigned int) round(distance);
+            d_weight[write_offset+1] = distance;
         }
     }
 }
 
 
-__global__ void createFirstRowGraphKernel(unsigned char *image, unsigned int *d_vertex, unsigned int *d_edge, unsigned int *d_weight, unsigned int no_of_rows, unsigned int no_of_cols, size_t pitch)
+__global__ void createFirstRowGraphKernel(unsigned char *image, unsigned int *d_vertex, unsigned int *d_edge, uint64_t *d_weight, unsigned int no_of_rows, unsigned int no_of_cols, size_t pitch)
 {
     unsigned int row = 0;
     unsigned int col = blockIdx.x*1024 + threadIdx.x;
@@ -141,7 +141,7 @@ __global__ void createFirstRowGraphKernel(unsigned char *image, unsigned int *d_
         other_g = image[other_img_idx + 1];
         other_b = image[other_img_idx + 2];
         distance = sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
-        d_weight[write_offset] = (unsigned int) round(distance);
+        d_weight[write_offset] = distance;
 
         // Right node
         d_edge[write_offset+1] = right_node;
@@ -151,7 +151,7 @@ __global__ void createFirstRowGraphKernel(unsigned char *image, unsigned int *d_
         other_g = image[other_img_idx + 1];
         other_b = image[other_img_idx + 2];
         distance = sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
-        d_weight[write_offset+1] = (unsigned int) round(distance);
+        d_weight[write_offset+1] = distance;
 
         // Bottom node
         d_edge[write_offset+2] = bottom_node;
@@ -161,11 +161,11 @@ __global__ void createFirstRowGraphKernel(unsigned char *image, unsigned int *d_
         other_g = image[other_img_idx + 1];
         other_b = image[other_img_idx + 2];
         distance = sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
-        d_weight[write_offset+2] = (unsigned int) round(distance);
+        d_weight[write_offset+2] = distance;
     }
 }
 
-__global__ void createLastRowGraphKernel(unsigned char *image, unsigned int *d_vertex, unsigned int *d_edge, unsigned int *d_weight, unsigned int no_of_rows, unsigned int no_of_cols, size_t pitch)
+__global__ void createLastRowGraphKernel(unsigned char *image, unsigned int *d_vertex, unsigned int *d_edge, uint64_t *d_weight, unsigned int no_of_rows, unsigned int no_of_cols, size_t pitch)
 {
     unsigned int row = no_of_rows-1;;
     unsigned int col = blockIdx.x*1024 + threadIdx.x;
@@ -202,7 +202,7 @@ __global__ void createLastRowGraphKernel(unsigned char *image, unsigned int *d_v
         other_g = image[other_img_idx + 1];
         other_b = image[other_img_idx + 2];
         distance = sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
-        d_weight[write_offset] = (unsigned int) round(distance);
+        d_weight[write_offset] = distance;
 
         // Right node
         d_edge[write_offset+1] = right_node;
@@ -212,7 +212,7 @@ __global__ void createLastRowGraphKernel(unsigned char *image, unsigned int *d_v
         other_g = image[other_img_idx + 1];
         other_b = image[other_img_idx + 2];
         distance = sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
-        d_weight[write_offset+1] = (unsigned int) round(distance);
+        d_weight[write_offset+1] = distance;
 
         // Top node
         d_edge[write_offset+2] = top_node;
@@ -222,11 +222,11 @@ __global__ void createLastRowGraphKernel(unsigned char *image, unsigned int *d_v
         other_g = image[other_img_idx + 1];
         other_b = image[other_img_idx + 2];
         distance = sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
-        d_weight[write_offset+2] = (unsigned int) round(distance);
+        d_weight[write_offset+2] = distance;
     }
 }
 
-__global__ void createFirstColumnGraphKernel(unsigned char *image, unsigned int *d_vertex, unsigned int *d_edge, unsigned int *d_weight, unsigned int no_of_rows, unsigned int no_of_cols, size_t pitch)
+__global__ void createFirstColumnGraphKernel(unsigned char *image, unsigned int *d_vertex, unsigned int *d_edge, uint64_t *d_weight, unsigned int no_of_rows, unsigned int no_of_cols, size_t pitch)
 {
     unsigned int row = blockDim.x * blockIdx.x + threadIdx.x;
     unsigned int col = 0;
@@ -262,7 +262,7 @@ __global__ void createFirstColumnGraphKernel(unsigned char *image, unsigned int 
         other_g = image[other_img_idx + 1];
         other_b = image[other_img_idx + 2];
         distance = sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
-        d_weight[write_offset] = (unsigned int) round(distance);
+        d_weight[write_offset] = distance;
 
         // Bottom node
         d_edge[write_offset+1] = bottom_node;
@@ -272,7 +272,7 @@ __global__ void createFirstColumnGraphKernel(unsigned char *image, unsigned int 
         other_g = image[other_img_idx + 1];
         other_b = image[other_img_idx + 2];
         distance = sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
-        d_weight[write_offset+1] = (unsigned int) round(distance);
+        d_weight[write_offset+1] = distance;
 
         // Top node
         d_edge[write_offset+2] = top_node;
@@ -282,13 +282,13 @@ __global__ void createFirstColumnGraphKernel(unsigned char *image, unsigned int 
         other_g = image[other_img_idx + 1];
         other_b = image[other_img_idx + 2];
         distance = sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
-        d_weight[write_offset+2] = (unsigned int) round(distance);
+        d_weight[write_offset+2] = distance;
 
 
     }
 }
 
-__global__ void createLastColumnGraphKernel(unsigned char *image, unsigned int *d_vertex, unsigned int *d_edge, unsigned int *d_weight, unsigned int no_of_rows, unsigned int no_of_cols, size_t pitch)
+__global__ void createLastColumnGraphKernel(unsigned char *image, unsigned int *d_vertex, unsigned int *d_edge, uint64_t *d_weight, unsigned int no_of_rows, unsigned int no_of_cols, size_t pitch)
 {
     unsigned int row = blockDim.x * blockIdx.x + threadIdx.x;
     unsigned int col = no_of_cols - 1;
@@ -325,7 +325,7 @@ __global__ void createLastColumnGraphKernel(unsigned char *image, unsigned int *
         other_g = image[other_img_idx + 1];
         other_b = image[other_img_idx + 2];
         distance = sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
-        d_weight[write_offset] = (unsigned int) round(distance);
+        d_weight[write_offset] = distance;
 
         // Bottom node
         d_edge[write_offset+1] = bottom_node;
@@ -335,7 +335,7 @@ __global__ void createLastColumnGraphKernel(unsigned char *image, unsigned int *
         other_g = image[other_img_idx + 1];
         other_b = image[other_img_idx + 2];
         distance = sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
-        d_weight[write_offset+1] = (unsigned int) round(distance);
+        d_weight[write_offset+1] = distance;
 
         // Top node
         d_edge[write_offset+2] = top_node;
@@ -345,11 +345,11 @@ __global__ void createLastColumnGraphKernel(unsigned char *image, unsigned int *
         other_g = image[other_img_idx + 1];
         other_b = image[other_img_idx + 2];
         distance = sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
-        d_weight[write_offset+2] = (unsigned int) round(distance);
+        d_weight[write_offset+2] = distance;
     }
 }
 
-__global__ void createInnerGraphKernel(unsigned char *image, unsigned int *d_vertex, unsigned int *d_edge, unsigned int *d_weight, unsigned int no_of_rows, unsigned int no_of_cols, size_t pitch)
+__global__ void createInnerGraphKernel(unsigned char *image, unsigned int *d_vertex, unsigned int *d_edge, uint64_t *d_weight, unsigned int no_of_rows, unsigned int no_of_cols, size_t pitch)
 {
     unsigned int row = blockDim.x * blockIdx.x + threadIdx.x;
     unsigned int col = blockDim.y * blockIdx.y + threadIdx.y;
@@ -387,7 +387,7 @@ __global__ void createInnerGraphKernel(unsigned char *image, unsigned int *d_ver
         other_g = image[other_img_idx + 1];
         other_b = image[other_img_idx + 2];
         distance = sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
-        d_weight[write_offset] = (unsigned int) round(distance);
+        d_weight[write_offset] = distance;
 
         // Right node
         d_edge[write_offset+1] = right_node;
@@ -397,7 +397,7 @@ __global__ void createInnerGraphKernel(unsigned char *image, unsigned int *d_ver
         other_g = image[other_img_idx + 1];
         other_b = image[other_img_idx + 2];
         distance = sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
-        d_weight[write_offset+1] = (unsigned int) round(distance);
+        d_weight[write_offset+1] = distance;
 
         // Bottom node
         d_edge[write_offset+2] = bottom_node;
@@ -407,7 +407,7 @@ __global__ void createInnerGraphKernel(unsigned char *image, unsigned int *d_ver
         other_g = image[other_img_idx + 1];
         other_b = image[other_img_idx + 2];
         distance = sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
-        d_weight[write_offset+2] = (unsigned int) round(distance);
+        d_weight[write_offset+2] = distance;
 
         // Top node
         d_edge[write_offset+3] = top_node;
@@ -417,7 +417,7 @@ __global__ void createInnerGraphKernel(unsigned char *image, unsigned int *d_ver
         other_g = image[other_img_idx + 1];
         other_b = image[other_img_idx + 2];
         distance = sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
-        d_weight[write_offset+3] = (unsigned int) round(distance);
+        d_weight[write_offset+3] = distance;
     }
 }
 ////////////////////////////////////////////////
@@ -452,7 +452,7 @@ void SetImageGridThreadLen(int no_of_rows, int no_of_cols, int no_of_vertices, d
     }
 }
 
-void ImagetoGraphParallelStream(Mat &image, uint32_t *d_vertex,uint32_t *d_edge, uint32_t *d_weight)
+void ImagetoGraphParallelStream(Mat &image, uint32_t *d_vertex,uint32_t *d_edge, uint64_t *d_weight)
 {
     std::chrono::high_resolution_clock::time_point start, end;
 

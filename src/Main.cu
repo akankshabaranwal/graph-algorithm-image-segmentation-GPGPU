@@ -90,7 +90,7 @@ void segment(Mat image)
     uint numthreads;
     uint numBlock;
 
-    ImagetoGraphParallelStream(image, VertexList, OnlyEdge, W);
+    ImagetoGraphParallelStream(image, VertexList, OnlyEdge, OnlyWeight);
 
     numEdges = 	8 + 6 * (image.cols - 2) + 6 * (image.rows - 2) + 4 * (image.cols - 2) * (image.rows - 2);
 
@@ -98,7 +98,7 @@ void segment(Mat image)
     std::vector<int> hierarchy_level_sizes;			// Size of each hierarchy level
     numthreads = min(32, numVertices);
     numBlock = numVertices/numthreads;
-    SetBitEdgeListArray<<<numBlock, numthreads>>>(BitEdgeList, OnlyEdge, W, numEdges);
+    SetBitEdgeListArray<<<numBlock, numthreads>>>(BitEdgeList, OnlyEdge, OnlyWeight, numEdges);
     cudaDeviceSynchronize();
 
     while(numVertices>1)

@@ -11,7 +11,7 @@ using namespace mgpu;
 // Scan
 //https://moderngpu.github.io/faq.html
 
-__global__ void SetBitEdgeListArray(uint64_t *BitEdgeList, uint32_t *OnlyEdge, uint32_t *W,uint numElements)
+__global__ void SetBitEdgeListArray(uint64_t *BitEdgeList, uint32_t *OnlyEdge, uint64_t *W,uint numElements)
 {
     uint32_t tidx = blockIdx.x*blockDim.x+threadIdx.x;
     uint32_t num_threads = gridDim.x * blockDim.x;
