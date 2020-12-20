@@ -3,7 +3,7 @@
 //
 #include "CreateGraph.h"
 
-double dissimilarity(Mat image, int row1, int col1, int row2, int col2) {
+double dissimilarity(Mat image, uint32_t row1, uint32_t col1, uint32_t row2, uint32_t col2) {
     double dis = 0;
     Point3_<uchar>* u = image.ptr<Point3_<uchar> >(row1,col1);
     Point3_<uchar>* v = image.ptr<Point3_<uchar> >(row2,col2);
@@ -11,9 +11,9 @@ double dissimilarity(Mat image, int row1, int col1, int row2, int col2) {
     return sqrt(dis);
 }
 
-int ImagetoGraphSerial(Mat image, edge *EdgeList, int32_t *VertexList, int32_t *BitEdgeList)
+int ImagetoGraphSerial(Mat image, edge *EdgeList, uint32_t *VertexList, uint64_t *BitEdgeList)
 {
-    int cur_edge_idx, cur_vertex_idx, left_node, right_node, bottom_node, top_node;
+    uint32_t cur_edge_idx, cur_vertex_idx, left_node, right_node, bottom_node, top_node;
     cur_edge_idx = 0;
     for(int i=0;i<image.rows;i++)
     {
@@ -29,25 +29,29 @@ int ImagetoGraphSerial(Mat image, edge *EdgeList, int32_t *VertexList, int32_t *
             if (j > 0){
                 EdgeList[cur_edge_idx].Vertex = left_node;
                 EdgeList[cur_edge_idx].Weight = dissimilarity(image, i, j, i, j - 1);
-                BitEdgeList[cur_edge_idx] = (EdgeList[cur_edge_idx].Weight * (2<<15)) + left_node;
+                //BitEdgeList[cur_edge_idx] = (EdgeList[cur_edge_idx].Weight * (2<<15)) + left_node;
+                BitEdgeList[cur_edge_idx] = (EdgeList[cur_edge_idx].Weight <<32) | left_node;
                 cur_edge_idx++;
             }
             if (j < image.cols - 1){
                 EdgeList[cur_edge_idx].Vertex = right_node;
                 EdgeList[cur_edge_idx].Weight = dissimilarity(image, i, j, i, j + 1);
-                BitEdgeList[cur_edge_idx] = (EdgeList[cur_edge_idx].Weight * (2<<15)) + right_node;
+                //BitEdgeList[cur_edge_idx] = (EdgeList[cur_edge_idx].Weight * (2<<15)) + right_node;
+                BitEdgeList[cur_edge_idx] = (EdgeList[cur_edge_idx].Weight <<32) | right_node;
                 cur_edge_idx++;
             }
             if (i < image.rows - 1){
                 EdgeList[cur_edge_idx].Vertex = bottom_node;
                 EdgeList[cur_edge_idx].Weight = dissimilarity(image, i, j, i+1, j);
-                BitEdgeList[cur_edge_idx] = (EdgeList[cur_edge_idx].Weight * (2<<15)) + bottom_node;
+                //BitEdgeList[cur_edge_idx] = (EdgeList[cur_edge_idx].Weight * (2<<15)) + bottom_node;
+                BitEdgeList[cur_edge_idx] = (EdgeList[cur_edge_idx].Weight <<32) | bottom_node;
                 cur_edge_idx++;
             }
             if (i > 0){
                 EdgeList[cur_edge_idx].Vertex = top_node;
                 EdgeList[cur_edge_idx].Weight = dissimilarity(image, i, j, i-1, j);
-                BitEdgeList[cur_edge_idx] = (EdgeList[cur_edge_idx].Weight * (2<<15)) + top_node;
+                //BitEdgeList[cur_edge_idx] = (EdgeList[cur_edge_idx].Weight * (2<<15)) + top_node;
+                BitEdgeList[cur_edge_idx] = (EdgeList[cur_edge_idx].Weight <<32) | top_node;
                 cur_edge_idx++;
             }
         }

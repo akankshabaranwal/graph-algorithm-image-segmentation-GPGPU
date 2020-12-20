@@ -13,13 +13,15 @@ using namespace mgpu;
 // TODO: Add the error handling code from:
 //  http://cuda-programming.blogspot.com/2013/01/vector-addition-in-cuda-cuda-cc-program.html
 
+uint64_t mask_32 = 0x0000FFFF;//32 bit mask
+
 int main(int argc, char **argv)
 {
     Mat image, output;
     GpuMat dev_image, dev_output;
 
     image = imread("data/beach.png", IMREAD_COLOR);
-    //cv::resize(image, image, cv::Size(), 0.5, 0.5);
+    cv::resize(image, image, cv::Size(), 0.05, 0.05);
 
     printf("Size of image obtained is: Rows: %d, Columns: %d, Pixels: %d\n", image.rows, image.cols, image.rows * image.cols);
 
@@ -31,86 +33,83 @@ int main(int argc, char **argv)
 
     //Graph parameters
     int numVertices = image.rows * image.cols;
-    int numEdges = (image.rows) * (image.cols) * 4;
+    uint numEdges = (image.rows) * (image.cols) * 4;
 
     //Convert image to graph
-    int32_t *VertexList, *OnlyEdge, *OnlyVertex, *OnlyWeight, *BitEdgeList, *FlagList, *MinSegmentedList, *tempArray, *NWE, *Successor, *newSuccessor, *L, *Representative, *VertexIds;
-    int32_t *MinMaxScanArray;
-    int32_t *new_E_size, *new_V_size;
-    int32_t *compactLocations, *expanded_u;
-    int32_t *C;
+    uint32_t *VertexList, *OnlyEdge, *OnlyVertex, *FlagList, *NWE, *Successor, *newSuccessor, *L, *Representative, *VertexIds;
+    uint64_t *OnlyWeight, *tempArray, *BitEdgeList, *MinSegmentedList;
+    uint32_t *MinMaxScanArray;
+    uint32_t *new_E_size, *new_V_size;
+    uint32_t *compactLocations, *expanded_u;
+    uint32_t *C;
 
     edge *EdgeList;
 
-    int *flag;
-    cudaMallocManaged(&flag, numEdges * sizeof(int32_t));
+    uint *flag;
+    cudaMallocManaged(&flag, numEdges * sizeof(uint32_t));
     //Allocating memory
-    cudaMallocManaged(&VertexList, numVertices * sizeof(int32_t));
-    cudaMallocManaged(&FlagList, numVertices * sizeof(int32_t));
-    cudaMallocManaged(&MinSegmentedList, numVertices * sizeof(int32_t));
-    cudaMallocManaged(&tempArray, numVertices * sizeof(int32_t));
+    cudaMallocManaged(&VertexList, numVertices * sizeof(uint32_t));
+    cudaMallocManaged(&FlagList, numVertices * sizeof(uint32_t));
+    cudaMallocManaged(&MinSegmentedList, numVertices * sizeof(uint64_t));
+    cudaMallocManaged(&tempArray, numVertices * sizeof(uint64_t));
     cudaMallocManaged(&EdgeList, numEdges * sizeof(edge));
-    cudaMallocManaged(&BitEdgeList, numEdges * sizeof(int32_t));
-    cudaMallocManaged(&NWE, numVertices * sizeof(int32_t));
-    cudaMallocManaged(&Successor, numVertices * sizeof(int32_t));
-    cudaMallocManaged(&newSuccessor, numVertices * sizeof(int32_t));
+    cudaMallocManaged(&BitEdgeList, numEdges * sizeof(uint64_t));
+    cudaMallocManaged(&NWE, numVertices * sizeof(uint32_t));
+    cudaMallocManaged(&Successor, numVertices * sizeof(uint32_t));
+    cudaMallocManaged(&newSuccessor, numVertices * sizeof(uint32_t));
 
-    cudaMallocManaged(&OnlyEdge, numEdges * sizeof(int32_t));
-    cudaMallocManaged(&OnlyVertex, numEdges * sizeof(int32_t));
-    cudaMallocManaged(&OnlyWeight, numEdges * sizeof(int32_t));
+    cudaMallocManaged(&OnlyEdge, numEdges * sizeof(uint32_t));
+    cudaMallocManaged(&OnlyVertex, numEdges * sizeof(uint32_t));
+    cudaMallocManaged(&OnlyWeight, numEdges * sizeof(uint64_t));
 
-    cudaMallocManaged(&L, numVertices * sizeof(int32_t));
-    cudaMallocManaged(&Representative, numVertices * sizeof(int32_t));
-    cudaMallocManaged(&VertexIds, numVertices * sizeof(int32_t));
-    cudaMallocManaged(&new_E_size, numEdges * sizeof(int32_t));
-    cudaMallocManaged(&new_V_size, numEdges * sizeof(int32_t));
-    cudaMallocManaged(&MinMaxScanArray, numEdges * sizeof(int32_t));
-    cudaMallocManaged(&compactLocations, numEdges * sizeof(int32_t));
-    cudaMallocManaged(&expanded_u, numEdges * sizeof(int32_t));
-    cudaMallocManaged(&C, numEdges * sizeof(int32_t));
+    cudaMallocManaged(&L, numVertices * sizeof(uint32_t));
+    cudaMallocManaged(&Representative, numVertices * sizeof(uint32_t));
+    cudaMallocManaged(&VertexIds, numVertices * sizeof(uint32_t));
+    cudaMallocManaged(&new_E_size, numEdges * sizeof(uint32_t));
+    cudaMallocManaged(&new_V_size, numEdges * sizeof(uint32_t));
+    cudaMallocManaged(&MinMaxScanArray, numEdges * sizeof(uint32_t));
+    cudaMallocManaged(&compactLocations, numEdges * sizeof(uint32_t));
+    cudaMallocManaged(&expanded_u, numEdges * sizeof(uint32_t));
+    cudaMallocManaged(&C, numEdges * sizeof(uint32_t));
 
+    uint *Flag2;
+    cudaMallocManaged(&Flag2, numEdges * sizeof(uint32_t));
+    uint32_t *SuperVertexId;
+    cudaMallocManaged(&SuperVertexId, numVertices * sizeof(uint32_t));
 
-    int *Flag2;
-    cudaMallocManaged(&Flag2, numEdges * sizeof(int32_t));
-    int32_t *SuperVertexId;
-    cudaMallocManaged(&SuperVertexId, numVertices * sizeof(int32_t));
-
-    int *uid;
-    cudaMallocManaged(&uid, numVertices * sizeof(int32_t));
+    uint *uid;
+    cudaMallocManaged(&uid, numVertices * sizeof(uint32_t));
     dim3 threadsPerBlock(1024, 1024);
-    int BlockX = image.rows / threadsPerBlock.x;
-    int BlockY = image.cols / threadsPerBlock.y;
+    uint BlockX = image.rows / threadsPerBlock.x;
+    uint BlockY = image.cols / threadsPerBlock.y;
     dim3 numBlocks(BlockX, BlockY);
     cudaDeviceSynchronize(); //FIXME: Need to check where all this synchronize call is needed
     ContextPtr context = CreateCudaDevice(argc, argv, true);
     cudaError_t err = cudaGetLastError();
 
-    int *flag4; //Same as F4. New flag for creating vertex list. Assigning the new ids.
-    cudaMallocManaged(&flag4, numEdges * sizeof(int));
+    uint *flag4; //Same as F4. New flag for creating vertex list. Assigning the new ids.
+    cudaMallocManaged(&flag4,numEdges * sizeof(uint));
 
     bool *change;
     cudaMallocManaged(&change, sizeof(bool));
-    //FIXME: Make this initialization run in parallel?
-    //TODO: Figure out if this initialization is required??
-    for (int i = 0; i < numEdges; i++)
-    {
-        EdgeList[i].Weight = 0;
-    }
 
     dev_output.download(output);
 
-    int32_t tmp_V, tmp_Wt;
+    uint32_t tmp_V;
+    uint64_t tmp_Wt;
 
-    int numthreads;
-    int numBlock;
+    uint numthreads;
+    uint numBlock;
 
-    int *UV, *W;
-    cudaMallocManaged(&UV,numEdges*sizeof(int64_t));
-    cudaMallocManaged(&W,numEdges*sizeof(int64_t));
-    int32_t *flag3;
-    cudaMallocManaged(&flag3,numEdges*sizeof(int32_t));
-    int32_t *Flag4;
-    cudaMallocManaged(&Flag4,numEdges*sizeof(int32_t));
+    uint64_t *UV;
+    uint32_t *W;
+    cudaMallocManaged(&UV,numEdges*sizeof(uint64_t));
+    cudaMallocManaged(&W,numEdges*sizeof(uint32_t));
+
+    uint *flag3;
+    cudaMallocManaged(&flag3,numEdges*sizeof(uint));
+    uint *Flag4;
+    cudaMallocManaged(&Flag4,numEdges*sizeof(uint));
 
     numEdges = ImagetoGraphSerial(image, EdgeList, VertexList, BitEdgeList);
 
@@ -118,8 +117,8 @@ int main(int argc, char **argv)
     bool DidReduce; //Boolean to check if more segments got created or not
     DidReduce = 1;
 
-    printf("Vertex\n");
-    for (int i = 0; i < numVertices; i++)
+   printf("Vertex\n");
+    for (uint32_t i = 0; i < numVertices; i++)
     {
         tmp_V = VertexList[i];
         printf("%d, ", tmp_V);
@@ -127,26 +126,25 @@ int main(int argc, char **argv)
     }
 
     printf("\nEdge\n");
-    for (int i = 0; i < numEdges; i++)
+    for (uint32_t i = 0; i < numEdges; i++)
     {
-        tmp_V = BitEdgeList[i] % (2 << 15);
-        printf("%d, ", tmp_V);
+        tmp_V = BitEdgeList[i] & mask_32;
+        tmp_Wt = BitEdgeList[i]>>32;
+        printf("%d %d %d %d, ", tmp_V, tmp_Wt, EdgeList[i].Vertex, EdgeList[i].Weight);
         OnlyEdge[i] = tmp_V;
+        OnlyWeight[i] = (tmp_Wt<<32) | i;
+
         if (tmp_V != EdgeList[i].Vertex)
+        {    printf("ERROR!!!");
+            exit(-1);
+        }
+        if (tmp_Wt != EdgeList[i].Weight)
         {    printf("ERROR!!!");
             exit(-1);
         }
     }
 
-    printf("\nWeight\n");
-    for (int32_t i = 0; i < numEdges; i++)
-    {
-        tmp_Wt = BitEdgeList[i]>>16;
-        printf("%d, ", tmp_Wt);
-        OnlyWeight[i]=(tmp_Wt * (2<<15)) + i;
-    }
-
-    std::vector<int32_t*> d_hierarchy_levels;	// Vector containing pointers to all hierarchy levels (don't dereference on CPU, device pointers)
+    std::vector<uint32_t*> d_hierarchy_levels;	// Vector containing pointers to all hierarchy levels (don't dereference on CPU, device pointers)
     std::vector<int> hierarchy_level_sizes;			// Size of each hierarchy level
 
     while(numVertices>1)
@@ -171,6 +169,18 @@ int main(int argc, char **argv)
         //1. The graph creation step above takes care of this
 
         //2. Mark the segments in the flag array. Being used for the uid array below
+        printf("\nVertices are:\n");
+        for(int i=0;i<numVertices; i++)
+            printf("%d, ", OnlyVertex[i]);
+
+        printf("\nEdges are:\n");
+        for(int i=0;i<numEdges; i++)
+            printf("%d, ", OnlyEdge[i]);
+
+        printf("\nWeights are:\n");
+        for(int i=0;i<numEdges; i++)
+            printf("%d, ", OnlyWeight[i]>>32);
+
         ClearFlagArray<<<numBlock, numthreads>>>(flag, numEdges);
 
         cudaError_t err = cudaGetLastError();        // Get error code
@@ -188,16 +198,7 @@ int main(int argc, char **argv)
             printf("CUDA Error: Mark Segments%s\n", cudaGetErrorString(err));
             exit(-1);
         }
-        printf("\n Printing Only Weight Array Indices before minsegment: \n");
-        for(int i =0; i< numEdges; i++)
-        {
-            printf("%d ,", OnlyWeight[i]%(2<<15));
-        }
-        printf("\n Printing BitEdgeList Array before minsegment: \n");
-        for(int i =0; i< numEdges; i++)
-        {
-            printf("%d ,", BitEdgeList[i]);
-        }
+
         //3. Segmented min scan
         SegmentedReduction(*context, VertexList, BitEdgeList, MinSegmentedList, numEdges, numVertices);
         SegmentedReduction(*context, VertexList, OnlyWeight, tempArray, numEdges, numVertices);
@@ -209,26 +210,7 @@ int main(int argc, char **argv)
             exit(-1);
         }
         cudaDeviceSynchronize();
-        printf("\n Printing MinSegment Array Values: \n");
-        for(int i =0; i< numVertices; i++)
-        {
-            printf("%d ,", MinSegmentedList[i]);
-        }
-        printf("\n Printing MinSegment Array Weights: \n");
-        for(int i =0; i< numVertices; i++)
-        {
-            printf("%d ,", MinSegmentedList[i]>>16);
-        }
-        printf("\n Printing MinSegment Array Indices: \n");
-        for(int i =0; i< numVertices; i++)
-        {
-            printf("%d ,", MinSegmentedList[i]%(2<<15));
-        }
-        printf("\n Printing Only Weight Array Indices: \n");
-        for(int i =0; i< numVertices; i++)
-        {
-            printf("%d ,", tempArray[i]%(2<<15));
-        }
+
         // Create NWE array
         CreateNWEArray<<<numBlock, numthreads>>>(NWE, tempArray, numVertices);
         err = cudaGetLastError();        // Get error code
@@ -243,6 +225,14 @@ int main(int argc, char **argv)
         {
             printf("%d ,", NWE[i]);
         }
+
+        printf("\nAfter sort BitEdgelist Edges, Vertex are:\n");
+        for(int i=0;i<numEdges; i++)
+            printf("%d,%d ", BitEdgeList[i]&mask_32,  BitEdgeList[i]>>32);
+
+        printf("\nAfter sort OnlyEdgeList Edges, Vertex are:\n");
+        for(int i=0;i<numEdges; i++)
+            printf("%d,%d ", OnlyWeight[i]&mask_32,  OnlyWeight[i]>>32);
         //4. Find Successor array of each vertex
         FindSuccessorArray<<<numBlock, numthreads>>>(Successor, BitEdgeList, NWE, numVertices);
         err = cudaGetLastError();        // Get error code
@@ -258,7 +248,6 @@ int main(int argc, char **argv)
         {
             printf("%d ,", Successor[i]);
         }
-
         RemoveCycles<<<numBlock, numthreads>>>(Successor, numVertices);
         err = cudaGetLastError();        // Get error code
         if ( err != cudaSuccess )
@@ -350,8 +339,6 @@ int main(int argc, char **argv)
             printf("%d ,", SuperVertexId[i]);
         }
 
-        //return 0;
-
         //Create UID array. 10.2
         CreateUid(uid, flag, numEdges); //Isnt this same as the vertex list??
         cudaDeviceSynchronize();
@@ -384,7 +371,6 @@ int main(int argc, char **argv)
         printf("\nPrinting only Edge Array after marked for removal: \n");
         for (int i = 0; i < numEdges; i++)
         {
-            if(OnlyEdge[i]!=INT_MAX)
             printf("%d, ", OnlyEdge[i]);
         }
         //E 12.
@@ -399,7 +385,7 @@ int main(int argc, char **argv)
         printf("\n Printing UVW array: before calling SortUVW");
         for(int i = 0; i< numEdges;i++)
         {
-            printf("%d %d %d , ", UV[i]>>16, UV[i]%(2<<15), W[i]);
+            printf("%d %d %d , ", UV[i]>>32, UV[i]&mask_32, W[i]);
         }
         printf("\n");
         //12.2 Sort the UVW Array
@@ -408,15 +394,23 @@ int main(int argc, char **argv)
         printf("\n Printing UVW array after SortUVW: ");
         for(int i = 0; i< numEdges;i++)
         {
-            printf("%d %d %d , ", UV[i]>>16, UV[i]%(2<<15), W[i]);
+            printf("%d %d %d , ", UV[i]>>32, UV[i]&mask_32, W[i]);
         }
         printf("\n");
         flag3[0]=1;
         CreateFlag3Array<<<numBlock,numthreads>>>(UV, W, numEdges, flag3, MinMaxScanArray);
-        int *new_edge_size = thrust::max_element(thrust::device, MinMaxScanArray, MinMaxScanArray + numEdges);
         cudaDeviceSynchronize();
-        *new_edge_size = *new_edge_size+1;
+        printf("\n Printing MinMaxScanArray UV W\n");
+        for(int i = 0; i< numEdges;i++)
+        {
+            printf("%d %d %d, ", MinMaxScanArray[i], UV[i]>>32, UV[i]&mask_32);
+        }
+        printf("\n");
+        uint32_t *new_edge_size = thrust::max_element(thrust::device, MinMaxScanArray, MinMaxScanArray + numEdges);
+        cudaDeviceSynchronize();
+        //*new_edge_size = *new_edge_size+1;
         printf("\nnew_edge_size %d", *new_edge_size);
+
         thrust::inclusive_scan(flag3, flag3 + *new_edge_size, compactLocations, thrust::plus<int>());
         cudaDeviceSynchronize();
         printf("\n Printing compact locations array before subtract\n");
@@ -445,12 +439,13 @@ int main(int argc, char **argv)
 
         for(int i=0; i< *new_edge_size; i++)
         {
-            printf("%d %d %d, ", UV[i]>>16, UV[i]%(2<<15), W[i]);
+            printf("%d %d %d, ", UV[i]>>32, UV[i]&mask_32, W[i]);
         }
         printf("\n");
         CreateNewEdgeList<<<numBlock,numthreads>>>( BitEdgeList, compactLocations, OnlyEdge, OnlyWeight, UV, W, flag3, *new_edge_size, new_E_size, new_V_size, expanded_u);
-        int *new_E_sizeptr = thrust::max_element(thrust::device, new_E_size, new_E_size + *new_edge_size);
-        int *new_V_sizeptr = thrust::max_element(thrust::device, new_V_size, new_V_size + *new_edge_size);
+
+        uint32_t *new_E_sizeptr = thrust::max_element(thrust::device, new_E_size, new_E_size + *new_edge_size);
+        uint32_t *new_V_sizeptr = thrust::max_element(thrust::device, new_V_size, new_V_size + *new_edge_size);
         cudaDeviceSynchronize();
         numVertices = *new_V_sizeptr;
         numEdges = *new_E_sizeptr;
@@ -511,6 +506,7 @@ int main(int argc, char **argv)
         hierarchy_level_sizes.push_back(numVertices);
       cudaMallocManaged(&SuperVertexId, numVertices * sizeof(int32_t));
         //numVertices=1;
+      //return 0;
     }
     std::string outFile="test";
     writeComponents(d_hierarchy_levels, image.rows*image.cols, 3, hierarchy_level_sizes, outFile, image.rows, image.cols);
