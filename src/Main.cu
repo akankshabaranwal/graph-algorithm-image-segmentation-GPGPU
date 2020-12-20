@@ -41,6 +41,13 @@ void segment(Mat image, int argc, char **argv)
     uint *flag;
     uint *Flag2;
     uint32_t *SuperVertexId;
+    uint *uid;
+    uint *flag4; //Same as F4. New flag for creating vertex list. Assigning the new ids.
+    uint64_t *UV, *UVW;
+    uint32_t *W;
+    uint *flag3;
+    uint *Flag4;
+
     //Allocating memory
     cudaMallocManaged(&flag, numEdges * sizeof(uint32_t));
     cudaMallocManaged(&VertexList, numVertices * sizeof(uint32_t));
@@ -64,49 +71,32 @@ void segment(Mat image, int argc, char **argv)
     cudaMallocManaged(&expanded_u, numEdges * sizeof(uint32_t));
     cudaMallocManaged(&C, numEdges * sizeof(uint32_t));
     cudaMallocManaged(&Flag2, numEdges * sizeof(uint32_t));
-
     cudaMallocManaged(&SuperVertexId, numVertices * sizeof(uint32_t));
-
-    uint *uid;
     cudaMallocManaged(&uid, numVertices * sizeof(uint32_t));
+    cudaMallocManaged(&flag4,numEdges * sizeof(uint));
+    cudaMallocManaged(&UV,numEdges*sizeof(uint64_t));
+    cudaMallocManaged(&UVW,numEdges*sizeof(uint64_t));
+    cudaMallocManaged(&W,numEdges*sizeof(uint32_t));
+    cudaMallocManaged(&flag3,numEdges*sizeof(uint));
+    cudaMallocManaged(&Flag4,numEdges*sizeof(uint));
+
     dim3 threadsPerBlock(1024, 1024);
     uint BlockX = image.rows / threadsPerBlock.x;
     uint BlockY = image.cols / threadsPerBlock.y;
+
     dim3 numBlocks(BlockX, BlockY);
-    cudaDeviceSynchronize(); //FIXME: Need to check where all this synchronize call is needed
     ContextPtr context = CreateCudaDevice(argc, argv, true);
     cudaError_t err = cudaGetLastError();
-
-    uint *flag4; //Same as F4. New flag for creating vertex list. Assigning the new ids.
-    cudaMallocManaged(&flag4,numEdges * sizeof(uint));
-
-    bool *change;
-    cudaMallocManaged(&change, sizeof(bool));
 
     dev_output.download(output);
 
     uint32_t tmp_V;
     uint64_t tmp_Wt;
-
     uint numthreads;
     uint numBlock;
 
-    uint64_t *UV, *UVW;
-    uint32_t *W;
-
-    cudaMallocManaged(&UV,numEdges*sizeof(uint64_t));
-    cudaMallocManaged(&UVW,numEdges*sizeof(uint64_t));
-    cudaMallocManaged(&W,numEdges*sizeof(uint32_t));
-
-    uint *flag3;
-    cudaMallocManaged(&flag3,numEdges*sizeof(uint));
-    uint *Flag4;
-    cudaMallocManaged(&Flag4,numEdges*sizeof(uint));
-
     numEdges = ImagetoGraphSerial(image, EdgeList, VertexList, BitEdgeList);
 
-
-//    printf("\nEdge\n");
     for (uint32_t i = 0; i < numEdges; i++)
     {
         tmp_V = BitEdgeList[i] & mask_32;
@@ -285,6 +275,43 @@ void segment(Mat image, int argc, char **argv)
     }
     std::string outFile="test";
     writeComponents(d_hierarchy_levels, image.rows*image.cols, 3, hierarchy_level_sizes, outFile, image.rows, image.cols);
+
+    //Free memory
+    cudaFree(flag);
+    cudaFree(FlagList);
+    cudaFree(VertexList);
+    cudaFree(MinSegmentedList);
+    cudaFree(tempArray);
+    cudaFree(EdgeList);
+    cudaFree(BitEdgeList);
+    cudaFree(NWE);
+    cudaFree(Successor);
+    cudaFree(newSuccessor);
+    cudaFree(OnlyEdge);
+    cudaFree(OnlyWeight);
+    cudaFree(L);
+    cudaFree(Representative);
+    cudaFree(VertexIds);
+    cudaFree(new_E_size);
+    cudaFree(new_V_size);
+    cudaFree(MinMaxScanArray);
+    cudaFree(compactLocations);
+    cudaFree(expanded_u);
+    cudaFree(C);
+    cudaFree(Flag2);
+    cudaFree(SuperVertexId);
+    cudaFree(uid);
+    cudaFree(flag4);
+    cudaFree(UV);
+    cudaFree(UVW);
+    cudaFree(W);
+    cudaFree(flag3);
+    cudaFree(Flag4);
+    for (int l = 0; l < d_hierarchy_levels.size(); l++) {
+        cudaFree(d_hierarchy_levels[l]);
+    }
+    d_hierarchy_levels.clear();
+    hierarchy_level_sizes.clear();
 }
 
 
@@ -292,9 +319,7 @@ int main(int argc, char **argv)
 {
     Mat image;
 
-
     image = imread("data/bear.jpg", IMREAD_COLOR);
-
     printf("Size of image obtained is: Rows: %d, Columns: %d, Pixels: %d\n", image.rows, image.cols, image.rows * image.cols);
     segment(image, argc, argv);
 
