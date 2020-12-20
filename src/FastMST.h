@@ -12,7 +12,9 @@ using namespace cv::cuda;
 using namespace cv;
 using namespace mgpu;
 
-__global__ void SetOnlyWeightArray(uint64_t *BitEdgeList, uint64_t *OnlyWeight, uint32_t *VertexList, uint32_t *W, uint numElements);
+__global__ void SetBitEdgeListArray(uint64_t *BitEdgeList, uint32_t *OnlyEdge, uint32_t *W,uint numElements);
+
+__global__ void SetOnlyWeightArray(uint64_t *BitEdgeList, uint64_t *OnlyWeight, uint numElements);
 
 __global__ void ClearFlagArray(uint *flag, int numElements);
 __global__ void MarkSegments(uint *flag, uint32_t *VertexList,int numElements);

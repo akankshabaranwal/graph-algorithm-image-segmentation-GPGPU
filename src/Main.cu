@@ -20,11 +20,11 @@ uint64_t mask_20 = 0x000000FFFFF;//32 bit mask
 void segment(Mat image, int argc, char **argv)
 {
     Mat output;
-    GpuMat dev_image, dev_output;
-    dev_image.upload(image);
+    //GpuMat dev_image, dev_output;
+    //dev_image.upload(image);
 
-    Ptr<Filter> filter = createGaussianFilter(CV_8UC3, CV_8UC3, Size(5, 5), 1.0);
-    filter->apply(dev_image, dev_output);
+    //Ptr<Filter> filter = createGaussianFilter(CV_8UC3, CV_8UC3, Size(5, 5), 1.0);
+    //filter->apply(dev_image, dev_output);
 
     //Graph parameters
     int numVertices = image.rows * image.cols;
@@ -89,37 +89,21 @@ void segment(Mat image, int argc, char **argv)
     ContextPtr context = CreateCudaDevice(argc, argv, true);
     cudaError_t err = cudaGetLastError();
 
-    dev_output.download(output);
+    //dev_output.download(output);
 
-    uint32_t tmp_V;
-    uint64_t tmp_Wt;
     uint numthreads;
     uint numBlock;
 
     ImagetoGraphParallelStream(image, VertexList, OnlyEdge, W);
 
-    //numEdges = ImagetoGraphSerial(image, EdgeList, VertexList, BitEdgeList);
     numEdges = 	8 + 6 * (image.cols - 2) + 6 * (image.rows - 2) + 4 * (image.cols - 2) * (image.rows - 2);
-/*
-    for (uint32_t i = 0; i < numEdges; i++)
-    {
-        tmp_V = BitEdgeList[i] & mask_32;
-        tmp_Wt = BitEdgeList[i]>>32;
-        OnlyEdge[i] = tmp_V;
-        OnlyWeight[i] = (tmp_Wt<<32) | i;
-
-        if (tmp_V != EdgeList[i].Vertex)
-        {    printf("ERROR!!!");
-            exit(-1);
-        }
-        if (tmp_Wt != EdgeList[i].Weight)
-        {    printf("ERROR!!!");
-            exit(-1);
-        }
-    }*/
 
     std::vector<uint32_t*> d_hierarchy_levels;	// Vector containing pointers to all hierarchy levels (don't dereference on CPU, device pointers)
     std::vector<int> hierarchy_level_sizes;			// Size of each hierarchy level
+    numthreads = min(32, numVertices);
+    numBlock = numVertices/numthreads;
+    SetBitEdgeListArray<<<numBlock, numthreads>>>(BitEdgeList, OnlyEdge, W, numEdges);
+    cudaDeviceSynchronize();
 
     while(numVertices>1)
     {
@@ -139,7 +123,7 @@ void segment(Mat image, int argc, char **argv)
         numBlock = numVertices/numthreads;
 
         //1. The graph creation step above takes care of this
-        SetOnlyWeightArray<<<numBlock, numthreads>>>(BitEdgeList, OnlyWeight, VertexList, W, numEdges);
+        SetOnlyWeightArray<<<numBlock, numthreads>>>(BitEdgeList, OnlyWeight, numEdges);
         cudaError_t err = cudaGetLastError();        // Get error code
         if ( err != cudaSuccess )
         {
