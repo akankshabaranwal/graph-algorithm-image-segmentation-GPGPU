@@ -179,11 +179,17 @@ void path_compression(uint4 vertices[], uint num_vertices) {
     for (int v_id = vertice_id; v_id < num_vertices; v_id += comp_threads) {
         uint4 *vertice = &vertices[v_id];
 
-        if (vertice->x != vertice->y) {
-            uint4 *parent = &vertices[vertice->y - 1];
-            while(parent->y != parent->x) {
-                parent = &vertices[parent->y - 1];
-            }
+
+        uint parent_comp = vertice->y;
+        uint parent_id = v_id + 1;
+        if (parent_id != parent_comp) {
+            uint4 *parent;
+            do {
+                parent_id = parent_comp - 1;
+                parent = &vertices[parent_id];
+                parent_comp = parent->y;
+
+            } while(parent_id + 1 != parent_comp);
 
             vertice->y = parent->x;
             atomicAdd_system(&(parent->z), vertice->z);
