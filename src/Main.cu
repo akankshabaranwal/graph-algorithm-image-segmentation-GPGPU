@@ -45,6 +45,7 @@ void segment(Mat image, int argc, char **argv)
     uint *flag4; //Same as F4. New flag for creating vertex list. Assigning the new ids.
     uint64_t *UV, *UVW;
     uint32_t *W;
+
     uint *flag3;
     uint *Flag4;
 
@@ -95,8 +96,11 @@ void segment(Mat image, int argc, char **argv)
     uint numthreads;
     uint numBlock;
 
-    numEdges = ImagetoGraphSerial(image, EdgeList, VertexList, BitEdgeList);
+    ImagetoGraphParallelStream(image, VertexList, OnlyEdge, W);
 
+    //numEdges = ImagetoGraphSerial(image, EdgeList, VertexList, BitEdgeList);
+    numEdges = 	8 + 6 * (image.cols - 2) + 6 * (image.rows - 2) + 4 * (image.cols - 2) * (image.rows - 2);
+/*
     for (uint32_t i = 0; i < numEdges; i++)
     {
         tmp_V = BitEdgeList[i] & mask_32;
@@ -112,7 +116,7 @@ void segment(Mat image, int argc, char **argv)
         {    printf("ERROR!!!");
             exit(-1);
         }
-    }
+    }*/
 
     std::vector<uint32_t*> d_hierarchy_levels;	// Vector containing pointers to all hierarchy levels (don't dereference on CPU, device pointers)
     std::vector<int> hierarchy_level_sizes;			// Size of each hierarchy level
@@ -135,7 +139,7 @@ void segment(Mat image, int argc, char **argv)
         numBlock = numVertices/numthreads;
 
         //1. The graph creation step above takes care of this
-        SetOnlyWeightArray<<<numBlock, numthreads>>>(BitEdgeList, OnlyWeight, numEdges);
+        SetOnlyWeightArray<<<numBlock, numthreads>>>(BitEdgeList, OnlyWeight, VertexList, W, numEdges);
         cudaError_t err = cudaGetLastError();        // Get error code
         if ( err != cudaSuccess )
         {

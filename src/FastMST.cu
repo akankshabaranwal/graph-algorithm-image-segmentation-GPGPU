@@ -11,14 +11,15 @@ using namespace mgpu;
 // Scan
 //https://moderngpu.github.io/faq.html
 
-__global__ void SetOnlyWeightArray(uint64_t *BitEdgeList, uint64_t *OnlyWeight, uint numElements)
+__global__ void SetOnlyWeightArray(uint64_t *BitEdgeList,uint64_t *OnlyWeight, uint32_t *VertexList, uint32_t *W,uint numElements)
 {
     uint32_t tidx = blockIdx.x*blockDim.x+threadIdx.x;
     uint32_t num_threads = gridDim.x * blockDim.x;
     uint64_t tmp_Wt;
     for (uint idx = tidx; idx < numElements; idx += num_threads)
     {
-        tmp_Wt = BitEdgeList[idx] >> 32;
+        tmp_Wt = static_cast<uint64_t> (W[idx]);
+        BitEdgeList[idx] = (tmp_Wt<<32)|VertexList[idx];
         OnlyWeight[idx] = (tmp_Wt << 32) | idx;
     }
 }
