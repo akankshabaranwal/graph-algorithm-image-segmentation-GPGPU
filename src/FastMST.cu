@@ -61,7 +61,14 @@ __global__ void DecrementVertexList(uint *flag, uint32_t *VertexList,int numElem
 }
 void SegmentedReduction(CudaContext& context, uint32_t *VertexList, uint64_t *BitEdgeList, uint64_t *MinSegmentedList, int numEdges, int numVertices)
 {
+    printf("\nPrinting inside function:\n");
+    for(int i=0;i<numVertices;i++)
+        printf("%d, ", VertexList[i]);
+    printf("\n Printing BitEdgeList\n");
+    for(int i=0;i<numEdges;i++)
+        printf("%d, ", BitEdgeList[i]);
     SegReduceCsr(BitEdgeList, VertexList, numEdges, numVertices, false, MinSegmentedList,(uint64_t)UINT64_MAX, mgpu::minimum<uint64_t>(),context);
+    //InputIt data_global, CsrIt csr_global, int count,int numSegments, bool supportEmpty, OutputIt dest_global, T identity, Op op,CudaContext& context)
 }
 
 __global__ void CreateNWEArray(uint32_t *NWE, uint64_t *MinSegmentedList, int numVertices)
@@ -327,7 +334,7 @@ __global__ void CreateFlag4Array(uint32_t *expanded_u, uint *Flag4, int numEdges
     }
 }
 
-__global__ void CreateNewVertexList(uint32_t *newVertexList, uint *Flag4, int new_E_size, uint32_t *expanded_u)
+__global__ void CreateNewVertexList(uint32_t *newVertexList, uint32_t *VertexList, uint *Flag4, int new_E_size, uint32_t *expanded_u)
 {
     uint32_t tidx = blockIdx.x*blockDim.x+threadIdx.x;
     uint32_t num_threads = gridDim.x * blockDim.x;
@@ -339,6 +346,7 @@ __global__ void CreateNewVertexList(uint32_t *newVertexList, uint *Flag4, int ne
      {
          id_u = expanded_u[idx];
          newVertexList[id_u] = idx;
+         VertexList[id_u] = idx;
      }
     }
 }
