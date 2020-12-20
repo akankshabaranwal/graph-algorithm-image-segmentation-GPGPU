@@ -36,14 +36,14 @@ def random_rgb():
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('-i', help='Input directory (eg ./bds500/)', required=True)
-    parser.add_argument('-o', help='Output directory (eg ./bds500_measurements)', required=True)
-    parser.add_argument('-s', help='Segment directory (eg ./bds500_segments)', required=True)
+    parser.add_argument('-i', required=True)
+    parser.add_argument('-e', required=True)
+    parser.add_argument('-s', required=True)
     parser.add_argument('-x', action='store_true', help='Orig python algo')
     arg = parser.parse_args()
 
     img_path = arg.i
-    edge_path = arg.o
+    edge_path = arg.e
     img_name = os.path.splitext(os.path.basename(img_path))[0]
     sigma = 1.0
     k = 500
@@ -64,7 +64,7 @@ if __name__ == '__main__':
     if arg.x:
         segmentation_hierarchy = felzenswalb(image, sigma, k, min)
     else:
-        segmentation_hierarchy = felzenswalb_edge(image, edge, sigma, k, min)
+        segmentation_hierarchy = superpixel(image, edge, sigma, k, min)
 
     #
 
