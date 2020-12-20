@@ -7,6 +7,10 @@
 #include "FastMST.h"
 #include "RecolorImage.h"
 
+// Command line options
+#include <getopt.h>
+#include "Options.h"
+
 using namespace cv;
 using namespace cv::cuda;
 using namespace mgpu;
@@ -17,16 +21,10 @@ uint64_t mask_32 = 0x00000000FFFFFFFF;//32 bit mask
 uint64_t mask_22 = 0x000003FFFFF;//32 bit mask
 uint64_t mask_20 = 0x000000FFFFF;//32 bit mask
 
-void segment(Mat image, int argc, char **argv)
+void segment(Mat image)
 {
     Mat output;
-    //GpuMat dev_image, dev_output;
-    //dev_image.upload(image);
 
-    //Ptr<Filter> filter = createGaussianFilter(CV_8UC3, CV_8UC3, Size(5, 5), 1.0);
-    //filter->apply(dev_image, dev_output);
-
-    //Graph parameters
     int numVertices = image.rows * image.cols;
     uint numEdges = (image.rows) * (image.cols) * 4;
 
@@ -42,7 +40,7 @@ void segment(Mat image, int argc, char **argv)
     uint *Flag2;
     uint32_t *SuperVertexId;
     uint *uid;
-    uint *flag4; //Same as F4. New flag for creating vertex list. Assigning the new ids.
+    uint *flag4;
     uint64_t *UV, *UVW;
     uint32_t *W;
 
@@ -86,10 +84,8 @@ void segment(Mat image, int argc, char **argv)
     uint BlockY = image.cols / threadsPerBlock.y;
 
     dim3 numBlocks(BlockX, BlockY);
-    ContextPtr context = CreateCudaDevice(argc, argv, true);
+    ContextPtr context = CreateCudaDevice(0);//If CUDA Device error then fix this
     cudaError_t err = cudaGetLastError();
-
-    //dev_output.download(output);
 
     uint numthreads;
     uint numBlock;
@@ -302,14 +298,73 @@ void segment(Mat image, int argc, char **argv)
     hierarchy_level_sizes.clear();
 }
 
+void printUsage() {
+    puts("Usage: ./felz -i [input image path] -o [output image path]");
+    puts("Options:");
+    puts("\t-i: Path to input file (default: data/beach.png)");
+    puts("\t-o: Path to output file (default: segmented.png)");
+    puts("Benchmarking options");
+    puts("\t-w: Number of iterations to perform during warmup");
+    puts("\t-b: Number of iterations to perform during benchmarking");
+    puts("\t-t: Timing mode: complete / parts (default complete)");
+    exit(1);
+}
+
+const Options handleParams(int argc, char **argv) {
+    Options options = Options();
+        for(;;)
+    {
+        switch(getopt(argc, argv, "hi:o:w:b:t:"))
+        {
+        case 'i': {
+            options.inFile = std::string(optarg);
+            continue;
+        }
+        case 'o': {
+            options.outFile = std::string(optarg);
+            continue;
+        }
+        case 'w': {
+            options.warmupIterations = atoi(optarg);
+            continue;
+        }
+        case 'b': {
+            options.benchmarkIterations = atoi(optarg);
+            continue;
+        }
+        case 'p': {
+            continue;
+        }
+        case '?':
+        case 'h':
+        default : {
+            printUsage();
+            break;
+        }
+
+        case -1:  {
+            break;
+        }
+        }
+        break;
+    }/*
+    if (options.inFile == "empty" || options.outFile == "empty") {
+        puts("Provide an input and output image!");
+        printUsage();
+    }*/
+
+    return options;
+}
+
 
 int main(int argc, char **argv)
 {
     Mat image;
+    const Options options = handleParams(argc, argv);
 
     image = imread("data/bear.jpg", IMREAD_COLOR);
     printf("Size of image obtained is: Rows: %d, Columns: %d, Pixels: %d\n", image.rows, image.cols, image.rows * image.cols);
-    segment(image, argc, argv);
+    segment(image);
 
     return 0;
 }
