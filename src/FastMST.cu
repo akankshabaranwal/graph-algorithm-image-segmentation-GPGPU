@@ -31,7 +31,34 @@ __global__ void MarkSegments(uint *flag, uint32_t *VertexList,int numElements)
         flag[VertexList[idx]] = 1;
     }
 }
+__global__ void IncrementVertexList(uint32_t *VertexList,int numElements)
+{
+    uint32_t tidx = blockIdx.x*blockDim.x+threadIdx.x;
+    uint32_t num_threads = gridDim.x * blockDim.x;
+    for (uint32_t idx = tidx; idx < numElements; idx += num_threads)
+    {
+        VertexList[idx] = VertexList[idx] +1;
+    }
+}
 
+__global__ void DecrementVertexList(uint32_t *VertexList,int numElements)
+{
+    uint32_t tidx = blockIdx.x*blockDim.x+threadIdx.x;
+    uint32_t num_threads = gridDim.x * blockDim.x;
+    for (uint32_t idx = tidx; idx < numElements; idx += num_threads)
+    {
+        VertexList[idx] = VertexList[idx] -1;
+    }
+}
+__global__ void DecrementVertexList(uint *flag, uint32_t *VertexList,int numElements)
+{
+    uint32_t tidx = blockIdx.x*blockDim.x+threadIdx.x;
+    uint32_t num_threads = gridDim.x * blockDim.x;
+    for (uint32_t idx = tidx; idx < numElements; idx += num_threads)
+    {
+        flag[VertexList[idx]] = 1;
+    }
+}
 void SegmentedReduction(CudaContext& context, uint32_t *VertexList, uint64_t *BitEdgeList, uint64_t *MinSegmentedList, int numEdges, int numVertices)
 {
     SegReduceCsr(BitEdgeList, VertexList, numEdges, numVertices, false, MinSegmentedList,(uint64_t)UINT64_MAX, mgpu::minimum<uint64_t>(),context);
@@ -250,7 +277,7 @@ __global__ void ResetCompactLocationsArray(uint32_t *compactLocations, uint32_t 
     }
 }
 
-__global__ void CreateNewEdgeList(uint64_t *BitEdgeList, uint32_t *compactLocations, uint32_t *newOnlyE, uint64_t *newOnlyW, uint64_t *UV, uint32_t *W, uint *flag3, uint32_t new_edge_size, uint32_t *new_E_size, uint32_t *new_V_size, uint32_t *expanded_u)
+__global__ void CreateNewEdgeList(uint64_t *BitEdgeList, uint32_t *compactLocations, uint32_t *newOnlyE, uint64_t *newOnlyW, uint64_t *UV, uint32_t *W, uint64_t *UVW, uint *flag3, uint32_t new_edge_size, uint32_t *new_E_size, uint32_t *new_V_size, uint32_t *expanded_u)
 {
     uint32_t supervertexid_u, supervertexid_v;
     uint32_t tidx = blockIdx.x*blockDim.x+threadIdx.x;
@@ -264,11 +291,14 @@ __global__ void CreateNewEdgeList(uint64_t *BitEdgeList, uint32_t *compactLocati
         new_V_size[idx] = 0;
         if(flag3[idx])
         {
-            supervertexid_u =UV[idx]>>32;
-            supervertexid_v =UV[idx]&0x00000000FFFFFFFF;
-            edgeWeight = W[idx];
+            //supervertexid_u =UV[idx]>>32;
+            //supervertexid_v =UV[idx]&0x00000000FFFFFFFF;
+            //edgeWeight = W[idx];
+            supervertexid_u =UVW[idx]>>44;
+            supervertexid_v =((UVW[idx]>>22)&0x000003FFFFF);
+            edgeWeight = (UVW[idx]&0x000000FFFFF);
             newLocation = compactLocations[idx];
-            if((supervertexid_u!=4194303) and (supervertexid_v!=1048575) and (supervertexid_u!=-1) and (supervertexid_v!=-1))
+            if((supervertexid_u!=4194303) and (supervertexid_v!=1048575) and (supervertexid_u!=-1) and (supervertexid_v!=-1) and (supervertexid_u!=1048575) and (supervertexid_v!=4194303))
             {
                 newOnlyE[newLocation] = supervertexid_v;
                 newOnlyW[newLocation] = (edgeWeight<<32) | newLocation;

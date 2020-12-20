@@ -38,7 +38,7 @@ int main(int argc, char **argv)
     uint numEdges = (image.rows) * (image.cols) * 4;
 
     //Convert image to graph
-    uint32_t *VertexList, *OnlyEdge, *OnlyVertex, *FlagList, *NWE, *Successor, *newSuccessor, *L, *Representative, *VertexIds;
+    uint32_t *VertexList, *MarkedSegments, *OnlyEdge, *OnlyVertex, *FlagList, *NWE, *Successor, *newSuccessor, *L, *Representative, *VertexIds;
     uint64_t *OnlyWeight, *tempArray, *BitEdgeList, *MinSegmentedList;
     uint32_t *MinMaxScanArray;
     uint32_t *new_E_size, *new_V_size;
@@ -49,6 +49,7 @@ int main(int argc, char **argv)
 
     uint *flag;
     cudaMallocManaged(&flag, numEdges * sizeof(uint32_t));
+    cudaMallocManaged(&MarkedSegments,numEdges * sizeof(uint32_t));
     //Allocating memory
     cudaMallocManaged(&VertexList, numVertices * sizeof(uint32_t));
     cudaMallocManaged(&FlagList, numVertices * sizeof(uint32_t));
@@ -171,7 +172,11 @@ int main(int argc, char **argv)
         numBlock = numVertices/numthreads;
 
         //1. The graph creation step above takes care of this
-
+        for (uint32_t i = 0; i < numEdges; i++)
+        {
+            tmp_Wt = BitEdgeList[i] >> 32;
+            OnlyWeight[i] = (tmp_Wt << 32) | i;
+        }
         //2. Mark the segments in the flag array. Being used for the uid array below
         printf("\nVertices are:\n");
         for(int i=0;i<numVertices; i++)
@@ -203,6 +208,9 @@ int main(int argc, char **argv)
         }
 
         MarkSegments<<<numBlock, numthreads>>>(flag, VertexList, numEdges);
+        cudaDeviceSynchronize();
+        //Create UID array. 10.2
+        CreateUid(MarkedSegments, flag, numEdges); //Isnt this same as the vertex list??
 
         err = cudaGetLastError();        // Get error code
         if ( err != cudaSuccess )
@@ -210,10 +218,14 @@ int main(int argc, char **argv)
             printf("CUDA Error: Mark Segments%s\n", cudaGetErrorString(err));
             exit(-1);
         }
+        //IncrementVertexList<<<numBlock, numthreads>>>(VertexList,numVertices);
+        //cudaDeviceSynchronize();
 
         //3. Segmented min scan
         SegmentedReduction(*context, VertexList, BitEdgeList, MinSegmentedList, numEdges, numVertices);
         SegmentedReduction(*context, VertexList, OnlyWeight, tempArray, numEdges, numVertices);
+        //DecrementVertexList<<<numBlock, numthreads>>>(VertexList,numVertices);
+        //cudaDeviceSynchronize();
 
         err = cudaGetLastError();        // Get error code
         if ( err != cudaSuccess )
@@ -222,7 +234,14 @@ int main(int argc, char **argv)
             exit(-1);
         }
         cudaDeviceSynchronize();
+        printf("OnlyWeightArray is:\n");
+        for(int i=0;i<numEdges;i++)
+            printf("%d %d,  ", OnlyWeight[i]>>32, OnlyWeight[i]&mask_32);
 
+        //Debug NWE array creation
+        printf("Input to create NWE Array is:\n");
+        for(int i=0;i<numEdges;i++)
+            printf("%d %d,  ", tempArray[i]>>32, tempArray[i]&mask_32);
         // Create NWE array
         CreateNWEArray<<<numBlock, numthreads>>>(NWE, tempArray, numVertices);
         err = cudaGetLastError();        // Get error code
@@ -414,7 +433,7 @@ int main(int argc, char **argv)
         printf("\n Printing bitUVW array after SortUVW: ");
         for(int i = 0; i< numEdges;i++)
         {
-            printf("%d %d %d , ", UVW[i]>>44, ((UVW[i]>>22)&mask_22),  UVW[i]&mask_20);
+            printf("%d %d %d , ", UVW[i]>>44, ((UVW[i]>>22)&mask_22),  (UVW[i]&mask_20));
         }
 
         printf("\n");
@@ -464,7 +483,7 @@ int main(int argc, char **argv)
             printf("%d %d %d, ", UV[i]>>32, UV[i]&mask_32, W[i]);
         }
         printf("\n");
-        CreateNewEdgeList<<<numBlock,numthreads>>>( BitEdgeList, compactLocations, OnlyEdge, OnlyWeight, UV, W, flag3, *new_edge_size, new_E_size, new_V_size, expanded_u);
+        CreateNewEdgeList<<<numBlock,numthreads>>>( BitEdgeList, compactLocations, OnlyEdge, OnlyWeight, UV, W, UVW, flag3, *new_edge_size, new_E_size, new_V_size, expanded_u);
 
         uint32_t *new_E_sizeptr = thrust::max_element(thrust::device, new_E_size, new_E_size + *new_edge_size);
         uint32_t *new_V_sizeptr = thrust::max_element(thrust::device, new_V_size, new_V_size + *new_edge_size);
