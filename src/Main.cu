@@ -19,7 +19,7 @@ int main(int argc, char **argv)
     GpuMat dev_image, dev_output;
 
     image = imread("data/beach.png", IMREAD_COLOR);
-    cv::resize(image, image, cv::Size(), 0.05, 0.05);
+    //cv::resize(image, image, cv::Size(), 0.5, 0.5);
 
     printf("Size of image obtained is: Rows: %d, Columns: %d, Pixels: %d\n", image.rows, image.cols, image.rows * image.cols);
 
@@ -38,6 +38,7 @@ int main(int argc, char **argv)
     int32_t *MinMaxScanArray;
     int32_t *new_E_size, *new_V_size;
     int32_t *compactLocations, *expanded_u;
+    int32_t *C;
 
     edge *EdgeList;
 
@@ -66,6 +67,7 @@ int main(int argc, char **argv)
     cudaMallocManaged(&MinMaxScanArray, numEdges * sizeof(int32_t));
     cudaMallocManaged(&compactLocations, numEdges * sizeof(int32_t));
     cudaMallocManaged(&expanded_u, numEdges * sizeof(int32_t));
+    cudaMallocManaged(&C, numEdges * sizeof(int32_t));
 
 
     int *Flag2;
@@ -147,7 +149,7 @@ int main(int argc, char **argv)
     std::vector<int32_t*> d_hierarchy_levels;	// Vector containing pointers to all hierarchy levels (don't dereference on CPU, device pointers)
     std::vector<int> hierarchy_level_sizes;			// Size of each hierarchy level
 
-    while(numVertices>3)
+    while(numVertices>1)
     {
 
         printf("\nStarting new iteration with numVertices=%d, numEdges=%d\n", numVertices, numEdges);
@@ -282,7 +284,6 @@ int main(int argc, char **argv)
         printf("\n After propagating representative vertices printing Successor Array: \n");
         for(int i =0; i< numVertices; i++)
         {
-            if(Successor[i]!=18145)
           printf("%d ,", Successor[i]);
         }
 
@@ -297,46 +298,45 @@ int main(int argc, char **argv)
         }
         cudaDeviceSynchronize();
 
-        printf("\n Representative array \n");
+        printf("\n Representative array, Vertex Array \n");
         for(int i =0; i< numVertices; i++)
         {
-            printf("%d ,", Representative[i]);
+
+            printf("%d %d %d,  ", Successor[i], Representative[i], VertexIds[i]);
         }
 
-        printf("\n Vertex \n");
-        for(int i =0; i< numVertices; i++)
-        {
-            printf("%d ,", VertexIds[i]);
-        }
-        //cudaDeviceSynchronize();
         //9. Create F2, Assign new IDs based on Flag2 array
         cudaDeviceSynchronize();
 
         thrust::sort_by_key(thrust::device, Representative, Representative + numVertices, VertexIds);
-        CreateFlag2Array<<<numBlock, numthreads>>>(Representative, Flag2, numVertices);
-        thrust::inclusive_scan(Flag2, Flag2 + numVertices, Flag2, thrust::plus<int>());
         cudaDeviceSynchronize();
 
-        printf("\n Sorted representative array \n");
+        CreateFlag2Array<<<numBlock, numthreads>>>(Representative, Flag2, numVertices);
+        cudaDeviceSynchronize();
+
+        thrust::inclusive_scan(Flag2, Flag2 + numVertices, C, thrust::plus<int>());
+        cudaDeviceSynchronize();
+
+        printf("\n Sorted representative array, Vertex Array \n");
         for(int i =0; i< numVertices; i++)
         {
-            printf("%d ,", Representative[i]);
+            printf("%d %d,  ", Representative[i], VertexIds[i]);
         }
 
-        printf("\n Sorted Vertex Labels \n");
-        for(int i =0; i< numVertices; i++)
-        {
-            printf("%d ,", VertexIds[i]);
-        }
 
-        printf("Flag\n");
+        printf("\nFlag2\n");
         for(int i =0; i< numVertices; i++)
         {
             printf("%d ,", Flag2[i]);
         }
+        printf("\nNew Indices C array is:\n");
+        for(int i =0; i< numVertices; i++)
+        {
+            printf("%d ,", C[i]);
+        }
 
         //D. Finding the Supervertex ids and storing it in an array
-        CreateSuperVertexArray<<<numBlock,numthreads>>>(SuperVertexId, VertexIds, Flag2, numVertices);
+        CreateSuperVertexArray<<<numBlock,numthreads>>>(SuperVertexId, VertexIds, C, numVertices);
         err = cudaGetLastError();        // Get error code
         if ( err != cudaSuccess )
         {
@@ -349,6 +349,8 @@ int main(int argc, char **argv)
         {
             printf("%d ,", SuperVertexId[i]);
         }
+
+        //return 0;
 
         //Create UID array. 10.2
         CreateUid(uid, flag, numEdges); //Isnt this same as the vertex list??
