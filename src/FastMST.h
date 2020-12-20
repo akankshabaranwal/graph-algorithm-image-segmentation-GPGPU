@@ -32,6 +32,6 @@ __global__ void ResetCompactLocationsArray(uint32_t *compactLocations, uint32_t 
 __global__ void CreateNewEdgeList(uint64_t *BitEdgeList, uint32_t *compactLocations, uint32_t *newOnlyE, uint64_t *newOnlyW, uint64_t *UV, uint32_t *W, uint64_t *UVW, uint *flag3, uint32_t new_edge_size, uint32_t *new_E_size, uint32_t *new_V_size, uint32_t *expanded_u);
 
 __global__ void CreateFlag4Array(uint32_t *expanded_u, uint *Flag4, int numEdges);
-__global__ void CreateNewVertexList(uint32_t *newVertexList, uint32_t *VertexList, uint *Flag4, int new_E_size, uint32_t *expanded_u);
+__global__ void CreateNewVertexList(uint32_t *VertexList, uint *Flag4, int new_E_size, uint32_t *expanded_u);
 
 #endif //FELZENSZWALB_FASTMST_H
