@@ -13,7 +13,9 @@ using namespace mgpu;
 // TODO: Add the error handling code from:
 //  http://cuda-programming.blogspot.com/2013/01/vector-addition-in-cuda-cuda-cc-program.html
 
-uint64_t mask_32 = 0x0000FFFF;//32 bit mask
+uint64_t mask_32 = 0x00000000FFFFFFFF;//32 bit mask
+uint64_t mask_22 = 0x000003FFFFF;//32 bit mask
+uint64_t mask_20 = 0x000000FFFFF;//32 bit mask
 
 int main(int argc, char **argv)
 {
@@ -101,9 +103,11 @@ int main(int argc, char **argv)
     uint numthreads;
     uint numBlock;
 
-    uint64_t *UV;
+    uint64_t *UV, *UVW;
     uint32_t *W;
+
     cudaMallocManaged(&UV,numEdges*sizeof(uint64_t));
+    cudaMallocManaged(&UVW,numEdges*sizeof(uint64_t));
     cudaMallocManaged(&W,numEdges*sizeof(uint32_t));
 
     uint *flag3;
@@ -149,7 +153,7 @@ int main(int argc, char **argv)
 
     while(numVertices>1)
     {
-
+        printf("***********************************");
         printf("\nStarting new iteration with numVertices=%d, numEdges=%d\n", numVertices, numEdges);
         if(numVertices>1024)
         numthreads = min(1024,numVertices);
@@ -180,6 +184,14 @@ int main(int argc, char **argv)
         printf("\nWeights are:\n");
         for(int i=0;i<numEdges; i++)
             printf("%d, ", OnlyWeight[i]>>32);
+
+        printf("\nPrinting new BitEdgeIndex List:\n");
+        for(int i=0;i<numEdges;i++)
+            printf("%d, ", BitEdgeList[i]&mask_32);
+
+        printf("\nPrinting new BitEdgeWeight List:\n");
+        for(int i=0;i<numEdges;i++)
+            printf("%d, ", BitEdgeList[i]>>32);
 
         ClearFlagArray<<<numBlock, numthreads>>>(flag, numEdges);
 
@@ -374,7 +386,7 @@ int main(int argc, char **argv)
             printf("%d, ", OnlyEdge[i]);
         }
         //E 12.
-        CreateUVWArray<<<numBlock,numthreads>>>(BitEdgeList, OnlyEdge, numEdges, uid, SuperVertexId, UV, W);
+        CreateUVWArray<<<numBlock,numthreads>>>(BitEdgeList, OnlyEdge, numEdges, uid, SuperVertexId, UV, W, UVW);
         err = cudaGetLastError();        // Get error code
         if ( err != cudaSuccess )
         {
@@ -390,12 +402,21 @@ int main(int argc, char **argv)
         printf("\n");
         //12.2 Sort the UVW Array
         thrust::sort_by_key(thrust::device, UV, UV + numEdges, W);
+        thrust::sort_by_key(thrust::device, UVW, UVW + numEdges, W);
+
         cudaDeviceSynchronize();
         printf("\n Printing UVW array after SortUVW: ");
         for(int i = 0; i< numEdges;i++)
         {
             printf("%d %d %d , ", UV[i]>>32, UV[i]&mask_32, W[i]);
         }
+
+        printf("\n Printing bitUVW array after SortUVW: ");
+        for(int i = 0; i< numEdges;i++)
+        {
+            printf("%d %d %d , ", UVW[i]>>44, ((UVW[i]>>22)&mask_22),  UVW[i]&mask_20);
+        }
+
         printf("\n");
         flag3[0]=1;
         CreateFlag3Array<<<numBlock,numthreads>>>(UV, W, numEdges, flag3, MinMaxScanArray);
@@ -408,7 +429,7 @@ int main(int argc, char **argv)
         printf("\n");
         uint32_t *new_edge_size = thrust::max_element(thrust::device, MinMaxScanArray, MinMaxScanArray + numEdges);
         cudaDeviceSynchronize();
-        //*new_edge_size = *new_edge_size+1;
+        *new_edge_size = *new_edge_size+1;
         printf("\nnew_edge_size %d", *new_edge_size);
 
         thrust::inclusive_scan(flag3, flag3 + *new_edge_size, compactLocations, thrust::plus<int>());
@@ -421,6 +442,7 @@ int main(int argc, char **argv)
         printf("\n");
         ResetCompactLocationsArray<<<numBlock,numthreads>>>(compactLocations, *new_edge_size);
         cudaDeviceSynchronize();
+
 
         printf("\nPrinting inputs for CreatNewEdgeList\n");
         printf("\n Printing flag3 array\n");
@@ -459,7 +481,7 @@ int main(int argc, char **argv)
 
         printf("\nPrinting W\n");
         for(int i=0; i< numEdges;i++)
-            printf("%d, ", OnlyWeight[i]);
+            printf("%d, ", OnlyWeight[i]>>32);
 
         printf("\nPrinting expanded_u\n");
         for(int i=0; i< numEdges;i++)
@@ -468,7 +490,6 @@ int main(int argc, char **argv)
         Flag4[0]=1;
         CreateFlag4Array<<<numBlock,numthreads>>>(expanded_u, Flag4, numEdges);
         cudaDeviceSynchronize();
-
 
         printf("\nPrinting expanded_u\n");
         for(int i=0; i<numEdges; i++)
@@ -500,7 +521,15 @@ int main(int argc, char **argv)
 
         printf("\nPrinting new Weight List:\n");
         for(int i=0;i<numEdges;i++)
-            printf("%d, ", OnlyWeight[i]);
+            printf("%d, ", OnlyWeight[i]>>32);
+
+        printf("\nPrinting new BitEdgeIndex List:\n");
+        for(int i=0;i<numEdges;i++)
+            printf("%d, ", BitEdgeList[i]&mask_32);
+
+        printf("\nPrinting new BitEdgeWeight List:\n");
+        for(int i=0;i<numEdges;i++)
+            printf("%d, ", BitEdgeList[i]>>32);
 
         d_hierarchy_levels.push_back(SuperVertexId);
         hierarchy_level_sizes.push_back(numVertices);

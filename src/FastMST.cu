@@ -44,7 +44,7 @@ __global__ void CreateNWEArray(uint32_t *NWE, uint64_t *MinSegmentedList, int nu
 
     for (uint idx = tidx; idx < numVertices; idx += num_threads)
     {
-        NWE[idx] = MinSegmentedList[idx]&0x0000FFFF;
+        NWE[idx] = MinSegmentedList[idx]&0x00000000FFFFFFFF;
     }
 }
 
@@ -56,7 +56,7 @@ __global__ void FindSuccessorArray(uint32_t *Successor, uint64_t *BitEdgeList, u
 
     for (uint idx = tidx; idx < numVertices; idx += num_threads)
     {   min_edge_index = NWE[idx];
-        Successor[idx] = BitEdgeList[min_edge_index]&0x0000FFFF;
+        Successor[idx] = BitEdgeList[min_edge_index]&0x00000000FFFFFFFF;
     }
 }
 
@@ -180,7 +180,7 @@ __global__ void RemoveSelfEdges(uint32_t *OnlyEdge, int numEdges, uint32_t *uid,
 
 //12 Removing duplicate edges
 //Instead of UVW array create separate U, V, W array.
-__global__ void CreateUVWArray(uint64_t *BitEdgeList, uint32_t *OnlyEdge, int numEdges, uint32_t *uid, uint32_t *SuperVertexId, uint64_t *UV, uint32_t *W)
+__global__ void CreateUVWArray(uint64_t *BitEdgeList, uint32_t *OnlyEdge, int numEdges, uint32_t *uid, uint32_t *SuperVertexId, uint64_t *UV, uint32_t *W,uint64_t *UVW )
 {
     uint32_t id_u, id_v, edge_weight;
     uint64_t supervertexid_u, supervertexid_v;
@@ -198,11 +198,13 @@ __global__ void CreateUVWArray(uint64_t *BitEdgeList, uint32_t *OnlyEdge, int nu
             supervertexid_v = SuperVertexId[id_v];
             UV[idx] = supervertexid_u<<32 |supervertexid_v;
             W[idx] = edge_weight;
+            UVW[idx] = (supervertexid_u<<44)|(supervertexid_v<<22)|edge_weight;
         }
         else
         {
             UV[idx] = UINT64_MAX;
             W[idx] = edge_weight;
+            UVW[idx] = UINT64_MAX;
         }
     }
 }
@@ -216,13 +218,13 @@ __global__ void CreateFlag3Array(uint64_t *UV, uint32_t *W, int numEdges, uint *
     for (uint32_t idx = tidx+1; idx < numEdges; idx += num_threads)
     {
         prev_supervertexid_u = UV[idx-1]>>32;
-        prev_supervertexid_v = UV[idx-1] &0x0000FFFF;
+        prev_supervertexid_v = UV[idx-1] &0x00000000FFFFFFFF;
 
         supervertexid_u = UV[idx]>>32;
-        supervertexid_v = UV[idx]&0x0000FFFF;
+        supervertexid_v = UV[idx]&0x00000000FFFFFFFF;
         flag3[idx] = 0;
         MinMaxScanArray[idx]=1;
-        if((supervertexid_u!=65535) and (supervertexid_v!=65535))
+        if((supervertexid_u!=1048575) and (supervertexid_v!=4194303) and (supervertexid_u!=-1) and (supervertexid_v!=-1))
         {
             if((prev_supervertexid_u !=supervertexid_u) || (prev_supervertexid_v!=supervertexid_v))
             {
@@ -263,10 +265,10 @@ __global__ void CreateNewEdgeList(uint64_t *BitEdgeList, uint32_t *compactLocati
         if(flag3[idx])
         {
             supervertexid_u =UV[idx]>>32;
-            supervertexid_v =UV[idx]&0x0000FFFF;
+            supervertexid_v =UV[idx]&0x00000000FFFFFFFF;
             edgeWeight = W[idx];
             newLocation = compactLocations[idx];
-            if((supervertexid_u!=65535) and (supervertexid_v!=65535))
+            if((supervertexid_u!=4194303) and (supervertexid_v!=1048575) and (supervertexid_u!=-1) and (supervertexid_v!=-1))
             {
                 newOnlyE[newLocation] = supervertexid_v;
                 newOnlyW[newLocation] = (edgeWeight<<32) | newLocation;
