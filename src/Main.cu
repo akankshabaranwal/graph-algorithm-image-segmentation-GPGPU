@@ -33,6 +33,7 @@ void ImagetoGraphParallelStream(Mat &image, uint32_t *d_vertex,uint32_t *d_edge,
     cv::Ptr<cv::cuda::Filter> filter;
 
     if (TIMING_MODE == TIME_PARTS) { // Start gaussian filter timer
+      //  printf("Start Gaussian filter timer\n");
         start = std::chrono::high_resolution_clock::now();
     }
 
@@ -44,12 +45,15 @@ void ImagetoGraphParallelStream(Mat &image, uint32_t *d_vertex,uint32_t *d_edge,
     if (TIMING_MODE == TIME_PARTS) { // End gaussian filter timer
         cudaDeviceSynchronize();
         end = std::chrono::high_resolution_clock::now();
+        //printf("End Gaussian filter timer\n");
         int time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
         timings.push_back(time);
     }
 
     if (TIMING_MODE == TIME_PARTS) { // Start graph creation timer
+        //printf("Start Graph creation timer\n");
         start = std::chrono::high_resolution_clock::now();
+
     }
 
     // Create graphs. Kernels executed in different streams for concurrency
@@ -90,6 +94,8 @@ void ImagetoGraphParallelStream(Mat &image, uint32_t *d_vertex,uint32_t *d_edge,
     if (TIMING_MODE == TIME_PARTS) {
         end = std::chrono::high_resolution_clock::now();
         int time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+       // printf("End Graph creation timer\n");
+
         timings.push_back(time);
     }
 
@@ -104,6 +110,7 @@ void writeComponents(std::vector<uint32_t *>& d_hierarchy_levels, int no_of_vert
     std::string rawOutName = outFile.substr(0, lastindex);
     std::chrono::high_resolution_clock::time_point start, end;
     if (TIMING_MODE == TIME_PARTS || TIMING_MODE == TIME_COMPLETE) { // Start write timer
+    //    printf("Start write components timer\n");
         start = std::chrono::high_resolution_clock::now();
     }
 
@@ -173,6 +180,8 @@ void writeComponents(std::vector<uint32_t *>& d_hierarchy_levels, int no_of_vert
         end = std::chrono::high_resolution_clock::now();
         int time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
         if (TIMING_MODE == TIME_PARTS) {
+          //  printf("End write components timer\n");
+
             timings.push_back(time);
         } else {
             timings[0] += time;
@@ -195,6 +204,8 @@ void segment(Mat image, std::string outFile, bool output)
 
     if (TIMING_MODE == TIME_COMPLETE) { // Start whole execution timer
         start = std::chrono::high_resolution_clock::now();
+      //  printf("Start segmentation timer\n");
+
     }
 
     //Convert image to graph
@@ -272,6 +283,7 @@ void segment(Mat image, std::string outFile, bool output)
 
     if (TIMING_MODE == TIME_PARTS) { // Start segmentation timer
         start = std::chrono::high_resolution_clock::now();
+       // printf("Start segmentation timer\n");
     }
 
 
@@ -436,6 +448,8 @@ void segment(Mat image, std::string outFile, bool output)
         end = std::chrono::high_resolution_clock::now();
         int time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
         timings.push_back(time);
+   //     printf("End segmentation timer\n");
+
     }
 
     if (TIMING_MODE == TIME_COMPLETE) { // End whole execution timer
@@ -443,9 +457,11 @@ void segment(Mat image, std::string outFile, bool output)
         end = std::chrono::high_resolution_clock::now();
         int time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
         timings.push_back(time);
+     //   printf("End full timer\n");
+
     }
 
-    if(output)
+    //if(output)
     writeComponents(d_hierarchy_levels, image.rows*image.cols, 3, hierarchy_level_sizes, outFile, image.rows, image.cols);
 
     //Free memory
