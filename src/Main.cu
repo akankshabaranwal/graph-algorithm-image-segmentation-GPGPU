@@ -23,7 +23,7 @@ uint64_t mask_20 = 0x000000FFFFF;//32 bit mask
 enum timing_mode {NO_TIME, TIME_COMPLETE, TIME_PARTS};
 enum timing_mode TIMING_MODE;
 std::vector<int> timings;
-
+bool NO_WRITE = false;
 void ImagetoGraphParallelStream(Mat &image, uint32_t *d_vertex,uint32_t *d_edge, uint64_t *d_weight)
 {
     std::chrono::high_resolution_clock::time_point start, end;
@@ -85,8 +85,100 @@ void ImagetoGraphParallelStream(Mat &image, uint32_t *d_vertex,uint32_t *d_edge,
     createCornerGraphKernel<<< grid_corner, threads_corner, 5>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, image.rows, image.cols, pitch);
 
     cudaDeviceSynchronize(); // Needed to synchronise streams!
-
 }
+
+
+
+
+void writeComponents(std::vector<uint32_t *>& d_hierarchy_levels, int no_of_vertices_orig, int Channel_size, std::vector<int>& hierarchy_level_sizes, std::string outFile, int no_of_rows, int no_of_cols) {
+    // Extract filepath without extension
+    size_t lastindex = outFile.find_last_of(".");
+    std::string rawOutName = outFile.substr(0, lastindex);
+    std::chrono::high_resolution_clock::time_point start, end;
+    if (TIMING_MODE == TIME_PARTS || TIMING_MODE == TIME_COMPLETE) { // Start write timer
+        start = std::chrono::high_resolution_clock::now();
+    }
+
+    // Generate random colors for segments
+    char *component_colours = (char *) malloc(no_of_vertices_orig * Channel_size * sizeof(char));
+
+    // Generate uniform [0, 1] float
+    curandGenerator_t gen;
+    char* d_component_colours;
+    float *d_component_colours_float;
+    cudaMalloc( (void**) &d_component_colours_float, no_of_vertices_orig * Channel_size * sizeof(float));
+    cudaMalloc( (void**) &d_component_colours, no_of_vertices_orig * Channel_size * sizeof(char));
+
+    // Generate random floats
+    curandCreateGenerator(&gen , CURAND_RNG_PSEUDO_MTGP32); // Create a Mersenne Twister pseudorandom number generator
+    curandSetPseudoRandomGeneratorSeed(gen, 1234ULL); // Set seed
+    curandGenerateUniform(gen, d_component_colours_float, no_of_vertices_orig * Channel_size); // Generate n floats on device
+
+    // Convert floats to RGB char
+    int num_of_blocks, num_of_threads_per_block;
+
+    SetGridThreadLen(no_of_vertices_orig * Channel_size, &num_of_blocks, &num_of_threads_per_block);
+    dim3 grid_rgb(num_of_blocks, 1, 1);
+    dim3 threads_rgb(num_of_threads_per_block, 1, 1);
+
+    RandFloatToRandRGB<<< grid_rgb, threads_rgb, 0>>>(d_component_colours, d_component_colours_float, no_of_vertices_orig * Channel_size);
+    cudaFree(d_component_colours_float);
+
+    // Create hierarchy
+    unsigned int* d_prev_level_component;
+    cudaMalloc((void**) &d_prev_level_component, sizeof(unsigned int)*no_of_vertices_orig);
+
+    dim3 threads_pixels;
+    dim3 grid_pixels;
+    SetImageGridThreadLen(no_of_rows, no_of_cols, no_of_vertices_orig, &threads_pixels, &grid_pixels);
+
+    InitPrevLevelComponents<<<grid_pixels, threads_pixels, 0>>>(d_prev_level_component, no_of_rows, no_of_cols);
+
+    char* d_output_image;
+    cudaMalloc( (void**) &d_output_image, no_of_rows*no_of_cols*Channel_size*sizeof(char));
+    char *output = (char*) malloc(no_of_rows*no_of_cols*Channel_size*sizeof(char));
+
+    for (int l = 0; l < d_hierarchy_levels.size(); l++) {
+        int level_size = hierarchy_level_sizes[l];
+        uint32_t* d_level = d_hierarchy_levels[l];
+
+        CreateLevelOutput<<< grid_pixels, threads_pixels, 0>>>(d_output_image, d_component_colours, d_level, d_prev_level_component, no_of_rows, no_of_cols);
+        cudaMemcpy(output, d_output_image, no_of_rows*no_of_cols*Channel_size*sizeof(char), cudaMemcpyDeviceToHost);
+
+        cv::Mat output_img = cv::Mat(no_of_rows, no_of_cols, CV_8UC3, output);
+        std::string outfilename = rawOutName + std::string("_")  + std::to_string(l) + std::string(".png");
+        std::string outmessage = std::string("Writing ") + outfilename.c_str() + std::string("\n");
+        if (!NO_WRITE) {
+            cv::Mat output_img = cv::Mat(no_of_rows, no_of_cols, CV_8UC3, output);
+            std::string outfilename = rawOutName + std::string("_")  + std::to_string(l) + std::string(".png");
+            std::string outmessage = std::string("Writing ") + outfilename.c_str() + std::string("\n");
+
+            fprintf(stderr, "%s", outmessage.c_str());
+            imwrite(outfilename, output_img);
+        }
+
+    }
+
+
+    if (TIMING_MODE == TIME_PARTS || TIMING_MODE == TIME_COMPLETE) { // End write timer
+        cudaDeviceSynchronize();
+        end = std::chrono::high_resolution_clock::now();
+        int time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        if (TIMING_MODE == TIME_PARTS) {
+            timings.push_back(time);
+        } else {
+            timings[0] += time;
+        }
+    }
+
+    // Free memory
+    cudaFree(d_component_colours);
+    cudaFree(d_prev_level_component);
+    cudaFree(d_output_image);
+    free(output);
+}
+
+
 void segment(Mat image, std::string outFile, bool output)
 {
     int numVertices = image.rows * image.cols;
@@ -386,6 +478,7 @@ void segment(Mat image, std::string outFile, bool output)
     hierarchy_level_sizes.clear();
 }
 
+
 void printUsage() {
     puts("Usage: ./felz -i [input image path] -o [output image path]");
     puts("Options:");
@@ -400,9 +493,10 @@ void printUsage() {
 
 const Options handleParams(int argc, char **argv) {
     Options options = Options();
+    TIMING_MODE=TIME_COMPLETE;
         for(;;)
     {
-        switch(getopt(argc, argv, "hi:o:w:b:t:"))
+        switch(getopt(argc, argv, "pnhi:o:w:b:"))
         {
         case 'i': {
             options.inFile = std::string(optarg);
@@ -424,6 +518,11 @@ const Options handleParams(int argc, char **argv) {
             TIMING_MODE = TIME_PARTS;
             continue;
         }
+        case 'n': {
+            NO_WRITE = true;
+            continue;
+        }
+
         case '?':
         case 'h':
         default : {
