@@ -421,6 +421,7 @@ const Options handleParams(int argc, char **argv) {
             continue;
         }
         case 'p': {
+            TIMING_MODE = TIME_PARTS;
             continue;
         }
         case '?':
@@ -469,9 +470,7 @@ int main(int argc, char **argv)
     const Options options = handleParams(argc, argv);
 
     image = imread(options.inFile, IMREAD_COLOR);
-//    image = imread("data/bear.jpg", IMREAD_COLOR);
     printf("Size of image obtained is: Rows: %d, Columns: %d, Pixels: %d\n", image.rows, image.cols, image.rows * image.cols);
-   // segment(image);
 
     // Warm up
     for (int i = 0; i < options.warmupIterations; i++) {
