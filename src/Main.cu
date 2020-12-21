@@ -24,6 +24,7 @@ enum timing_mode {NO_TIME, TIME_COMPLETE, TIME_PARTS};
 enum timing_mode TIMING_MODE;
 std::vector<int> timings;
 bool NO_WRITE = false;
+
 void ImagetoGraphParallelStream(Mat &image, uint32_t *d_vertex,uint32_t *d_edge, uint64_t *d_weight)
 {
     std::chrono::high_resolution_clock::time_point start, end;
@@ -85,6 +86,13 @@ void ImagetoGraphParallelStream(Mat &image, uint32_t *d_vertex,uint32_t *d_edge,
     createCornerGraphKernel<<< grid_corner, threads_corner, 5>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, image.rows, image.cols, pitch);
 
     cudaDeviceSynchronize(); // Needed to synchronise streams!
+
+    if (TIMING_MODE == TIME_PARTS) {
+        end = std::chrono::high_resolution_clock::now();
+        int time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        timings.push_back(time);
+    }
+
 }
 
 
@@ -547,7 +555,7 @@ void printCSVHeader() {
     if (TIMING_MODE == TIME_COMPLETE) {
         printf("total\n"); // Excluding output: gaussian + graph creation + segmentation
     } else {
-        printf("gaussian, graph creation, segmentation\n");
+        printf("gaussian, graph, segmentation, output\n");
     }
 }
 
