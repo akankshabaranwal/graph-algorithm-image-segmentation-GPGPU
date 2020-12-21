@@ -65,24 +65,6 @@ __global__ void IncrementVertexList(uint32_t *VertexList,int numElements)
     }
 }
 
-__global__ void DecrementVertexList(uint32_t *VertexList,int numElements)
-{
-    uint32_t tidx = blockIdx.x*blockDim.x+threadIdx.x;
-    uint32_t num_threads = gridDim.x * blockDim.x;
-    for (uint32_t idx = tidx; idx < numElements; idx += num_threads)
-    {
-        VertexList[idx] = VertexList[idx] -1;
-    }
-}
-__global__ void DecrementVertexList(uint *flag, uint32_t *VertexList,int numElements)
-{
-    uint32_t tidx = blockIdx.x*blockDim.x+threadIdx.x;
-    uint32_t num_threads = gridDim.x * blockDim.x;
-    for (uint32_t idx = tidx; idx < numElements; idx += num_threads)
-    {
-        flag[VertexList[idx]] = 1;
-    }
-}
 void SegmentedReduction(CudaContext& context, uint32_t *VertexList, uint64_t *BitEdgeList, uint64_t *MinSegmentedList, int numEdges, int numVertices)
 {
 
@@ -185,7 +167,6 @@ __global__ void CreateFlag2Array(uint32_t *Representative, uint *Flag2, int numS
     }
 }
 
-//TODO: The array names need to be verified
 __global__ void CreateSuperVertexArray(uint32_t *SuperVertexId, uint32_t *VertexIds, uint *Flag2, int numVertices){
     // Find supervertex id. Create a supervertex array for the original vertex ids
     uint32_t vertex, supervertex_id;

@@ -452,54 +452,6 @@ void SetImageGridThreadLen(int no_of_rows, int no_of_cols, int no_of_vertices, d
     }
 }
 
-void ImagetoGraphParallelStream(Mat &image, uint32_t *d_vertex,uint32_t *d_edge, uint64_t *d_weight)
-{
-    std::chrono::high_resolution_clock::time_point start, end;
-
-    GpuMat dev_image, d_blurred;; 	 // Released automatically in destructor
-    cv::Ptr<cv::cuda::Filter> filter;
-
-    // Apply gaussian filter
-    dev_image.upload(image);
-    filter = cv::cuda::createGaussianFilter(CV_8UC3, CV_8UC3, cv::Size(5, 5), 1.0);
-    filter->apply(dev_image, d_blurred);
-
-    // Create graphs. Kernels executed in different streams for concurrency
-    dim3 encode_threads;
-    dim3 encode_blocks;
-    SetImageGridThreadLen(image.rows, image.cols, image.rows*image.cols, &encode_threads, &encode_blocks);
-
-    int num_of_blocks, num_of_threads_per_block;
-
-    SetGridThreadLen(image.cols, &num_of_blocks, &num_of_threads_per_block);
-    dim3 grid_row(num_of_blocks, 1, 1);
-    dim3 threads_row(num_of_threads_per_block, 1, 1);
-
-    SetGridThreadLen(image.rows, &num_of_blocks, &num_of_threads_per_block);
-    dim3 grid_col(num_of_blocks, 1, 1);
-    dim3 threads_col(num_of_threads_per_block, 1, 1);
-
-    dim3 grid_corner(1, 1, 1);
-    dim3 threads_corner(4, 1, 1);
-
-    size_t pitch = d_blurred.step;
-
-    // Create inner graph
-    createInnerGraphKernel<<< encode_blocks, encode_threads, 0>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, image.rows, image.cols, pitch);
-
-    // Create outer graph
-    createFirstRowGraphKernel<<< grid_row, threads_row, 1>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, image.rows, image.cols, pitch);
-    createLastRowGraphKernel<<< grid_row, threads_row, 2>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, image.rows, image.cols, pitch);
-
-    createFirstColumnGraphKernel<<< grid_col, threads_col, 3>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, image.rows, image.cols, pitch);
-    createLastColumnGraphKernel<<< grid_col, threads_col, 4>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, image.rows, image.cols, pitch);
-
-    // Create corners
-    createCornerGraphKernel<<< grid_corner, threads_corner, 5>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, image.rows, image.cols, pitch);
-
-    cudaDeviceSynchronize(); // Needed to synchronise streams!
-
-}
 
 
 int ImagetoGraphSerial(Mat image, edge *EdgeList, uint32_t *VertexList, uint64_t *BitEdgeList)

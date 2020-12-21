@@ -22,6 +22,12 @@ struct edge{
     uint32_t Vertex;
     uint64_t Weight;
 };
+__global__ void createCornerGraphKernel(unsigned char *image, unsigned int *d_vertex, unsigned int *d_edge, uint64_t *d_weight, unsigned int no_of_rows, unsigned int no_of_cols, size_t pitch);
+__global__ void createFirstRowGraphKernel(unsigned char *image, unsigned int *d_vertex, unsigned int *d_edge, uint64_t *d_weight, unsigned int no_of_rows, unsigned int no_of_cols, size_t pitch);
+__global__ void createLastRowGraphKernel(unsigned char *image, unsigned int *d_vertex, unsigned int *d_edge, uint64_t *d_weight, unsigned int no_of_rows, unsigned int no_of_cols, size_t pitch);
+__global__ void createFirstColumnGraphKernel(unsigned char *image, unsigned int *d_vertex, unsigned int *d_edge, uint64_t *d_weight, unsigned int no_of_rows, unsigned int no_of_cols, size_t pitch);
+__global__ void createLastColumnGraphKernel(unsigned char *image, unsigned int *d_vertex, unsigned int *d_edge, uint64_t *d_weight, unsigned int no_of_rows, unsigned int no_of_cols, size_t pitch);
+__global__ void createInnerGraphKernel(unsigned char *image, unsigned int *d_vertex, unsigned int *d_edge, uint64_t *d_weight, unsigned int no_of_rows, unsigned int no_of_cols, size_t pitch);
 
 int ImagetoGraphSerial(Mat image, edge *EdgeList, uint32_t *VertexList, uint64_t *BitEdgeList);
 void ImagetoGraphParallelStream(Mat &image, uint32_t *d_vertex,uint32_t *d_edge, uint64_t *d_weight);

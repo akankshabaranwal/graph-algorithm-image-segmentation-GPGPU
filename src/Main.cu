@@ -20,13 +20,82 @@ using namespace mgpu;
 uint64_t mask_32 = 0x00000000FFFFFFFF;//32 bit mask
 uint64_t mask_22 = 0x000003FFFFF;//32 bit mask
 uint64_t mask_20 = 0x000000FFFFF;//32 bit mask
+enum timing_mode {NO_TIME, TIME_COMPLETE, TIME_PARTS};
+enum timing_mode TIMING_MODE;
+std::vector<int> timings;
 
-void segment(Mat image)
+void ImagetoGraphParallelStream(Mat &image, uint32_t *d_vertex,uint32_t *d_edge, uint64_t *d_weight)
 {
-    Mat output;
+    std::chrono::high_resolution_clock::time_point start, end;
 
+    GpuMat dev_image, d_blurred;; 	 // Released automatically in destructor
+    cv::Ptr<cv::cuda::Filter> filter;
+
+    if (TIMING_MODE == TIME_PARTS) { // Start gaussian filter timer
+        start = std::chrono::high_resolution_clock::now();
+    }
+
+    // Apply gaussian filter
+    dev_image.upload(image);
+    filter = cv::cuda::createGaussianFilter(CV_8UC3, CV_8UC3, cv::Size(5, 5), 1.0);
+    filter->apply(dev_image, d_blurred);
+
+    if (TIMING_MODE == TIME_PARTS) { // End gaussian filter timer
+        cudaDeviceSynchronize();
+        end = std::chrono::high_resolution_clock::now();
+        int time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        timings.push_back(time);
+    }
+
+    if (TIMING_MODE == TIME_PARTS) { // Start graph creation timer
+        start = std::chrono::high_resolution_clock::now();
+    }
+
+    // Create graphs. Kernels executed in different streams for concurrency
+    dim3 encode_threads;
+    dim3 encode_blocks;
+    SetImageGridThreadLen(image.rows, image.cols, image.rows*image.cols, &encode_threads, &encode_blocks);
+
+    int num_of_blocks, num_of_threads_per_block;
+
+    SetGridThreadLen(image.cols, &num_of_blocks, &num_of_threads_per_block);
+    dim3 grid_row(num_of_blocks, 1, 1);
+    dim3 threads_row(num_of_threads_per_block, 1, 1);
+
+    SetGridThreadLen(image.rows, &num_of_blocks, &num_of_threads_per_block);
+    dim3 grid_col(num_of_blocks, 1, 1);
+    dim3 threads_col(num_of_threads_per_block, 1, 1);
+
+    dim3 grid_corner(1, 1, 1);
+    dim3 threads_corner(4, 1, 1);
+
+    size_t pitch = d_blurred.step;
+
+    // Create inner graph
+    createInnerGraphKernel<<< encode_blocks, encode_threads, 0>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, image.rows, image.cols, pitch);
+
+    // Create outer graph
+    createFirstRowGraphKernel<<< grid_row, threads_row, 1>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, image.rows, image.cols, pitch);
+    createLastRowGraphKernel<<< grid_row, threads_row, 2>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, image.rows, image.cols, pitch);
+
+    createFirstColumnGraphKernel<<< grid_col, threads_col, 3>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, image.rows, image.cols, pitch);
+    createLastColumnGraphKernel<<< grid_col, threads_col, 4>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, image.rows, image.cols, pitch);
+
+    // Create corners
+    createCornerGraphKernel<<< grid_corner, threads_corner, 5>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, image.rows, image.cols, pitch);
+
+    cudaDeviceSynchronize(); // Needed to synchronise streams!
+
+}
+void segment(Mat image, std::string outFile, bool output)
+{
     int numVertices = image.rows * image.cols;
     uint numEdges = (image.rows) * (image.cols) * 4;
+    std::chrono::high_resolution_clock::time_point start, end;
+
+    if (TIMING_MODE == TIME_COMPLETE) { // Start whole execution timer
+        start = std::chrono::high_resolution_clock::now();
+    }
 
     //Convert image to graph
     uint32_t *VertexList, *OnlyEdge, *FlagList, *NWE, *Successor, *newSuccessor, *L, *Representative, *VertexIds;
@@ -100,6 +169,11 @@ void segment(Mat image)
     numBlock = numVertices/numthreads;
     SetBitEdgeListArray<<<numBlock, numthreads>>>(BitEdgeList, OnlyEdge, OnlyWeight, numEdges);
     cudaDeviceSynchronize();
+
+    if (TIMING_MODE == TIME_PARTS) { // Start segmentation timer
+        start = std::chrono::high_resolution_clock::now();
+    }
+
 
     while(numVertices>1)
     {
@@ -257,7 +331,21 @@ void segment(Mat image)
         hierarchy_level_sizes.push_back(numVertices);
         cudaMallocManaged(&SuperVertexId, numVertices * sizeof(uint32_t));
     }
-    std::string outFile="test";
+    if (TIMING_MODE == TIME_PARTS) { // End segmentation timer
+        cudaDeviceSynchronize();
+        end = std::chrono::high_resolution_clock::now();
+        int time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        timings.push_back(time);
+    }
+
+    if (TIMING_MODE == TIME_COMPLETE) { // End whole execution timer
+        cudaDeviceSynchronize();
+        end = std::chrono::high_resolution_clock::now();
+        int time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        timings.push_back(time);
+    }
+
+    if(output)
     writeComponents(d_hierarchy_levels, image.rows*image.cols, 3, hierarchy_level_sizes, outFile, image.rows, image.cols);
 
     //Free memory
@@ -347,24 +435,55 @@ const Options handleParams(int argc, char **argv) {
         }
         }
         break;
-    }/*
+    }
     if (options.inFile == "empty" || options.outFile == "empty") {
         puts("Provide an input and output image!");
         printUsage();
-    }*/
+    }
 
     return options;
 }
+void printCSVHeader() {
+    if (TIMING_MODE == TIME_COMPLETE) {
+        printf("total\n"); // Excluding output: gaussian + graph creation + segmentation
+    } else {
+        printf("gaussian, graph creation, segmentation\n");
+    }
+}
 
+void printCSVLine() {
+    if (timings.size() > 0) {
+        printf("%d", timings[0]);
+        for (int i = 1; i < timings.size(); i++) {
+            printf(",%d", timings[i]);
+        }
+        printf("\n");
+        timings.clear();
+    }
+
+}
 
 int main(int argc, char **argv)
 {
     Mat image;
     const Options options = handleParams(argc, argv);
 
-    image = imread("data/bear.jpg", IMREAD_COLOR);
+    image = imread(options.inFile, IMREAD_COLOR);
+//    image = imread("data/bear.jpg", IMREAD_COLOR);
     printf("Size of image obtained is: Rows: %d, Columns: %d, Pixels: %d\n", image.rows, image.cols, image.rows * image.cols);
-    segment(image);
+   // segment(image);
+
+    // Warm up
+    for (int i = 0; i < options.warmupIterations; i++) {
+        segment(image, options.outFile, false);
+    }
+    printCSVHeader();
+    // Benchmark
+    timings.clear();
+    for (int i = 0; i < options.benchmarkIterations; i++) {
+        segment(image, options.outFile, i == options.benchmarkIterations-1);
+        printCSVLine();
+    }
 
     return 0;
 }
