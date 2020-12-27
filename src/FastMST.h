@@ -28,7 +28,6 @@ void PropagateRepresentativeVertices(uint32_t *Successor, int numVertices);
 __global__ void appendSuccessorArray(uint32_t *Representative, uint32_t *VertexIds, uint32_t *Successor, int numVertices);
 __global__ void CreateFlag2Array(uint32_t *Representative, uint *Flag2, int numSegments);
 __global__ void CreateSuperVertexArray(uint32_t *SuperVertexId, uint32_t *Vertex, uint *Flag2, int numSegments);
-void CreateUid(uint32_t *uid, uint *flag, int numElements);
 __global__ void RemoveSelfEdges(uint32_t *OnlyEdge, int numEdges, uint32_t *uid, uint32_t *SuperVertexId);
 __global__ void CreateUVWArray(uint64_t *BitEdgeList, uint32_t *OnlyEdge, int numEdges, uint32_t *uid, uint32_t *SuperVertexId, uint64_t *UVW);
 __global__ void CreateFlag3Array(uint64_t *UVW, int numEdges, uint *flag3, uint32_t *MinMaxScanArray);

@@ -199,7 +199,7 @@ void segment(Mat image, std::string outFile, bool output)
     }
 
     //Convert image to graph
-    uint32_t *VertexList, *OnlyEdge, *FlagList, *NWE, *Successor, *newSuccessor, *L, *Representative, *VertexIds;
+    uint32_t *VertexList, *OnlyEdge, *FlagList, *NWE, *Successor, *L, *Representative, *VertexIds;
     uint64_t *OnlyWeight, *tempArray, *BitEdgeList, *MinSegmentedList;
     uint32_t *MinMaxScanArray;
     uint32_t *new_E_size, *new_V_size;
@@ -209,7 +209,7 @@ void segment(Mat image, std::string outFile, bool output)
     uint *flag;
     uint *Flag2;
     uint32_t *SuperVertexId;
-    uint *uid;
+    uint32_t *uid;
     uint *flag4;
     uint64_t *UVW;
 
@@ -226,7 +226,6 @@ void segment(Mat image, std::string outFile, bool output)
     cudaMallocManaged(&BitEdgeList, numEdges * sizeof(uint64_t));
     cudaMallocManaged(&NWE, numVertices * sizeof(uint32_t));
     cudaMallocManaged(&Successor, numVertices * sizeof(uint32_t));
-    cudaMallocManaged(&newSuccessor, numVertices * sizeof(uint32_t));
     cudaMallocManaged(&OnlyEdge, numEdges * sizeof(uint32_t));
     cudaMallocManaged(&OnlyWeight, numEdges * sizeof(uint64_t));
     cudaMallocManaged(&L, numVertices * sizeof(uint32_t));
@@ -240,17 +239,12 @@ void segment(Mat image, std::string outFile, bool output)
     cudaMallocManaged(&C, numEdges * sizeof(uint32_t));
     cudaMallocManaged(&Flag2, numEdges * sizeof(uint32_t));
     cudaMallocManaged(&SuperVertexId, numVertices * sizeof(uint32_t));
-    cudaMallocManaged(&uid, numVertices * sizeof(uint32_t));
+    cudaMallocManaged(&uid, numEdges * sizeof(uint32_t));
     cudaMallocManaged(&flag4,numEdges * sizeof(uint));
     cudaMallocManaged(&UVW,numEdges*sizeof(uint64_t));
     cudaMallocManaged(&flag3,numEdges*sizeof(uint));
     cudaMallocManaged(&Flag4,numEdges*sizeof(uint));
 
-    //dim3 threadsPerBlock(1024, 1024);
-    //uint BlockX = image.rows / threadsPerBlock.x;
-    //uint BlockY = image.cols / threadsPerBlock.y;
-
-    //dim3 numBlocks(BlockX, BlockY);
     ContextPtr context = CreateCudaDevice(0);//If CUDA Device error then fix this
     cudaError_t err = cudaGetLastError();
 
@@ -275,7 +269,7 @@ void segment(Mat image, std::string outFile, bool output)
 
     while(numVertices>1)
     {
-        printf("In a new iteration with numVertices=%d\n", numVertices);
+        //printf("\nIn a new iteration with numVertices=%d, numEdges=%d\n", numVertices, numEdges);
         if(numVertices>1024)
             numthreads = 1024;
         else if(numVertices>512)
@@ -308,7 +302,8 @@ void segment(Mat image, std::string outFile, bool output)
             exit(-1);
         }
 
-        MarkSegments<<<numBlock, numthreads>>>(flag, VertexList, numEdges);
+        MarkSegments<<<numBlock, numthreads>>>(flag, VertexList, numVertices);
+
         //3. Segmented min scan
         SegmentedReduction(*context, VertexList, OnlyWeight, tempArray, numEdges, numVertices);
         err = cudaGetLastError();        // Get error code
@@ -318,6 +313,7 @@ void segment(Mat image, std::string outFile, bool output)
             exit(-1);
         }
 
+        cudaDeviceSynchronize();
         // Create NWE array
         CreateNWEArray<<<numBlock, numthreads>>>(NWE, tempArray, numVertices);
         err = cudaGetLastError();        // Get error code
@@ -326,6 +322,8 @@ void segment(Mat image, std::string outFile, bool output)
             printf("CUDA Error: CreateNWEArray %s\n", cudaGetErrorString(err));
             exit(-1);
         }
+
+        cudaDeviceSynchronize();
 
         //4. Find Successor array of each vertex
         FindSuccessorArray<<<numBlock, numthreads>>>(Successor, BitEdgeList, NWE, numVertices);
@@ -357,12 +355,26 @@ void segment(Mat image, std::string outFile, bool output)
         {
             printf("CUDA Error: AppendSuccessorArray %s\n", cudaGetErrorString(err));
             exit(-1);
+        }
+        cudaDeviceSynchronize();
+
+        thrust::sort_by_key( thrust::device,Representative, Representative + numVertices, VertexIds);
+        //cudaDeviceSynchronize();
+
+        err = cudaGetLastError();        // Get error code
+        if ( err != cudaSuccess )
+        {
+            printf("CUDA Error ThrustSort Representative Array: %s\n", cudaGetErrorString(err));
             exit(-1);
         }
-
-        thrust::sort_by_key(thrust::device, Representative, Representative + numVertices, VertexIds);
-
+        cudaDeviceSynchronize();
         CreateFlag2Array<<<numBlock, numthreads>>>(Representative, Flag2, numVertices);
+        err = cudaGetLastError();        // Get error code
+        if ( err != cudaSuccess )
+        {
+            printf("CUDA Error CreateFlag2Array: %s\n", cudaGetErrorString(err));
+            exit(-1);
+        }
         cudaDeviceSynchronize();
 
         thrust::inclusive_scan(Flag2, Flag2 + numVertices, C, thrust::plus<int>());
@@ -378,7 +390,10 @@ void segment(Mat image, std::string outFile, bool output)
         cudaDeviceSynchronize();
 
         //Create UID array. 10.2
-        CreateUid(uid, flag, numEdges);
+        flag[0]=0;
+        thrust::inclusive_scan(flag, flag + numEdges, uid, thrust::plus<int>());
+
+        cudaDeviceSynchronize();
 
         //11. Removing self edges
         RemoveSelfEdges<<<numBlock,numthreads>>>(OnlyEdge, numEdges, uid, SuperVertexId);
@@ -400,7 +415,7 @@ void segment(Mat image, std::string outFile, bool output)
 
         //12.2 Sort the UVW Array
         thrust::sort(thrust::device, UVW, UVW + numEdges);
-
+        cudaDeviceSynchronize();
         flag3[0]=1;
         CreateFlag3Array<<<numBlock,numthreads>>>(UVW, numEdges, flag3, MinMaxScanArray);
 
@@ -411,9 +426,15 @@ void segment(Mat image, std::string outFile, bool output)
 
         ResetCompactLocationsArray<<<numBlock,numthreads>>>(compactLocations, *new_edge_size);
         CreateNewEdgeList<<<numBlock,numthreads>>>( BitEdgeList, compactLocations, OnlyEdge, OnlyWeight, UVW, flag3, *new_edge_size, new_E_size, new_V_size, expanded_u);
-
+        err = cudaGetLastError();        // Get error code
+        if ( err != cudaSuccess )
+        {
+            printf("CUDA Error CreateNewEdgeList: %s\n", cudaGetErrorString(err));
+            exit(-1);
+        }
         uint32_t *new_E_sizeptr = thrust::max_element(thrust::device, new_E_size, new_E_size + *new_edge_size);
         uint32_t *new_V_sizeptr = thrust::max_element(thrust::device, new_V_size, new_V_size + *new_edge_size);
+        cudaDeviceSynchronize();
         numVertices = *new_V_sizeptr;
         numEdges = *new_E_sizeptr;
 
@@ -430,6 +451,12 @@ void segment(Mat image, std::string outFile, bool output)
         d_hierarchy_levels.push_back(SuperVertexId);
         hierarchy_level_sizes.push_back(numVertices);
         cudaMallocManaged(&SuperVertexId, numVertices * sizeof(uint32_t));
+        err = cudaGetLastError();        // Get error code
+        if ( err != cudaSuccess )
+        {
+            printf("CUDA Error CudaMallocerror for SuperVertexIds: %s\n", cudaGetErrorString(err));
+            exit(-1);
+        }
     }
     if (TIMING_MODE == TIME_PARTS) { // End segmentation timer
         cudaDeviceSynchronize();
@@ -445,7 +472,6 @@ void segment(Mat image, std::string outFile, bool output)
         timings.push_back(time);
     }
 
-    //if(output)
     writeComponents(d_hierarchy_levels, image.rows*image.cols, 3, hierarchy_level_sizes, outFile, image.rows, image.cols);
 
     //Free memory
@@ -458,7 +484,6 @@ void segment(Mat image, std::string outFile, bool output)
     cudaFree(BitEdgeList);
     cudaFree(NWE);
     cudaFree(Successor);
-    cudaFree(newSuccessor);
     cudaFree(OnlyEdge);
     cudaFree(OnlyWeight);
     cudaFree(L);
@@ -574,6 +599,8 @@ int main(int argc, char **argv)
     const Options options = handleParams(argc, argv);
 
     image = imread(options.inFile, IMREAD_COLOR);
+    //cv::resize(image, image, cv::Size(), 0.05, 0.05);
+    //Scale down image.
     printf("Size of image obtained is: Rows: %d, Columns: %d, Pixels: %d\n", image.rows, image.cols, image.rows * image.cols);
 
     // Warm up
