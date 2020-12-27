@@ -34,10 +34,10 @@ __global__ void SetOnlyWeightArray(uint64_t *BitEdgeList,uint64_t *OnlyWeight, u
     }
 }
 
-__global__ void ClearFlagArray(uint *flag, int numElements)
+__global__ void ClearFlagArray(uint32_t *flag, int numElements)
 {
     uint32_t tidx = blockIdx.x*blockDim.x+threadIdx.x;
-    uint num_threads = gridDim.x * blockDim.x;
+    uint32_t num_threads = gridDim.x * blockDim.x;
 
     for (uint32_t idx = tidx; idx < numElements; idx += num_threads)
     {
@@ -45,7 +45,7 @@ __global__ void ClearFlagArray(uint *flag, int numElements)
     }
 }
 
-__global__ void MarkSegments(uint *flag, uint32_t *VertexList,int numElements)
+__global__ void MarkSegments(uint32_t *flag, uint32_t *VertexList,int numElements)
 {
     uint32_t tidx = blockIdx.x*blockDim.x+threadIdx.x;
     uint32_t num_threads = gridDim.x * blockDim.x;
@@ -137,7 +137,7 @@ __global__ void appendSuccessorArray(uint32_t *Representative, uint32_t *VertexI
     }
 }
 
-__global__ void CreateFlag2Array(uint32_t *Representative, uint *Flag2, int numSegments)
+__global__ void CreateFlag2Array(uint32_t *Representative, uint32_t *Flag2, int numSegments)
 {
     Flag2[0]=0;
     uint32_t L0, L1;
@@ -155,9 +155,8 @@ __global__ void CreateFlag2Array(uint32_t *Representative, uint *Flag2, int numS
     }
 }
 
-__global__ void CreateSuperVertexArray(uint32_t *SuperVertexId, uint32_t *VertexIds, uint *Flag2, int numVertices){
+__global__ void CreateSuperVertexArray(uint32_t *SuperVertexId, uint32_t *VertexIds, uint32_t *Flag2, int numVertices){
     uint32_t vertex, supervertex_id;
-
     uint32_t tidx = blockIdx.x*blockDim.x+threadIdx.x;
     uint32_t num_threads = gridDim.x * blockDim.x;
     for (uint32_t idx = tidx; idx < numVertices; idx += num_threads)
@@ -216,7 +215,7 @@ __global__ void CreateUVWArray(uint64_t *BitEdgeList, uint32_t *OnlyEdge, int nu
     }
 }
 
-__global__ void CreateFlag3Array(uint64_t *UVW, int numEdges, uint *flag3, uint32_t *MinMaxScanArray)
+__global__ void CreateFlag3Array(uint64_t *UVW, int numEdges, uint32_t *flag3, uint32_t *MinMaxScanArray)
 {
     uint32_t prev_supervertexid_u, prev_supervertexid_v, supervertexid_u, supervertexid_v;
     uint32_t tidx = blockIdx.x*blockDim.x+threadIdx.x;
@@ -258,7 +257,7 @@ __global__ void ResetCompactLocationsArray(uint32_t *compactLocations, uint32_t 
     }
 }
 
-__global__ void CreateNewEdgeList(uint64_t *BitEdgeList, uint32_t *compactLocations, uint32_t *newOnlyE, uint64_t *newOnlyW, uint64_t *UVW, uint *flag3, uint32_t new_edge_size, uint32_t *new_E_size, uint32_t *new_V_size, uint32_t *expanded_u)
+__global__ void CreateNewEdgeList(uint64_t *BitEdgeList, uint32_t *compactLocations, uint32_t *newOnlyE, uint64_t *newOnlyW, uint64_t *UVW, uint32_t *flag3, uint32_t new_edge_size, uint32_t *new_E_size, uint32_t *new_V_size, uint32_t *expanded_u)
 {
     uint32_t supervertexid_u, supervertexid_v;
     uint32_t tidx = blockIdx.x*blockDim.x+threadIdx.x;
@@ -290,7 +289,7 @@ __global__ void CreateNewEdgeList(uint64_t *BitEdgeList, uint32_t *compactLocati
     }
 }
 
-__global__ void CreateFlag4Array(uint32_t *expanded_u, uint *Flag4, int numEdges)
+__global__ void CreateFlag4Array(uint32_t *expanded_u, uint32_t *Flag4, int numEdges)
 {
     uint32_t tidx = blockIdx.x*blockDim.x+threadIdx.x;
     uint32_t num_threads = gridDim.x * blockDim.x;
@@ -305,7 +304,7 @@ __global__ void CreateFlag4Array(uint32_t *expanded_u, uint *Flag4, int numEdges
     }
 }
 
-__global__ void CreateNewVertexList(uint32_t *VertexList, uint *Flag4, int new_E_size, uint32_t *expanded_u)
+__global__ void CreateNewVertexList(uint32_t *VertexList, uint32_t *Flag4, int new_E_size, uint32_t *expanded_u)
 {
     uint32_t tidx = blockIdx.x*blockDim.x+threadIdx.x;
     uint32_t num_threads = gridDim.x * blockDim.x;
