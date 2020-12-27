@@ -30,10 +30,10 @@ __global__ void CreateFlag2Array(uint32_t *Representative, uint *Flag2, int numS
 __global__ void CreateSuperVertexArray(uint32_t *SuperVertexId, uint32_t *Vertex, uint *Flag2, int numSegments);
 void CreateUid(uint32_t *uid, uint *flag, int numElements);
 __global__ void RemoveSelfEdges(uint32_t *OnlyEdge, int numEdges, uint32_t *uid, uint32_t *SuperVertexId);
-__global__ void CreateUVWArray(uint64_t *BitEdgeList, uint32_t *OnlyEdge, int numEdges, uint32_t *uid, uint32_t *SuperVertexId, uint64_t *UV, uint32_t *W, uint64_t *UVW);
-__global__ void CreateFlag3Array(uint64_t *UV, uint32_t *W, int numEdges, uint *flag3, uint32_t *MinMaxScanArray);
+__global__ void CreateUVWArray(uint64_t *BitEdgeList, uint32_t *OnlyEdge, int numEdges, uint32_t *uid, uint32_t *SuperVertexId, uint64_t *UVW);
+__global__ void CreateFlag3Array(uint64_t *UVW, int numEdges, uint *flag3, uint32_t *MinMaxScanArray);
 __global__ void ResetCompactLocationsArray(uint32_t *compactLocations, uint32_t numEdges);
-__global__ void CreateNewEdgeList(uint64_t *BitEdgeList, uint32_t *compactLocations, uint32_t *newOnlyE, uint64_t *newOnlyW, uint64_t *UV, uint32_t *W, uint64_t *UVW, uint *flag3, uint32_t new_edge_size, uint32_t *new_E_size, uint32_t *new_V_size, uint32_t *expanded_u);
+__global__ void CreateNewEdgeList(uint64_t *BitEdgeList, uint32_t *compactLocations, uint32_t *newOnlyE, uint64_t *newOnlyW, uint64_t *UVW, uint *flag3, uint32_t new_edge_size, uint32_t *new_E_size, uint32_t *new_V_size, uint32_t *expanded_u);
 
 __global__ void CreateFlag4Array(uint32_t *expanded_u, uint *Flag4, int numEdges);
 __global__ void CreateNewVertexList(uint32_t *VertexList, uint *Flag4, int new_E_size, uint32_t *expanded_u);

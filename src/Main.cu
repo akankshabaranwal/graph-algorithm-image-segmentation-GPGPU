@@ -33,7 +33,6 @@ void ImagetoGraphParallelStream(Mat &image, uint32_t *d_vertex,uint32_t *d_edge,
     cv::Ptr<cv::cuda::Filter> filter;
 
     if (TIMING_MODE == TIME_PARTS) { // Start gaussian filter timer
-      //  printf("Start Gaussian filter timer\n");
         start = std::chrono::high_resolution_clock::now();
     }
 
@@ -45,13 +44,11 @@ void ImagetoGraphParallelStream(Mat &image, uint32_t *d_vertex,uint32_t *d_edge,
     if (TIMING_MODE == TIME_PARTS) { // End gaussian filter timer
         cudaDeviceSynchronize();
         end = std::chrono::high_resolution_clock::now();
-        //printf("End Gaussian filter timer\n");
         int time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
         timings.push_back(time);
     }
 
     if (TIMING_MODE == TIME_PARTS) { // Start graph creation timer
-        //printf("Start Graph creation timer\n");
         start = std::chrono::high_resolution_clock::now();
 
     }
@@ -94,8 +91,6 @@ void ImagetoGraphParallelStream(Mat &image, uint32_t *d_vertex,uint32_t *d_edge,
     if (TIMING_MODE == TIME_PARTS) {
         end = std::chrono::high_resolution_clock::now();
         int time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-       // printf("End Graph creation timer\n");
-
         timings.push_back(time);
     }
 
@@ -110,7 +105,6 @@ void writeComponents(std::vector<uint32_t *>& d_hierarchy_levels, int no_of_vert
     std::string rawOutName = outFile.substr(0, lastindex);
     std::chrono::high_resolution_clock::time_point start, end;
     if (TIMING_MODE == TIME_PARTS || TIMING_MODE == TIME_COMPLETE) { // Start write timer
-    //    printf("Start write components timer\n");
         start = std::chrono::high_resolution_clock::now();
     }
 
@@ -180,8 +174,6 @@ void writeComponents(std::vector<uint32_t *>& d_hierarchy_levels, int no_of_vert
         end = std::chrono::high_resolution_clock::now();
         int time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
         if (TIMING_MODE == TIME_PARTS) {
-          //  printf("End write components timer\n");
-
             timings.push_back(time);
         } else {
             timings[0] += time;
@@ -204,8 +196,6 @@ void segment(Mat image, std::string outFile, bool output)
 
     if (TIMING_MODE == TIME_COMPLETE) { // Start whole execution timer
         start = std::chrono::high_resolution_clock::now();
-      //  printf("Start segmentation timer\n");
-
     }
 
     //Convert image to graph
@@ -221,8 +211,7 @@ void segment(Mat image, std::string outFile, bool output)
     uint32_t *SuperVertexId;
     uint *uid;
     uint *flag4;
-    uint64_t *UV, *UVW;
-    uint32_t *W;
+    uint64_t *UVW;
 
     uint *flag3;
     uint *Flag4;
@@ -253,17 +242,15 @@ void segment(Mat image, std::string outFile, bool output)
     cudaMallocManaged(&SuperVertexId, numVertices * sizeof(uint32_t));
     cudaMallocManaged(&uid, numVertices * sizeof(uint32_t));
     cudaMallocManaged(&flag4,numEdges * sizeof(uint));
-    cudaMallocManaged(&UV,numEdges*sizeof(uint64_t));
     cudaMallocManaged(&UVW,numEdges*sizeof(uint64_t));
-    cudaMallocManaged(&W,numEdges*sizeof(uint32_t));
     cudaMallocManaged(&flag3,numEdges*sizeof(uint));
     cudaMallocManaged(&Flag4,numEdges*sizeof(uint));
 
-    dim3 threadsPerBlock(1024, 1024);
-    uint BlockX = image.rows / threadsPerBlock.x;
-    uint BlockY = image.cols / threadsPerBlock.y;
+    //dim3 threadsPerBlock(1024, 1024);
+    //uint BlockX = image.rows / threadsPerBlock.x;
+    //uint BlockY = image.cols / threadsPerBlock.y;
 
-    dim3 numBlocks(BlockX, BlockY);
+    //dim3 numBlocks(BlockX, BlockY);
     ContextPtr context = CreateCudaDevice(0);//If CUDA Device error then fix this
     cudaError_t err = cudaGetLastError();
 
@@ -283,12 +270,12 @@ void segment(Mat image, std::string outFile, bool output)
 
     if (TIMING_MODE == TIME_PARTS) { // Start segmentation timer
         start = std::chrono::high_resolution_clock::now();
-       // printf("Start segmentation timer\n");
     }
 
 
     while(numVertices>1)
     {
+        printf("In a new iteration with numVertices=%d\n", numVertices);
         if(numVertices>1024)
             numthreads = 1024;
         else if(numVertices>512)
@@ -330,6 +317,7 @@ void segment(Mat image, std::string outFile, bool output)
             printf("CUDA Error: Segment Reduction%s\n", cudaGetErrorString(err));
             exit(-1);
         }
+
         // Create NWE array
         CreateNWEArray<<<numBlock, numthreads>>>(NWE, tempArray, numVertices);
         err = cudaGetLastError();        // Get error code
@@ -348,6 +336,7 @@ void segment(Mat image, std::string outFile, bool output)
             exit(-1);
         }
 
+        //RemoveCycles
         RemoveCycles<<<numBlock, numthreads>>>(Successor, numVertices);
         err = cudaGetLastError();        // Get error code
         if ( err != cudaSuccess )
@@ -359,7 +348,6 @@ void segment(Mat image, std::string outFile, bool output)
 
         //C. Merging vertices and assigning IDs to supervertices
         //7. Propagate representative vertex IDs using pointer doubling
-
         PropagateRepresentativeVertices(Successor, numVertices);
 
         //8, 9 Append appendSuccessorArray
@@ -371,6 +359,7 @@ void segment(Mat image, std::string outFile, bool output)
             exit(-1);
             exit(-1);
         }
+
         thrust::sort_by_key(thrust::device, Representative, Representative + numVertices, VertexIds);
 
         CreateFlag2Array<<<numBlock, numthreads>>>(Representative, Flag2, numVertices);
@@ -401,7 +390,7 @@ void segment(Mat image, std::string outFile, bool output)
         }
 
         //E 12.
-        CreateUVWArray<<<numBlock,numthreads>>>(BitEdgeList, OnlyEdge, numEdges, uid, SuperVertexId, UV, W, UVW);
+        CreateUVWArray<<<numBlock,numthreads>>>(BitEdgeList, OnlyEdge, numEdges, uid, SuperVertexId, UVW);
         err = cudaGetLastError();        // Get error code
         if ( err != cudaSuccess )
         {
@@ -410,11 +399,10 @@ void segment(Mat image, std::string outFile, bool output)
         }
 
         //12.2 Sort the UVW Array
-        thrust::sort_by_key(thrust::device, UV, UV + numEdges, W);
-        thrust::sort_by_key(thrust::device, UVW, UVW + numEdges, W);
+        thrust::sort(thrust::device, UVW, UVW + numEdges);
 
         flag3[0]=1;
-        CreateFlag3Array<<<numBlock,numthreads>>>(UV, W, numEdges, flag3, MinMaxScanArray);
+        CreateFlag3Array<<<numBlock,numthreads>>>(UVW, numEdges, flag3, MinMaxScanArray);
 
         uint32_t *new_edge_size = thrust::max_element(thrust::device, MinMaxScanArray, MinMaxScanArray + numEdges);
         cudaDeviceSynchronize();
@@ -422,7 +410,7 @@ void segment(Mat image, std::string outFile, bool output)
         thrust::inclusive_scan(flag3, flag3 + *new_edge_size, compactLocations, thrust::plus<int>());
 
         ResetCompactLocationsArray<<<numBlock,numthreads>>>(compactLocations, *new_edge_size);
-        CreateNewEdgeList<<<numBlock,numthreads>>>( BitEdgeList, compactLocations, OnlyEdge, OnlyWeight, UV, W, UVW, flag3, *new_edge_size, new_E_size, new_V_size, expanded_u);
+        CreateNewEdgeList<<<numBlock,numthreads>>>( BitEdgeList, compactLocations, OnlyEdge, OnlyWeight, UVW, flag3, *new_edge_size, new_E_size, new_V_size, expanded_u);
 
         uint32_t *new_E_sizeptr = thrust::max_element(thrust::device, new_E_size, new_E_size + *new_edge_size);
         uint32_t *new_V_sizeptr = thrust::max_element(thrust::device, new_V_size, new_V_size + *new_edge_size);
@@ -448,8 +436,6 @@ void segment(Mat image, std::string outFile, bool output)
         end = std::chrono::high_resolution_clock::now();
         int time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
         timings.push_back(time);
-   //     printf("End segmentation timer\n");
-
     }
 
     if (TIMING_MODE == TIME_COMPLETE) { // End whole execution timer
@@ -457,8 +443,6 @@ void segment(Mat image, std::string outFile, bool output)
         end = std::chrono::high_resolution_clock::now();
         int time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
         timings.push_back(time);
-     //   printf("End full timer\n");
-
     }
 
     //if(output)
@@ -490,9 +474,7 @@ void segment(Mat image, std::string outFile, bool output)
     cudaFree(SuperVertexId);
     cudaFree(uid);
     cudaFree(flag4);
-    cudaFree(UV);
     cudaFree(UVW);
-    cudaFree(W);
     cudaFree(flag3);
     cudaFree(Flag4);
     for (int l = 0; l < d_hierarchy_levels.size(); l++) {
@@ -584,7 +566,6 @@ void printCSVLine() {
         printf("\n");
         timings.clear();
     }
-
 }
 
 int main(int argc, char **argv)

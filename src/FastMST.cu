@@ -2,7 +2,6 @@
 // Created by akanksha on 28.11.20.
 //
 #include "FastMST.h"
-#include <thrust/sort.h>
 #include <thrust/execution_policy.h>
 
 using namespace mgpu;
@@ -214,7 +213,7 @@ __global__ void RemoveSelfEdges(uint32_t *OnlyEdge, int numEdges, uint32_t *uid,
 
 //12 Removing duplicate edges
 //Instead of UVW array create separate U, V, W array.
-__global__ void CreateUVWArray(uint64_t *BitEdgeList, uint32_t *OnlyEdge, int numEdges, uint32_t *uid, uint32_t *SuperVertexId, uint64_t *UV, uint32_t *W,uint64_t *UVW )
+__global__ void CreateUVWArray(uint64_t *BitEdgeList, uint32_t *OnlyEdge, int numEdges, uint32_t *uid, uint32_t *SuperVertexId, uint64_t *UVW )
 {
     uint32_t id_u, id_v, edge_weight;
     uint64_t supervertexid_u, supervertexid_v;
@@ -230,20 +229,20 @@ __global__ void CreateUVWArray(uint64_t *BitEdgeList, uint32_t *OnlyEdge, int nu
         {
             supervertexid_u = SuperVertexId[id_u];
             supervertexid_v = SuperVertexId[id_v];
-            UV[idx] = supervertexid_u<<32 |supervertexid_v;
-            W[idx] = edge_weight;
+            //UV[idx] = supervertexid_u<<32 |supervertexid_v;
+            //W[idx] = edge_weight;
             UVW[idx] = (supervertexid_u<<44)|(supervertexid_v<<22)|edge_weight;
         }
         else
         {
-            UV[idx] = UINT64_MAX;
-            W[idx] = edge_weight;
+         // UV[idx] = UINT64_MAX;
+         // W[idx] = edge_weight;
             UVW[idx] = UINT64_MAX;
         }
     }
 }
 
-__global__ void CreateFlag3Array(uint64_t *UV, uint32_t *W, int numEdges, uint *flag3, uint32_t *MinMaxScanArray)
+__global__ void CreateFlag3Array(uint64_t *UVW, int numEdges, uint *flag3, uint32_t *MinMaxScanArray)
 {
     uint32_t prev_supervertexid_u, prev_supervertexid_v, supervertexid_u, supervertexid_v;
     uint32_t tidx = blockIdx.x*blockDim.x+threadIdx.x;
@@ -251,14 +250,21 @@ __global__ void CreateFlag3Array(uint64_t *UV, uint32_t *W, int numEdges, uint *
     MinMaxScanArray[tidx]=1;
     for (uint32_t idx = tidx+1; idx < numEdges; idx += num_threads)
     {
-        prev_supervertexid_u = UV[idx-1]>>32;
-        prev_supervertexid_v = UV[idx-1] &0x00000000FFFFFFFF;
+        //prev_supervertexid_u = UV[idx-1]>>32;
+        //prev_supervertexid_v = UV[idx-1] &0x00000000FFFFFFFF;
 
-        supervertexid_u = UV[idx]>>32;
-        supervertexid_v = UV[idx]&0x00000000FFFFFFFF;
+        //supervertexid_u = UV[idx]>>32;
+        //supervertexid_v = UV[idx]&0x00000000FFFFFFFF;
+
+        prev_supervertexid_u = UVW[idx-1]>>44;
+        prev_supervertexid_v = (UVW[idx-1]>>22) &0x000003FFFFF;
+
+        supervertexid_u = UVW[idx]>>44;
+        supervertexid_v = (UVW[idx]>>22) &0x000003FFFFF;
+
         flag3[idx] = 0;
         MinMaxScanArray[idx]=1;
-        if((supervertexid_u!=1048575) and (supervertexid_v!=4194303) and (supervertexid_u!=-1) and (supervertexid_v!=-1))
+        if((supervertexid_u!=1048575) and (supervertexid_v!=4194303) and (supervertexid_u!=-1) and (supervertexid_v!=-1)and UVW[idx]!=UINT64_MAX)
         {
             if((prev_supervertexid_u !=supervertexid_u) || (prev_supervertexid_v!=supervertexid_v))
             {
@@ -284,7 +290,7 @@ __global__ void ResetCompactLocationsArray(uint32_t *compactLocations, uint32_t 
     }
 }
 
-__global__ void CreateNewEdgeList(uint64_t *BitEdgeList, uint32_t *compactLocations, uint32_t *newOnlyE, uint64_t *newOnlyW, uint64_t *UV, uint32_t *W, uint64_t *UVW, uint *flag3, uint32_t new_edge_size, uint32_t *new_E_size, uint32_t *new_V_size, uint32_t *expanded_u)
+__global__ void CreateNewEdgeList(uint64_t *BitEdgeList, uint32_t *compactLocations, uint32_t *newOnlyE, uint64_t *newOnlyW, uint64_t *UVW, uint *flag3, uint32_t new_edge_size, uint32_t *new_E_size, uint32_t *new_V_size, uint32_t *expanded_u)
 {
     uint32_t supervertexid_u, supervertexid_v;
     uint32_t tidx = blockIdx.x*blockDim.x+threadIdx.x;
