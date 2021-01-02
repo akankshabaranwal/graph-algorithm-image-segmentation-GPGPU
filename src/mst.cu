@@ -39,15 +39,19 @@ void find_min_edges_sort(uint4 vertices[], uint2 edges[], min_edge min_edges[], 
         //vertices[tid].z = 1;
         min_edge min;
         min.weight = UINT_MAX;
+        min.dest_comp = UINT_MAX;
         min.src_comp = 0;
         for (int j = tid * NUM_NEIGHBOURS; j < tid * NUM_NEIGHBOURS + NUM_NEIGHBOURS; j++) {
             uint2 edge = edges[j];
             // Maybe it would be better to just check if it's not in the same component? We would not need to remove internal edges
             if (edge.x != 0) {
-                if (edge.y < min.weight) {
-                    min.src_comp = vertice_comp;
-                    min.dest_comp = vertices[edge.x - 1].y;
-                    min.weight = edge.y;
+                if (edge.y <= min.weight) {
+                    uint dest_comp = vertices[edge.x - 1].y;
+                    if (edge.y != min.weight || min.dest_comp > dest_comp) {
+                        min.src_comp = vertice_comp;
+                        min.dest_comp = dest_comp;
+                        min.weight = edge.y;
+                    }
                 }
             }
         }
@@ -62,7 +66,6 @@ void reset_wrappers(min_edge_wrapper wrappers[], uint length) {
 
     for (uint min_edge_id = tid; min_edge_id < length; min_edge_id += num_threads) {
         wrappers[min_edge_id].edge.x = 0;
-        wrappers[min_edge_id].locked = 0;
     }
 }
 
@@ -79,7 +82,7 @@ void filter_min_edges_test(min_edge min_edges[], min_edge_wrapper new_min_edges[
         volatile uint2 *their_ptr = &(new_min_edges[id].edge);
         bool exit = false;
         while(!exit) {
-            if (compare(our.weight, their_ptr->x, their_ptr->y) < 0) {
+            if (compare(our.dest_comp, our.weight, their_ptr->x, their_ptr->y) < 0) {
                 unsigned long long new_edge = our.weight;
                 new_edge <<= 32;
                 new_edge |= our.dest_comp;
@@ -129,7 +132,7 @@ void update_destinations(min_edge min_edges[], uint num_components, uint2 source
         uint weight = edge->weight;
         uint new_dest = sources[dest - 1].x;
         uint new_weight = sources[dest - 1].y;
-        if (((new_dest == src) || (new_dest != src && new_dest != dest && weight >= new_weight)) && src < dest) {
+        if (((new_dest == src) || (new_dest != src && new_dest != dest && weight == new_weight)) && src < dest) {
             edge->dest_comp = new_dest;
             *did_change = 1;
         }
@@ -179,7 +182,6 @@ void path_compression(uint4 vertices[], uint num_vertices) {
     for (int v_id = vertice_id; v_id < num_vertices; v_id += comp_threads) {
         uint4 *vertice = &vertices[v_id];
 
-
         uint parent_comp = vertice->y;
         uint parent_id = v_id + 1;
         if (parent_id != parent_comp) {
@@ -188,7 +190,7 @@ void path_compression(uint4 vertices[], uint num_vertices) {
                 parent_id = parent_comp - 1;
                 parent = &vertices[parent_id];
                 parent_comp = parent->y;
-
+                //printf("%d -> %d\n", parent_id + 1, parent_comp);
             } while(parent_id + 1 != parent_comp);
 
             vertice->y = parent->x;
@@ -253,7 +255,17 @@ void debug_print_min_edges(min_edge min_edges[], uint length) {
         if (min_edges[i].src_comp == 0) continue;
         //printf("[%d]: %d(%d) -(%d)-> %d (%d)\n", i, min_edges[i].src_comp, min_edges[i].src_id, min_edges[i].weight, min_edges[i].dest_comp, min_edges[i].dest_id);
         //printf("[%d]: %d -(%d)-> %d\n", i, min_edges[i].src_comp, min_edges[i].weight, min_edges[i].dest_comp);
-        printf("%d -(%d)-> X\n", min_edges[i].src_comp, min_edges[i].weight, min_edges[i].dest_comp);
+        printf("%d -(%d)-> %d\n", min_edges[i].src_comp, min_edges[i].weight, min_edges[i].dest_comp);
+        //printf("%d -(%d)-> X\n", min_edges[i].src_comp, min_edges[i].weight);
+    }
+    printf("\n");
+}
+
+__device__
+void debug_print_vertice(uint4 vertices[], uint pos, uint2 edges[]) {
+    printf("vertices[%d] = %d %d %d | ", pos, vertices[pos].x, vertices[pos].y, vertices[pos].z);
+    for (int j = pos * NUM_NEIGHBOURS; j < pos * NUM_NEIGHBOURS + NUM_NEIGHBOURS; j++) {
+        printf("%d(%d), ", edges[j].x, edges[j].y);
     }
     printf("\n");
 }
@@ -261,11 +273,15 @@ void debug_print_min_edges(min_edge min_edges[], uint length) {
 __global__
 void debug_print_vertices(uint4 vertices[], uint length, uint2 edges[]) {
     for (int v_id = 0; v_id < length; v_id++) {
-        printf("vertices[%d] = %d %d %d | ", v_id, vertices[v_id].x, vertices[v_id].y, vertices[v_id].z);
-        for (int j = v_id * NUM_NEIGHBOURS; j < v_id * NUM_NEIGHBOURS + NUM_NEIGHBOURS; j++) {
-            printf("%d(%d), ", edges[j].x, edges[j].y);
-        }
-        printf("\n");
+        debug_print_vertice(vertices, v_id, edges);
+    }
+}
+
+__device__
+void debug_print_comp(uint4 vertices[], uint length, uint comp_id, uint2 edges[]) {
+    for (int v_id = 0; v_id < length; v_id++) {
+        if (vertices[v_id].y == comp_id)
+            debug_print_vertice(vertices, v_id, edges);
     }
 }
 
@@ -301,7 +317,7 @@ void segment(uint4 vertices[], uint2 edges[], min_edge min_edges[], min_edge_wra
 
         // First time there is no point in doing these, since n_vertices == n_components
         if (counter > 0) {
-            //printf("Sort\n");
+            //printf("Filter\n");
             reset_wrappers<<<blocks.y, threads.y>>>(wrappers, n_vertices);
             filter_min_edges_test<<<blocks.y, threads.y>>>(min_edges, wrappers, n_vertices);
             cudaDeviceSynchronize();
@@ -311,20 +327,29 @@ void segment(uint4 vertices[], uint2 edges[], min_edge min_edges[], min_edge_wra
             compact_min_edge_wrappers<<<blocks.y, threads.y>>>(min_edges, wrappers, n_vertices, did_change);
             cudaDeviceSynchronize();
             //debug_print_min_edges<<<1, 1>>>(min_edges, curr_n_comp);
+            //debug_print_vertice(vertices, 29282, edges);
+            //debug_print_vertice(vertices, 30814, edges);
+            //debug_print_comp(vertices, n_vertices, 56154, edges);
+            //debug_print_comp(vertices, n_vertices, 56351, edges);
+            //debug_print_comp(vertices, n_vertices, 56554, edges);
             //return;
         }
 
         //printf("Remove cycles\n");
         remove_deps(min_edges, curr_n_comp, sources ,blocks.x, threads.x, did_change);
+        //cudaDeviceSynchronize();
 
         //printf("Merge\n");
         merge<<<blocks.x, threads.x>>>(vertices, min_edges, n_components, threads.y, blocks.y, n_vertices, curr_n_comp, k);
+        //cudaDeviceSynchronize();
 
         //printf("Update\n");
         update_parents<<<blocks.x, threads.x>>>(vertices, min_edges, curr_n_comp);
+        //cudaDeviceSynchronize();
 
         //printf("Path compress\n");
         path_compression<<<blocks.y, threads.y>>>(vertices, n_vertices);
+        //cudaDeviceSynchronize();
 
         //printf("New size\n");
         update_new_size<<<blocks.y, threads.y>>>(vertices, n_vertices, edges);
@@ -385,7 +410,7 @@ void segment_cpu(uint4 vertices[], uint2 edges[], min_edge min_edges[], min_edge
 
         // First time there is no point in doing these, since n_vertices == n_components
         if (counter > 0) {
-            //printf("Sort\n");
+            //printf("Filter\n");
             reset_wrappers<<<blocks.y, threads.y>>>(wrappers, n_vertices);
             filter_min_edges_test<<<blocks.y, threads.y>>>(min_edges, wrappers, n_vertices);
             cudaDeviceSynchronize();
@@ -407,6 +432,7 @@ void segment_cpu(uint4 vertices[], uint2 edges[], min_edge min_edges[], min_edge
 
         //printf("Path compress\n");
         path_compression<<<blocks.y, threads.y>>>(vertices, n_vertices);
+        //cudaDeviceSynchronize();
 
         //printf("New size\n");
         update_new_size<<<blocks.y, threads.y>>>(vertices, n_vertices, edges);
@@ -417,7 +443,6 @@ void segment_cpu(uint4 vertices[], uint2 edges[], min_edge min_edges[], min_edge
         cudaMemcpy(&curr_n_comp, n_components, sizeof(uint), cudaMemcpyDeviceToHost);
         //printf("N components: %d\n", curr_n_comp);
         counter++;
-        //return;
     }
     //printf("Iterations: %d\n", counter);
 }

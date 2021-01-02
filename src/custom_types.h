@@ -22,7 +22,6 @@ typedef struct {
 
 typedef struct{
     uint2 edge;
-    uint locked;
 } min_edge_wrapper;
 
 #endif //FELZENSWALB_CUSTOM_TYPES_H
