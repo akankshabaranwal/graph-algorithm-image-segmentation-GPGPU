@@ -228,13 +228,13 @@ void update_new_size(uint4 vertices[], uint num_vertices, uint2 edges[]) {
 
 // Kernel to merge components
 __global__
-void merge(uint4 vertices[], min_edge min_edges[], uint *num_components, uint update_threads, uint update_blocks, uint vertices_length, uint comp_count, uint k) {
+void merge(uint4 vertices[], min_edge min_edges[], uint *num_components, uint comp_count, uint k) {
     uint component_id = blockDim.x * blockIdx.x + threadIdx.x;
     uint num_threads = gridDim.x * blockDim.x;
     for (uint comp_id = component_id; comp_id < comp_count; comp_id += num_threads) {
 
         min_edge min_edge = min_edges[comp_id];
-        if (min_edge.src_comp == min_edge.dest_comp || min_edge.src_comp == 0) return;
+        if (min_edge.src_comp == min_edge.dest_comp || min_edge.src_comp == 0) continue;
         uint4 src = vertices[min_edge.src_comp - 1];
         uint4 dest = vertices[min_edge.dest_comp - 1];
         uint src_diff = src.w + (k / src.z);
@@ -320,63 +320,46 @@ void segment(uint4 vertices[], uint2 edges[], min_edge min_edges[], min_edge_wra
             //printf("Filter\n");
             reset_wrappers<<<blocks.y, threads.y>>>(wrappers, n_vertices);
             filter_min_edges_test<<<blocks.y, threads.y>>>(min_edges, wrappers, n_vertices);
-            cudaDeviceSynchronize();
 
             //printf("Compact\n");
             *did_change = 0;
             compact_min_edge_wrappers<<<blocks.y, threads.y>>>(min_edges, wrappers, n_vertices, did_change);
-            cudaDeviceSynchronize();
-            //debug_print_min_edges<<<1, 1>>>(min_edges, curr_n_comp);
-            //debug_print_vertice(vertices, 29282, edges);
-            //debug_print_vertice(vertices, 30814, edges);
-            //debug_print_comp(vertices, n_vertices, 56154, edges);
-            //debug_print_comp(vertices, n_vertices, 56351, edges);
-            //debug_print_comp(vertices, n_vertices, 56554, edges);
-            //return;
         }
 
         //printf("Remove cycles\n");
         remove_deps(min_edges, curr_n_comp, sources ,blocks.x, threads.x, did_change);
-        //cudaDeviceSynchronize();
 
         //printf("Merge\n");
-        merge<<<blocks.x, threads.x>>>(vertices, min_edges, n_components, threads.y, blocks.y, n_vertices, curr_n_comp, k);
-        //cudaDeviceSynchronize();
+        merge<<<blocks.x, threads.x>>>(vertices, min_edges, n_components, curr_n_comp, k);
+        cudaDeviceSynchronize();
+        prev_n_components = curr_n_comp;
+        curr_n_comp = *n_components;
+        if (prev_n_components == curr_n_comp) return;
 
         //printf("Update\n");
-        update_parents<<<blocks.x, threads.x>>>(vertices, min_edges, curr_n_comp);
-        //cudaDeviceSynchronize();
+        update_parents<<<blocks.x, threads.x>>>(vertices, min_edges, prev_n_components);
 
         //printf("Path compress\n");
         path_compression<<<blocks.y, threads.y>>>(vertices, n_vertices);
-        //cudaDeviceSynchronize();
 
         //printf("New size\n");
         update_new_size<<<blocks.y, threads.y>>>(vertices, n_vertices, edges);
-        cudaDeviceSynchronize();
 
-        prev_n_components = curr_n_comp;
-        curr_n_comp = *n_components;
         //printf("N components: %d\n", curr_n_comp);
         counter++;
-        //return;
     }
     //printf("Iterations: %d\n", counter);
 }
 
 void remove_deps_cpu(min_edge min_edges[], uint num_components, uint2 sources[], uint blocks, uint threads, uint* did_change) {
-    //*did_change = 1;
     uint zero = 0;
-    uint one = 1;
     uint should_continue = 1;
-    cudaMemcpy(did_change, &(one), sizeof(uint), cudaMemcpyHostToDevice);
     while (should_continue == 1) {
-        //*did_change = 0;
-        cudaMemcpy(did_change, &(zero), sizeof(uint), cudaMemcpyHostToDevice);
+        cudaMemcpyAsync(did_change, &(zero), sizeof(uint), cudaMemcpyHostToDevice);
         construct_sources<<<blocks, threads>>>(min_edges, num_components, sources);
         update_destinations<<<blocks, threads>>>(min_edges, num_components, sources, did_change);
+        cudaMemcpyAsync(&should_continue, did_change, sizeof(uint), cudaMemcpyDeviceToHost);
         cudaDeviceSynchronize();
-        cudaMemcpy(&should_continue, did_change, sizeof(uint), cudaMemcpyDeviceToHost);
     }
 }
 
@@ -413,11 +396,9 @@ void segment_cpu(uint4 vertices[], uint2 edges[], min_edge min_edges[], min_edge
             //printf("Filter\n");
             reset_wrappers<<<blocks.y, threads.y>>>(wrappers, n_vertices);
             filter_min_edges_test<<<blocks.y, threads.y>>>(min_edges, wrappers, n_vertices);
-            cudaDeviceSynchronize();
 
             //printf("Compact\n");
-            //*did_change = 0;
-            cudaMemcpy(did_change, &(zero), sizeof(uint), cudaMemcpyHostToDevice);
+            cudaMemcpyAsync(did_change, &(zero), sizeof(uint), cudaMemcpyHostToDevice);
             compact_min_edge_wrappers<<<blocks.y, threads.y>>>(min_edges, wrappers, n_vertices, did_change);
         }
 
@@ -425,10 +406,14 @@ void segment_cpu(uint4 vertices[], uint2 edges[], min_edge min_edges[], min_edge
         remove_deps_cpu(min_edges, curr_n_comp, sources ,blocks.x, threads.x, did_change);
 
         //printf("Merge\n");
-        merge<<<blocks.x, threads.x>>>(vertices, min_edges, n_components, threads.y, blocks.y, n_vertices, curr_n_comp, k);
+        merge<<<blocks.x, threads.x>>>(vertices, min_edges, n_components, curr_n_comp, k);
+        cudaDeviceSynchronize();
+        prev_n_components = curr_n_comp;
+        cudaMemcpy(&curr_n_comp, n_components, sizeof(uint), cudaMemcpyDeviceToHost);
+        if (prev_n_components == curr_n_comp) return;
 
         //printf("Update\n");
-        update_parents<<<blocks.x, threads.x>>>(vertices, min_edges, curr_n_comp);
+        update_parents<<<blocks.x, threads.x>>>(vertices, min_edges, prev_n_components);
 
         //printf("Path compress\n");
         path_compression<<<blocks.y, threads.y>>>(vertices, n_vertices);
@@ -436,11 +421,8 @@ void segment_cpu(uint4 vertices[], uint2 edges[], min_edge min_edges[], min_edge
 
         //printf("New size\n");
         update_new_size<<<blocks.y, threads.y>>>(vertices, n_vertices, edges);
-        cudaDeviceSynchronize();
+        //cudaDeviceSynchronize();
 
-        prev_n_components = curr_n_comp;
-        //curr_n_comp = *n_components;
-        cudaMemcpy(&curr_n_comp, n_components, sizeof(uint), cudaMemcpyDeviceToHost);
         //printf("N components: %d\n", curr_n_comp);
         counter++;
     }
@@ -554,11 +536,8 @@ char *compute_segments(void *input, uint x, uint y, size_t pitch, bool use_cpu, 
     cudaFree(sources);
     checkErrors("Free sources");
 
-
-
     char *output_dev;
     cudaMalloc(&output_dev, num_vertices * CHANNEL_SIZE * sizeof(char));
-
 
     // Write image back from segmented matrix
     decode<<<decode_blocks, decode_threads>>>(vertices, output_dev, component_colours_dev, num_vertices);
