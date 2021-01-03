@@ -20,6 +20,7 @@ __global__ void ClearFlagArray(uint32_t *flag, int numElements);
 __global__ void MarkSegments(uint32_t *flag, uint32_t *VertexList,int numElements);
 
 void SegmentedReduction(CudaContext& context, uint32_t *VertexList, uint64_t *BitEdgeList, uint64_t *MinSegmentedList, int numEdges, int numVertices);
+__global__ void MakeIndexArray( uint32_t *VertexList, uint64_t *tempArray2, uint64_t *tempArray, int numVertices);
 __global__ void CreateNWEArray(uint32_t *NWE, uint64_t *MinSegmentedList, int numVertices);
 __global__ void FindSuccessorArray(uint32_t *Successor, uint64_t *BitEdgeList, uint32_t *NWE, int numSegments);
 __global__ void RemoveCycles(uint32_t *Successor, int numVertices);

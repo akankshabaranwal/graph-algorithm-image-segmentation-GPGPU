@@ -55,9 +55,20 @@ __global__ void MarkSegments(uint32_t *flag, uint32_t *VertexList,int numElement
     }
 }
 
+
 void SegmentedReduction(CudaContext& context, uint32_t *VertexList, uint64_t *BitEdgeList, uint64_t *MinSegmentedList, int numEdges, int numVertices)
 {
     SegReduceCsr(BitEdgeList, VertexList, numEdges, numVertices, false, MinSegmentedList,(uint64_t)UINT64_MAX, mgpu::minimum<uint64_t>(),context);
+}
+
+__global__ void MakeIndexArray( uint32_t *VertexList, uint64_t *tempArray2, uint64_t *tempArray, int numVertices)
+{
+    uint32_t tidx = blockIdx.x*blockDim.x+threadIdx.x;
+    uint32_t num_threads = gridDim.x * blockDim.x;
+    for (uint32_t idx = tidx+1; idx < numVertices; idx += num_threads)
+    {
+        tempArray[idx-1] = tempArray2[VertexList[idx]-1];
+    }
 }
 
 __global__ void CreateNWEArray(uint32_t *NWE, uint64_t *MinSegmentedList, int numVertices)
