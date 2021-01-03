@@ -23,11 +23,11 @@ void printUsage() {
     exit(1);
 }
 
-const Options handleParams(int argc, char **argv) {
+Options handleParams(int argc, char **argv) {
     Options options = Options();
     for(;;)
     {
-        switch(getopt(argc, argv, "pchsi:o:w:b:k:E:"))
+        switch(getopt(argc, argv, "pchsi:o:w:b:k:E:m:"))
         {
             case 'p': {
                 options.partial = true;
@@ -63,6 +63,10 @@ const Options handleParams(int argc, char **argv) {
             }
             case 'E': {
                 options.sigma = atof(optarg);
+                continue;
+            }
+            case 'm': {
+                options.min_size = atoi(optarg);
                 continue;
             }
             case '?':
@@ -103,10 +107,10 @@ char *segment_wrapper(cv::Mat image, Options options, bool isBenchmarking) {
 
     // Segmentation
     if (!options.partial) {
-        img = compute_segments(dev_output.cudaPtr(), image.rows, image.cols, dev_output.step, options.useCPU,options.k);
+        img = compute_segments(dev_output.cudaPtr(), image.rows, image.cols, dev_output.step, options.useCPU,options.k, options.min_size);
     }
     else {
-        img = compute_segments_partial(dev_output.cudaPtr(), image.rows, image.cols, dev_output.step, options.useCPU,options.k);
+        img = compute_segments_partial(dev_output.cudaPtr(), image.rows, image.cols, dev_output.step, options.useCPU,options.k, options.min_size);
     }
 
     // Stop timer

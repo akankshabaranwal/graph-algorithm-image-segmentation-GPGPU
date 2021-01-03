@@ -2,7 +2,7 @@
 // Created by gyorgy on 16/11/2020.
 //
 
-#include <stdio.h>
+#include <cstdio>
 #include <iostream>
 #include <chrono>
 
@@ -41,7 +41,7 @@ void find_min_edges_sort(uint4 vertices[], uint2 edges[], min_edge min_edges[], 
         min.weight = UINT_MAX;
         min.dest_comp = UINT_MAX;
         min.src_comp = 0;
-        for (int j = tid * NUM_NEIGHBOURS; j < tid * NUM_NEIGHBOURS + NUM_NEIGHBOURS; j++) {
+        for (uint j = tid * NUM_NEIGHBOURS; j < tid * NUM_NEIGHBOURS + NUM_NEIGHBOURS; j++) {
             uint2 edge = edges[j];
             // Maybe it would be better to just check if it's not in the same component? We would not need to remove internal edges
             if (edge.x != 0) {
@@ -249,6 +249,24 @@ void merge(uint4 vertices[], min_edge min_edges[], uint *num_components, uint co
     }
 }
 
+// Kernel to merge components based on size
+__global__
+void size_threshold(uint4 vertices[], min_edge min_edges[], uint *num_components, uint comp_count, uint min_size) {
+    uint component_id = blockDim.x * blockIdx.x + threadIdx.x;
+    uint num_threads = gridDim.x * blockDim.x;
+    for (uint comp_id = component_id; comp_id < comp_count; comp_id += num_threads) {
+
+        min_edge min_edge = min_edges[comp_id];
+        if (min_edge.src_comp == min_edge.dest_comp || min_edge.src_comp == 0) continue;
+
+        uint size = vertices[min_edge.src_comp - 1].z;
+        if (size <= min_size) {
+            atomicSub_system(num_components, 1);
+            min_edges[comp_id].weight = 0;
+        }
+    }
+}
+
 __global__
 void debug_print_min_edges(min_edge min_edges[], uint length) {
     for (int i = 0; i < length; i++) {
@@ -263,8 +281,8 @@ void debug_print_min_edges(min_edge min_edges[], uint length) {
 
 __device__
 void debug_print_vertice(uint4 vertices[], uint pos, uint2 edges[]) {
-    printf("vertices[%d] = %d %d %d | ", pos, vertices[pos].x, vertices[pos].y, vertices[pos].z);
-    for (int j = pos * NUM_NEIGHBOURS; j < pos * NUM_NEIGHBOURS + NUM_NEIGHBOURS; j++) {
+    printf("vertices[%d] = %d %d %d %d | ", pos, vertices[pos].x, vertices[pos].y, vertices[pos].z, vertices[pos].w);
+    for (uint j = pos * NUM_NEIGHBOURS; j < pos * NUM_NEIGHBOURS + NUM_NEIGHBOURS; j++) {
         printf("%d(%d), ", edges[j].x, edges[j].y);
     }
     printf("\n");
@@ -274,6 +292,15 @@ __global__
 void debug_print_vertices(uint4 vertices[], uint length, uint2 edges[]) {
     for (int v_id = 0; v_id < length; v_id++) {
         debug_print_vertice(vertices, v_id, edges);
+    }
+}
+
+
+__global__
+void debug_print_comps(uint4 vertices[], uint length, uint2 edges[]) {
+    for (int v_id = 0; v_id < length; v_id++) {
+        if (vertices[v_id].x == vertices[v_id].y)
+            debug_print_vertice(vertices, v_id, edges);
     }
 }
 
@@ -287,7 +314,8 @@ void debug_print_comp(uint4 vertices[], uint length, uint comp_id, uint2 edges[]
 
 // Kernel to orchestrate
 __global__
-void segment(uint4 vertices[], uint2 edges[], min_edge min_edges[], min_edge_wrapper wrappers[], uint2 sources[], uint *n_components, uint *did_change, uint k) {
+void segment(uint4 vertices[], uint2 edges[], min_edge min_edges[], min_edge_wrapper wrappers[], uint2 sources[], uint *n_components, uint *did_change, uint k, uint min_size)
+{
     uint counter = 0;
     uint prev_n_components = 0;
     uint n_vertices = *n_components;
@@ -334,7 +362,12 @@ void segment(uint4 vertices[], uint2 edges[], min_edge min_edges[], min_edge_wra
         cudaDeviceSynchronize();
         prev_n_components = curr_n_comp;
         curr_n_comp = *n_components;
-        if (prev_n_components == curr_n_comp) return;
+        if (prev_n_components == curr_n_comp) {
+            size_threshold<<<blocks.x, threads.x>>>(vertices, min_edges, n_components, curr_n_comp, powf(min_size, counter));
+            update_parents<<<blocks.x, threads.x>>>(vertices, min_edges, prev_n_components);
+            path_compression<<<blocks.y, threads.y>>>(vertices, n_vertices);
+            break;
+        }
 
         //printf("Update\n");
         update_parents<<<blocks.x, threads.x>>>(vertices, min_edges, prev_n_components);
@@ -363,7 +396,7 @@ void remove_deps_cpu(min_edge min_edges[], uint num_components, uint2 sources[],
     }
 }
 
-void segment_cpu(uint4 vertices[], uint2 edges[], min_edge min_edges[], min_edge_wrapper wrappers[], uint2 sources[], uint *n_components, uint *did_change, uint n_vertices, uint k) {
+void segment_cpu(uint4 vertices[], uint2 edges[], min_edge min_edges[], min_edge_wrapper wrappers[], uint2 sources[], uint *n_components, uint *did_change, uint n_vertices, uint k, uint min_size) {
     uint zero = 0;
     uint counter = 0;
     uint prev_n_components = 0;
@@ -410,7 +443,12 @@ void segment_cpu(uint4 vertices[], uint2 edges[], min_edge min_edges[], min_edge
         cudaDeviceSynchronize();
         prev_n_components = curr_n_comp;
         cudaMemcpy(&curr_n_comp, n_components, sizeof(uint), cudaMemcpyDeviceToHost);
-        if (prev_n_components == curr_n_comp) return;
+        if (prev_n_components == curr_n_comp) {
+            size_threshold<<<blocks.x, threads.x>>>(vertices, min_edges, n_components, curr_n_comp, static_cast<int>(powf(min_size, counter)));
+            update_parents<<<blocks.x, threads.x>>>(vertices, min_edges, prev_n_components);
+            path_compression<<<blocks.y, threads.y>>>(vertices, n_vertices);
+            break;
+        }
 
         //printf("Update\n");
         update_parents<<<blocks.x, threads.x>>>(vertices, min_edges, prev_n_components);
@@ -444,7 +482,7 @@ void checkErrors(const char *identifier) {
     }
 }
 
-char *compute_segments(void *input, uint x, uint y, size_t pitch, bool use_cpu, uint k) {
+char *compute_segments(void *input, uint x, uint y, size_t pitch, bool use_cpu, uint k, uint min_size) {
     uint num_vertices = (x) * (y);
     uint4 *vertices;
     uint2 *edges;
@@ -498,9 +536,9 @@ char *compute_segments(void *input, uint x, uint y, size_t pitch, bool use_cpu, 
     // Segment matrix
     //cudaSetDeviceFlags(cudaDeviceBlockingSync);
     if (!use_cpu) {
-        segment<<<1, 1>>>(vertices, edges, min_edges, wrappers, sources, num_components, did_change, k);
+        segment<<<1, 1>>>(vertices, edges, min_edges, wrappers, sources, num_components, did_change, k, min_size);
     } else {
-        segment_cpu(vertices, edges, min_edges, wrappers, sources, num_components, did_change, num_vertices, k);
+        segment_cpu(vertices, edges, min_edges, wrappers, sources, num_components, did_change, num_vertices, k, min_size);
     }
 
     // Setup random colours for components
@@ -521,6 +559,7 @@ char *compute_segments(void *input, uint x, uint y, size_t pitch, bool use_cpu, 
     char *output = (char*) malloc(x*y*CHANNEL_SIZE*sizeof(char));
     cudaDeviceSynchronize();
     checkErrors("segment()");
+    cudaDeviceSynchronize();
 
     // Free everything we can
     cudaFree(edges);
@@ -561,7 +600,7 @@ char *compute_segments(void *input, uint x, uint y, size_t pitch, bool use_cpu, 
     return output;
 }
 
-char *compute_segments_partial(void *input, uint x, uint y, size_t pitch, bool use_cpu, uint k) {
+char *compute_segments_partial(void *input, uint x, uint y, size_t pitch, bool use_cpu, uint k, uint min_size) {
     std::chrono::high_resolution_clock::time_point start, end;
 
     start = std::chrono::high_resolution_clock::now();
@@ -622,9 +661,9 @@ char *compute_segments_partial(void *input, uint x, uint y, size_t pitch, bool u
     //cudaSetDeviceFlags(cudaDeviceBlockingSync);
     start = std::chrono::high_resolution_clock::now();
     if (!use_cpu) {
-        segment<<<1, 1>>>(vertices, edges, min_edges, wrappers, sources, num_components, did_change, k);
+        segment<<<1, 1>>>(vertices, edges, min_edges, wrappers, sources, num_components, did_change, k, min_size);
     } else {
-        segment_cpu(vertices, edges, min_edges, wrappers, sources, num_components, did_change, num_vertices, k);
+        segment_cpu(vertices, edges, min_edges, wrappers, sources, num_components, did_change, num_vertices, k, min_size);
     }
     cudaDeviceSynchronize();
     checkErrors("segment()");

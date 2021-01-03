@@ -12,6 +12,7 @@ public:
     bool useCPU = false;
     bool show = false;
     bool partial = false;
+    uint min_size = 200;
     int warmupIterations = 1;
     int benchmarkIterations = 10;
     float sigma = 1.0f;
