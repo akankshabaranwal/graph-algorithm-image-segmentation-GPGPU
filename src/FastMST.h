@@ -6,11 +6,9 @@
 #define FELZENSZWALB_FASTMST_H
 
 #include "CreateGraph.h"
-#include "moderngpu.cuh"		// Include all MGPU kernels.
 
 using namespace cv::cuda;
 using namespace cv;
-using namespace mgpu;
 
 __global__ void SetBitEdgeListArray( uint32_t *OnlyEdge, uint64_t *W,uint numElements);
 
@@ -19,7 +17,6 @@ __global__ void SetOnlyWeightArray(uint64_t *BitEdgeList, uint64_t *OnlyWeight, 
 __global__ void ClearFlagArray(uint32_t *flag, int numElements);
 __global__ void MarkSegments(uint32_t *flag, uint32_t *VertexList,int numElements);
 
-void SegmentedReduction(CudaContext& context, uint32_t *VertexList, uint64_t *BitEdgeList, uint64_t *MinSegmentedList, int numEdges, int numVertices);
 __global__ void MakeIndexArray( uint32_t *VertexList, uint64_t *tempArray2, uint64_t *tempArray, int numVertices);
 __global__ void CreateNWEArray(uint32_t *NWE, uint64_t *MinSegmentedList, int numVertices);
 __global__ void FindSuccessorArray(uint32_t *Successor, uint32_t *OnlyEdge, uint32_t *NWE, int numSegments);

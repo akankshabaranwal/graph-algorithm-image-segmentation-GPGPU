@@ -9,10 +9,10 @@ set(CMAKE_CUDA_STANDARD 14)
 set(CMAKE_CUDA_STANDARD_REQUIRED TRUE)
 set(CMAKE_CXX_STANDARD_REQUIRED  TRUE)
 
-include_directories( ${OpenCV_INCLUDE_DIRS} "/home/akanksha/dphpc/project/graph-algorithm-image-segmentation/moderngpu-1.1/include")
+include_directories( ${OpenCV_INCLUDE_DIRS} )
 
 add_executable(felz
-	"${CMAKE_SOURCE_DIR}/src/Main.cu" "${CMAKE_SOURCE_DIR}/src/CreateGraph.h" "${CMAKE_SOURCE_DIR}/src/CreateGraph.cu" "${CMAKE_SOURCE_DIR}/moderngpu-1.1/src/mgpucontext.cu" "${CMAKE_SOURCE_DIR}/moderngpu-1.1/src/mgpuutil.cpp" src/FastMST.h src/FastMST.cu src/RecolorImage.cu src/RecolorImage.h)
+	"${CMAKE_SOURCE_DIR}/src/Main.cu" "${CMAKE_SOURCE_DIR}/src/CreateGraph.h" "${CMAKE_SOURCE_DIR}/src/CreateGraph.cu" src/FastMST.h src/FastMST.cu src/RecolorImage.cu src/RecolorImage.h)
 
 set_property(TARGET felz PROPERTY CUDA_ARCHITECTURES 61)
 

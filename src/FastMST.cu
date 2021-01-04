@@ -4,7 +4,6 @@
 #include "FastMST.h"
 #include <thrust/execution_policy.h>
 
-using namespace mgpu;
 
 ////////////////////////////////////////////////////////////////////////////////
 // Scan
@@ -19,18 +18,6 @@ __global__ void SetBitEdgeListArray( uint32_t *OnlyEdge, uint64_t *W,uint numEle
     {
         tmp_Wt = static_cast<uint64_t> (W[idx]);
         W[idx] = (tmp_Wt << 32) | idx;
-    }
-}
-
-__global__ void SetOnlyWeightArray(uint64_t *BitEdgeList, uint64_t *OnlyWeight, uint numElements)
-{
-    uint32_t tidx = blockIdx.x*blockDim.x+threadIdx.x;
-    uint32_t num_threads = gridDim.x * blockDim.x;
-    uint64_t tmp_Wt;
-    for (uint32_t idx = tidx; idx < numElements; idx += num_threads)
-    {
-        tmp_Wt =BitEdgeList[idx]>>32;
-        OnlyWeight[idx] = (tmp_Wt << 32) | idx;
     }
 }
 
@@ -53,12 +40,6 @@ __global__ void MarkSegments(uint32_t *flag, uint32_t *VertexList,int numElement
     {
         flag[VertexList[idx]] = 1;
     }
-}
-
-
-void SegmentedReduction(CudaContext& context, uint32_t *VertexList, uint64_t *BitEdgeList, uint64_t *MinSegmentedList, int numEdges, int numVertices)
-{
-    SegReduceCsr(BitEdgeList, VertexList, numEdges, numVertices, false, MinSegmentedList,(uint64_t)UINT64_MAX, mgpu::minimum<uint64_t>(),context);
 }
 
 __global__ void MakeIndexArray( uint32_t *VertexList, uint64_t *tempArray2, uint64_t *tempArray, int numVertices)
@@ -217,7 +198,6 @@ __global__ void CreateUVWArray( uint32_t *OnlyEdge, uint64_t *OnlyWeight, int nu
         {
             supervertexid_u = SuperVertexId[id_u];
             supervertexid_v = SuperVertexId[id_v];
-            //UVW[idx] = (supervertexid_u<<44)|(supervertexid_v<<22)|edge_weight;
             UVW[idx] = (supervertexid_u<<38)|(supervertexid_v<<12)|edge_weight;
         }
         else
@@ -235,12 +215,6 @@ __global__ void CreateFlag3Array(uint64_t *UVW, int numEdges, uint32_t *flag3, u
     MinMaxScanArray[tidx]=1;
     for (uint32_t idx = tidx+1; idx < numEdges; idx += num_threads)
     {
-/*        prev_supervertexid_u = UVW[idx-1]>>44;
-        prev_supervertexid_v = (UVW[idx-1]>>22) &0x000003FFFFF;
-
-        supervertexid_u = UVW[idx]>>44;
-        supervertexid_v = (UVW[idx]>>22) &0x000003FFFFF;   */
-
         prev_supervertexid_u = UVW[idx-1]>>38;
         prev_supervertexid_v = (UVW[idx-1]>>12) &0x000003FFFFFF;
 
@@ -249,8 +223,6 @@ __global__ void CreateFlag3Array(uint64_t *UVW, int numEdges, uint32_t *flag3, u
 
         flag3[idx] = 0;
         MinMaxScanArray[idx]=1;
-        //if((supervertexid_u!=1048575) and (supervertexid_v!=4194303) and (supervertexid_u!=-1) and (supervertexid_v!=-1)and UVW[idx]!=UINT64_MAX)
-        //if((supervertexid_u!=4095) and (supervertexid_v!=67108863) and (supervertexid_u!=-1) and (supervertexid_v!=-1)and UVW[idx]!=UINT64_MAX)
         if((supervertexid_u!=67108863) and (supervertexid_v!=4095) and (supervertexid_u!=-1) and (supervertexid_v!=-1) and (supervertexid_u!=4095) and (supervertexid_v!=67108863)and (UVW[idx]!=UINT64_MAX))
             {
             if((prev_supervertexid_u !=supervertexid_u) || (prev_supervertexid_v!=supervertexid_v))
@@ -291,14 +263,10 @@ __global__ void CreateNewEdgeList( uint32_t *compactLocations, uint32_t *newOnly
         new_V_size[idx] = 0;
         if(flag3[idx])
         {
-            //supervertexid_u =UVW[idx]>>44;
-            //supervertexid_v =((UVW[idx]>>22)&0x000003FFFFF);
-            //edgeWeight = (UVW[idx]&0x000000FFFFF);
             supervertexid_u =UVW[idx]>>38;
             supervertexid_v =((UVW[idx]>>12)&0x000003FFFFFF);
             edgeWeight = (UVW[idx]&0x00000000FFF);
             newLocation = compactLocations[idx];
-            //if((supervertexid_u!=4194303) and (supervertexid_v!=1048575) and (supervertexid_u!=-1) and (supervertexid_v!=-1) and (supervertexid_u!=1048575) and (supervertexid_v!=4194303)and (UVW[idx]!=UINT64_MAX))
             if((supervertexid_u!=67108863) and (supervertexid_v!=4095) and (supervertexid_u!=-1) and (supervertexid_v!=-1) and (supervertexid_u!=4095) and (supervertexid_v!=67108863)and (UVW[idx]!=UINT64_MAX))
             {
                 newOnlyE[newLocation] = supervertexid_v;
