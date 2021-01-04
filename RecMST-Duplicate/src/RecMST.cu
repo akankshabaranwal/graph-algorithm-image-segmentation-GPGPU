@@ -311,20 +311,27 @@ void FreeMem()
 void createGraph(Mat image) {
 	std::chrono::high_resolution_clock::time_point start, end;
 
-   	GpuMat dev_image, d_blurred;; 	 // Released automatically in destructor
+   	GpuMat dev_image, d_blurred, d_sobel; 	 // Released automatically in destructor
+   	GpuMat d_resultx, d_resulty;
    	cv::Ptr<cv::cuda::Filter> filter;
-   	
+   	cv::Ptr<cv::cuda::Filter> filtersobelx;
+   	cv::Ptr<cv::cuda::Filter> filtersobely;
 
 	if (TIMING_MODE == TIME_PARTS) { // Start gaussian filter timer
 		start = std::chrono::high_resolution_clock::now();
 	}
 
-
 	// Apply gaussian filter
     dev_image.upload(image);
     filter = cv::cuda::createGaussianFilter(CV_8UC3, CV_8UC3, cv::Size(5, 5), 1.0);
     filter->apply(dev_image, d_blurred);
-	
+
+    // Apply sobel filter (timed along with gaussian!), todo: check effect gaussian
+    filtersobelx = cv::cuda::createSobelFilter(CV_8UC3,CV_8UC1,1,0);
+	filtersobelx->apply(d_blurred, d_resultx);
+	filtersobely = cv::cuda::createSobelFilter(CV_8UC3,CV_8UC1,0,1);
+	filtersobely->apply(d_blurred, d_resulty);
+	cv::cuda::addWeighted(d_resultx, 0.5, d_resulty, 0.5, 0, d_sobel);
 
 	if (TIMING_MODE == TIME_PARTS) { // End gaussian filter timer
 		cudaDeviceSynchronize();
