@@ -287,6 +287,13 @@ void segment(Mat image, std::string outFile, bool output)
 
         //Create UID array. 10.2
         ClearFlagArray<<<numBlock, numthreads>>>(flagUid, numEdges);
+        cudaDeviceSynchronize();
+        printf("\nPrinting flagUid after clearflagarray\n");
+        for(int i=0;i<numEdges;i++)
+        {
+            printf("%d, ", flagUid);
+        }
+
         err = cudaGetLastError();        // Get error code
         if ( err != cudaSuccess )
         {
@@ -295,6 +302,7 @@ void segment(Mat image, std::string outFile, bool output)
         }
 
         MarkSegments<<<numBlock, numthreads>>>(flagUid, VertexList, numVertices);
+
         err = cudaGetLastError();        // Get error code
         if ( err != cudaSuccess )
         {
@@ -302,18 +310,30 @@ void segment(Mat image, std::string outFile, bool output)
             exit(-1);
         }
         cudaDeviceSynchronize();
-        flagUid[0]=0;
-        thrust::inclusive_scan(flagUid, flagUid + numEdges, flagUid, thrust::plus<uint32_t>());
+        printf("\nPrinting flagUid after MarkSegments\n");
+        for(int i=0;i<numEdges;i++)
+        {
+            printf("%d, ", flagUid);
+        }
 
         cudaDeviceSynchronize();
+        flagUid[0]=uint32_t(0);
+        thrust::inclusive_scan(flagUid, flagUid + numEdges, flagUid, thrust::plus<uint32_t>());
+        cudaDeviceSynchronize();
+        printf("\nPrinting flagUid before cudasegmented scan\n");
+        for(int i=0;i<numEdges;i++)
+        {
+            printf("%d, ", flagUid);
+        }
 
         //3. Segmented min scan
         //SegmentedReduction(*context, VertexList, OnlyWeight, tempArray, numEdges, numVertices);
-        thrust::inclusive_scan_by_key(thrust::host, flagUid, flagUid + numEdges, OnlyWeight, tempArray2, thrust::equal_to<uint64_t>() , thrust::minimum<uint64_t>());
+        thrust::inclusive_scan_by_key(thrust::host, flagUid, flagUid + numEdges, OnlyWeight, tempArray2, thrust::equal_to<uint32_t>() , thrust::minimum<uint64_t>());
+        cudaDeviceSynchronize();
         printf("\nPrinting flagUid while scan by key\n");
         for(int i=0;i<numEdges;i++)
         {
-            printf("%d, ", flagUid1);
+            printf("%d, ", flagUid);
         }
         err = cudaGetLastError();        // Get error code
         if ( err != cudaSuccess )
@@ -322,7 +342,7 @@ void segment(Mat image, std::string outFile, bool output)
             exit(-1);
         }
         cudaDeviceSynchronize();
-/*        printf("\nPrinting VertexList\n");
+/*       printf("\nPrinting VertexList\n");
         for(int i=0;i<numVertices;i++)
         {
             printf("%d, ", VertexList[i]);
@@ -437,7 +457,7 @@ void segment(Mat image, std::string outFile, bool output)
         MarkSegments<<<numBlock, numthreads>>>(flagUid1, VertexList, numVertices);
 
         cudaDeviceSynchronize();
-        flagUid1[0]=0;
+        flagUid1[0]=uint32_t(0);
         thrust::inclusive_scan(flagUid1, flagUid1 + numEdges, flagUid1, thrust::plus<uint32_t>());
         cudaDeviceSynchronize();
 

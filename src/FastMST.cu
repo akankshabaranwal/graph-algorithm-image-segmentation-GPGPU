@@ -41,7 +41,7 @@ __global__ void ClearFlagArray(uint32_t *flag, int numElements)
 
     for (uint32_t idx = tidx; idx < numElements; idx += num_threads)
     {
-        flag[idx] = 0;
+        flag[idx] = uint32_t(0);
     }
 }
 
