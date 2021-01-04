@@ -209,7 +209,6 @@ void segment(Mat image, std::string outFile, bool output)
     uint32_t *SuperVertexId;
     uint64_t *UVW;
 
-
     //Allocating memory
     cudaMallocManaged(&flagUid, numEdges * sizeof(uint32_t));
     cudaMallocManaged(&VertexList, numVertices * sizeof(uint32_t));
@@ -241,8 +240,14 @@ void segment(Mat image, std::string outFile, bool output)
 
     std::vector<uint32_t*> d_hierarchy_levels;	// Vector containing pointers to all hierarchy levels (don't dereference on CPU, device pointers)
     std::vector<int> hierarchy_level_sizes;			// Size of each hierarchy level
+
+    cudaDeviceProp prop;
+    cudaGetDeviceProperties(&prop, 0);
+    int num_sms = prop.multiProcessorCount;
+
     numthreads = min(32, numVertices);
-    numBlock = numVertices/numthreads;
+    //numBlock = numVertices/numthreads;
+    numBlock = num_sms;
     SetBitEdgeListArray<<<numBlock, numthreads>>>( OnlyEdge, OnlyWeight, numEdges);
     cudaDeviceSynchronize();
 
@@ -265,243 +270,74 @@ void segment(Mat image, std::string outFile, bool output)
         else
             numthreads = min(32, numVertices);
 
-        numBlock = numVertices/numthreads;
-
-        //1. The graph creation step above takes care of this
-        cudaError_t err = cudaGetLastError();        // Get error code
-        if ( err != cudaSuccess )
-        {
-            printf("CUDA Error: SetOnlyWeightArray%s\n", cudaGetErrorString(err));
-            exit(-1);
-        }
-
+        //numBlock = numVertices/numthreads;
+        numBlock = num_sms;
         //Create UID array. 10.2
         ClearFlagArray<<<numBlock, numthreads>>>(flagUid, numEdges);
-        cudaDeviceSynchronize();
-
-        err = cudaGetLastError();        // Get error code
-        if ( err != cudaSuccess )
-        {
-            printf("CUDA Error: Flag Uid Array%s\n", cudaGetErrorString(err));
-            exit(-1);
-        }
-
         MarkSegments<<<numBlock, numthreads>>>(flagUid, VertexList, numVertices);
 
-        err = cudaGetLastError();        // Get error code
-        if ( err != cudaSuccess )
-        {
-            printf("CUDA Error: MarkSegments%s\n", cudaGetErrorString(err));
-            exit(-1);
-        }
-
-        cudaDeviceSynchronize();
-        flagUid[0]=uint32_t(0);
-        thrust::inclusive_scan(flagUid, flagUid + numEdges, flagUid, thrust::plus<uint32_t>());
-        cudaDeviceSynchronize();
-
-        err = cudaGetLastError();        // Get error code
-        if ( err != cudaSuccess )
-        {
-            printf("CUDA Error: inclusive scan %s\n", cudaGetErrorString(err));
-            exit(-1);
-        }
-        cudaDeviceSynchronize();
-
+        thrust::inclusive_scan(thrust::device, flagUid, flagUid + numEdges, flagUid, thrust::plus<uint32_t>());
         //3. Segmented min scan
         thrust::inclusive_scan_by_key(thrust::device, flagUid, flagUid + numEdges, OnlyWeight, tempArray2, thrust::equal_to<uint64_t>() , thrust::minimum<uint64_t>());
-        cudaDeviceSynchronize();
-
-        err = cudaGetLastError();        // Get error code
-        if ( err != cudaSuccess )
-        {
-            printf("CUDA Error: Segment Reduction%s\n", cudaGetErrorString(err));
-            exit(-1);
-        }
-        cudaDeviceSynchronize();
-
-        MakeIndexArray<<<numBlock, numthreads>>>( VertexList, tempArray2, tempArray, numVertices);
-        cudaDeviceSynchronize();
-        err = cudaGetLastError();        // Get error code
-        if ( err != cudaSuccess )
-        {
-            printf("CUDA Error MakeIndexArray: %s\n", cudaGetErrorString(err));
-            exit(-1);
-        }
-        tempArray[numVertices-1]=tempArray2[numEdges-1];
-
+        MakeIndexArray<<<numBlock, numthreads>>>( VertexList, tempArray2, tempArray, numVertices, numEdges);
         // Create NWE array
         CreateNWEArray<<<numBlock, numthreads>>>(NWE, tempArray, numVertices);
-        err = cudaGetLastError();        // Get error code
-        if ( err != cudaSuccess )
-        {
-            printf("CUDA Error: CreateNWEArray %s\n", cudaGetErrorString(err));
-            exit(-1);
-        }
-
-        cudaDeviceSynchronize();
-
         //4. Find Successor array of each vertex
         FindSuccessorArray<<<numBlock, numthreads>>>(Successor, OnlyEdge, NWE, numVertices);
-
-        err = cudaGetLastError();        // Get error code
-        if ( err != cudaSuccess )
-        {
-            printf("CUDA Error: FindSuccessorArray %s\n", cudaGetErrorString(err));
-            exit(-1);
-        }
-        cudaDeviceSynchronize();
-
         //RemoveCycles
         RemoveCycles<<<numBlock, numthreads>>>(Successor, numVertices);
+        cudaDeviceSynchronize();
         err = cudaGetLastError();        // Get error code
         if ( err != cudaSuccess )
         {
             printf("CUDA Error RemoveCycles: %s\n", cudaGetErrorString(err));
             exit(-1);
         }
-        cudaDeviceSynchronize();
-
         //C. Merging vertices and assigning IDs to supervertices
         //7. Propagate representative vertex IDs using pointer doubling
         PropagateRepresentativeVertices(Successor, numVertices);
-        err = cudaGetLastError();        // Get error code
-        if ( err != cudaSuccess )
-        {
-            printf("CUDA Error PropagateRepresentative: %s\n", cudaGetErrorString(err));
-            exit(-1);
-        }
-
         //8, 9 Append appendSuccessorArray
         appendSuccessorArray<<<numBlock, numthreads>>>(Representative, VertexIds, Successor, numVertices);
-        err = cudaGetLastError();        // Get error code
-        if ( err != cudaSuccess )
-        {
-            printf("CUDA Error: AppendSuccessorArray %s\n", cudaGetErrorString(err));
-            exit(-1);
-        }
-        cudaDeviceSynchronize();
-
         thrust::sort_by_key( thrust::device,Representative, Representative + numVertices, VertexIds);
-        //cudaDeviceSynchronize();
-        err = cudaGetLastError();        // Get error code
-        if ( err != cudaSuccess )
-        {
-            printf("CUDA Error sort by key: %s\n", cudaGetErrorString(err));
-            exit(-1);
-        }
-
-        err = cudaGetLastError();        // Get error code
-        if ( err != cudaSuccess )
-        {
-            printf("CUDA Error ThrustSort Representative Array: %s\n", cudaGetErrorString(err));
-            exit(-1);
-        }
-        cudaDeviceSynchronize();
         CreateFlag2Array<<<numBlock, numthreads>>>(Representative, flagC, numVertices);
-        err = cudaGetLastError();        // Get error code
-        if ( err != cudaSuccess )
-        {
-            printf("CUDA Error CreateflagCArray: %s\n", cudaGetErrorString(err));
-            exit(-1);
-        }
-        cudaDeviceSynchronize();
-
-        thrust::inclusive_scan(flagC, flagC + numVertices, flagC, thrust::plus<uint32_t>());
-        cudaDeviceSynchronize();
-        //D. Finding the Supervertex ids and storing it in an array
-        err = cudaGetLastError();        // Get error code
-        if ( err != cudaSuccess )
-        {
-            printf("CUDA Error inclusive scan flagC: %s\n", cudaGetErrorString(err));
-            exit(-1);
-        }
+        thrust::inclusive_scan(thrust::device, flagC, flagC + numVertices, flagC, thrust::plus<uint32_t>());
         CreateSuperVertexArray<<<numBlock,numthreads>>>(SuperVertexId, VertexIds, flagC, numVertices);
-        err = cudaGetLastError();        // Get error code
-        if ( err != cudaSuccess )
-        {
-            printf("CUDA Error CreateSuperVertexArray: %s\n", cudaGetErrorString(err));
-            exit(-1);
-        }
-        cudaDeviceSynchronize();
-
         //11. Removing self edges
         RemoveSelfEdges<<<numBlock,numthreads>>>(OnlyEdge, numEdges, flagUid, SuperVertexId);
-        err = cudaGetLastError();        // Get error code
-        if ( err != cudaSuccess )
-        {
-            printf("CUDA Error RemoveSelfEdges: %s\n", cudaGetErrorString(err));
-            exit(-1);
-        }
-
         //E 12.
         CreateUVWArray<<<numBlock,numthreads>>>( OnlyEdge, OnlyWeight, numEdges, flagUid, SuperVertexId, UVW);
-        err = cudaGetLastError();        // Get error code
-        if ( err != cudaSuccess )
-        {
-            printf("CUDA Error CreateUVWArray: %s\n", cudaGetErrorString(err));
-            exit(-1);
-        }
-        cudaDeviceSynchronize();
-
         //12.2 Sort the UVW Array
         thrust::sort(thrust::device, UVW, UVW + numEdges);
-
-        cudaDeviceSynchronize();
-        flagUid[0]=1;
         CreateFlag3Array<<<numBlock,numthreads>>>(UVW, numEdges, flagUid, MinMaxScanArray);
         uint32_t *new_edge_size = thrust::max_element(thrust::device, MinMaxScanArray, MinMaxScanArray + numEdges);
         cudaDeviceSynchronize();
         *new_edge_size = *new_edge_size+1;
-        thrust::inclusive_scan(flagUid, flagUid + *new_edge_size, compactLocations, thrust::plus<int>());
-        err = cudaGetLastError();        // Get error code
-        if ( err != cudaSuccess )
-        {
-            printf("CUDA Error inclusive scan flagUid before reset compact locations: %s\n", cudaGetErrorString(err));
-            exit(-1);
-        }
+        thrust::inclusive_scan(thrust::device, flagUid, flagUid + *new_edge_size, compactLocations, thrust::plus<int>());
         ResetCompactLocationsArray<<<numBlock,numthreads>>>(compactLocations, *new_edge_size);
-        err = cudaGetLastError();        // Get error code
-        if ( err != cudaSuccess )
-        {
-            printf("CUDA Error reset compact locations: %s\n", cudaGetErrorString(err));
-            exit(-1);
-        }
-        cudaDeviceSynchronize();
-
         CreateNewEdgeList<<<numBlock,numthreads>>>(  compactLocations, OnlyEdge, OnlyWeight, UVW, flagUid, *new_edge_size, new_E_size, new_V_size, expanded_u);
+        uint32_t *new_E_sizeptr = thrust::max_element(thrust::device, new_E_size, new_E_size + *new_edge_size);
+        uint32_t *new_V_sizeptr = thrust::max_element(thrust::device, new_V_size, new_V_size + *new_edge_size);
+        cudaDeviceSynchronize();
         err = cudaGetLastError();        // Get error code
         if ( err != cudaSuccess )
         {
             printf("CUDA Error CreateNewEdgeList: %s\n", cudaGetErrorString(err));
             exit(-1);
         }
-        uint32_t *new_E_sizeptr = thrust::max_element(thrust::device, new_E_size, new_E_size + *new_edge_size);
-        uint32_t *new_V_sizeptr = thrust::max_element(thrust::device, new_V_size, new_V_size + *new_edge_size);
-        cudaDeviceSynchronize();
+
         numVertices = *new_V_sizeptr;
         numEdges = *new_E_sizeptr;
 
-        flagUid[0]=1;
         CreateFlag4Array<<<numBlock,numthreads>>>(expanded_u, flagUid, numEdges);
-        cudaDeviceSynchronize();
-
-        err = cudaGetLastError();        // Get error code
-        if ( err != cudaSuccess )
-        {
-            printf("CUDA Error create flag4: %s\n", cudaGetErrorString(err));
-            exit(-1);
-        }
-
         CreateNewVertexList<<<numBlock,numthreads>>>(VertexList, flagUid, numEdges, expanded_u);
 
+        cudaDeviceSynchronize();
         err = cudaGetLastError();        // Get error code
         if ( err != cudaSuccess )
         {
             printf("CUDA Error: CreateNewVertexList%s\n", cudaGetErrorString(err));
             exit(-1);
         }
-        cudaDeviceSynchronize();
         d_hierarchy_levels.push_back(SuperVertexId);
         hierarchy_level_sizes.push_back(numVertices);
         cudaMallocManaged(&SuperVertexId, numVertices * sizeof(uint32_t));

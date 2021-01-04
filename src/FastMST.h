@@ -12,12 +12,11 @@ using namespace cv;
 
 __global__ void SetBitEdgeListArray( uint32_t *OnlyEdge, uint64_t *W,uint numElements);
 
-__global__ void SetOnlyWeightArray(uint64_t *BitEdgeList, uint64_t *OnlyWeight, uint numElements);
 
 __global__ void ClearFlagArray(uint32_t *flag, int numElements);
 __global__ void MarkSegments(uint32_t *flag, uint32_t *VertexList,int numElements);
 
-__global__ void MakeIndexArray( uint32_t *VertexList, uint64_t *tempArray2, uint64_t *tempArray, int numVertices);
+__global__ void MakeIndexArray( uint32_t *VertexList, uint64_t *tempArray2, uint64_t *tempArray, int numVertices, int numEdges);
 __global__ void CreateNWEArray(uint32_t *NWE, uint64_t *MinSegmentedList, int numVertices);
 __global__ void FindSuccessorArray(uint32_t *Successor, uint32_t *OnlyEdge, uint32_t *NWE, int numSegments);
 __global__ void RemoveCycles(uint32_t *Successor, int numVertices);

@@ -36,13 +36,15 @@ __global__ void MarkSegments(uint32_t *flag, uint32_t *VertexList,int numElement
 {
     uint32_t tidx = blockIdx.x*blockDim.x+threadIdx.x;
     uint32_t num_threads = gridDim.x * blockDim.x;
+
     for (uint32_t idx = tidx; idx < numElements; idx += num_threads)
     {
         flag[VertexList[idx]] = 1;
     }
+    if(tidx==0) flag[VertexList[tidx]]=0;
 }
 
-__global__ void MakeIndexArray( uint32_t *VertexList, uint64_t *tempArray2, uint64_t *tempArray, int numVertices)
+__global__ void MakeIndexArray( uint32_t *VertexList, uint64_t *tempArray2, uint64_t *tempArray, int numVertices, int numEdges)
 {
     uint32_t tidx = blockIdx.x*blockDim.x+threadIdx.x;
     uint32_t num_threads = gridDim.x * blockDim.x;
@@ -50,6 +52,8 @@ __global__ void MakeIndexArray( uint32_t *VertexList, uint64_t *tempArray2, uint
     {
         tempArray[idx-1] = tempArray2[VertexList[idx]-1];
     }
+    if(tidx=numVertices-1)
+        tempArray[tidx] = tempArray2[numEdges-1];
 }
 
 __global__ void CreateNWEArray(uint32_t *NWE, uint64_t *MinSegmentedList, int numVertices)
@@ -236,6 +240,8 @@ __global__ void CreateFlag3Array(uint64_t *UVW, int numEdges, uint32_t *flag3, u
             }
         }
     }
+    if(tidx==0)flag3[tidx]=1;
+
 }
 
 __global__ void ResetCompactLocationsArray(uint32_t *compactLocations, uint32_t numEdges)
@@ -292,6 +298,7 @@ __global__ void CreateFlag4Array(uint32_t *expanded_u, uint32_t *Flag4, int numE
             Flag4[idx]=1;
         }
     }
+    if(tidx==0)Flag4[tidx]=1;
 }
 
 __global__ void CreateNewVertexList(uint32_t *VertexList, uint32_t *Flag4, int new_E_size, uint32_t *expanded_u)
