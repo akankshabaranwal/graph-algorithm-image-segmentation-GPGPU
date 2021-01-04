@@ -50,7 +50,6 @@ void ImagetoGraphParallelStream(Mat &image, uint32_t *d_vertex,uint32_t *d_edge,
 
     if (TIMING_MODE == TIME_PARTS) { // Start graph creation timer
         start = std::chrono::high_resolution_clock::now();
-
     }
 
     // Create graphs. Kernels executed in different streams for concurrency
@@ -369,6 +368,7 @@ void segment(Mat image, std::string outFile, bool output)
     cudaFree(flagUid);
     cudaFree(VertexList);
     cudaFree(tempArray);
+    cudaFree(tempArray2);
     cudaFree(NWE);
     cudaFree(Successor);
     cudaFree(OnlyEdge);
