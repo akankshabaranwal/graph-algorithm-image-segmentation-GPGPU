@@ -467,13 +467,6 @@ void segment_cpu(uint4 vertices[], uint2 edges[], min_edge min_edges[], min_edge
     //printf("Iterations: %d\n", counter);
 }
 
-void get_component_colours(char colours[], uint num_colours) {
-    srand(123456789);
-    for (int i = 0; i < num_colours * CHANNEL_SIZE; i++) {
-        colours[i] = rand() % 256;
-    }
-}
-
 void checkErrors(const char *identifier) {
     cudaError_t err = cudaGetLastError();
     if (err != cudaSuccess) {
@@ -552,10 +545,6 @@ char *compute_segments(void *input, uint x, uint y, size_t pitch, bool use_cpu, 
         decode_blocks.x = num_vertices / 1024 + 1;
     }
 
-    char *component_colours = (char *) malloc(num_vertices * CHANNEL_SIZE * sizeof(char));
-    get_component_colours(component_colours, num_vertices);
-    cudaMemcpyAsync(component_colours_dev, component_colours, num_vertices * CHANNEL_SIZE * sizeof(char), cudaMemcpyHostToDevice);
-
     char *output = (char*) malloc(x*y*CHANNEL_SIZE*sizeof(char));
     cudaDeviceSynchronize();
     checkErrors("segment()");
@@ -579,16 +568,13 @@ char *compute_segments(void *input, uint x, uint y, size_t pitch, bool use_cpu, 
     cudaMalloc(&output_dev, num_vertices * CHANNEL_SIZE * sizeof(char));
 
     // Write image back from segmented matrix
-    decode<<<decode_blocks, decode_threads>>>(vertices, output_dev, component_colours_dev, num_vertices);
-    free(component_colours);
+    decode<<<decode_blocks, decode_threads>>>(vertices, output_dev, num_vertices);
     cudaDeviceSynchronize();
     checkErrors("decode()");
 
     // Free rest
     cudaFree(vertices);
     checkErrors("Free vertices");
-    cudaFree(component_colours_dev);
-    checkErrors("Free component_colours_dev");
 
     //Copy image data back from GPU
     cudaMemcpy(output, output_dev, x*y*CHANNEL_SIZE*sizeof(char), cudaMemcpyDeviceToHost);
@@ -699,25 +685,17 @@ char *compute_segments_partial(void *input, uint x, uint y, size_t pitch, bool u
         decode_blocks.x = num_vertices / 1024 + 1;
     }
 
-    char *component_colours = (char *) malloc(num_vertices * CHANNEL_SIZE * sizeof(char));
-    get_component_colours(component_colours, num_vertices);
-    char *component_colours_dev;
-    cudaMalloc(&component_colours_dev, num_vertices * CHANNEL_SIZE * sizeof(char));
-    cudaMemcpyAsync(component_colours_dev, component_colours, num_vertices * CHANNEL_SIZE * sizeof(char), cudaMemcpyHostToDevice);
     char *output_dev;
     cudaMalloc(&output_dev, num_vertices * CHANNEL_SIZE * sizeof(char));
 
     // Write image back from segmented matrix
-    decode<<<decode_blocks, decode_threads>>>(vertices, output_dev, component_colours_dev, num_vertices);
-    free(component_colours);
+    decode<<<decode_blocks, decode_threads>>>(vertices, output_dev, num_vertices);
     cudaDeviceSynchronize();
     checkErrors("decode()");
 
     // Free rest
     cudaFree(vertices);
     checkErrors("Free vertices");
-    cudaFree(component_colours_dev);
-    checkErrors("Free component_colours_dev");
 
     //Copy image data back from GPU
     char *output = (char*) malloc(x*y*CHANNEL_SIZE*sizeof(char));

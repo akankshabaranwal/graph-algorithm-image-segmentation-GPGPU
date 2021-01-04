@@ -135,15 +135,20 @@ void encode(u_char *image, uint4 vertices[], uint2 edges[], uint x_len, uint y_l
 
 // Kernel to decode graph
 __global__
-void decode(uint4 vertices[], char *image, char* colours, uint num_vertices) {
-    uint pos = blockDim.x * blockIdx.x + threadIdx.x;
-    if (pos >= num_vertices) return;
+void decode(uint4 vertices[], char *image, uint num_vertices) {
+    uint tid = blockDim.x * blockIdx.x + threadIdx.x;
+    uint num_threads = gridDim.x * blockDim.x;
+    for (uint pos = tid; pos < num_vertices; pos += num_threads) {
+        uint img_pos = pos * CHANNEL_SIZE;
 
-    uint img_pos = pos * CHANNEL_SIZE;
-    uint colour_start = (vertices[pos].y - 1) * CHANNEL_SIZE;
-    image[img_pos] = colours[colour_start];
-    image[img_pos + 1] = colours[colour_start + 1];
-    image[img_pos + 2] = colours[colour_start + 2];
+        char colour_1 = vertices[pos].y % 255;
+        char colour_2 = (13*colour_1 + 101) % 255;
+        char colour_3 = (13*colour_2 + 101) % 255;
+
+        image[img_pos] = colour_1;
+        image[img_pos + 1] = colour_2;
+        image[img_pos + 2] = colour_3;
+    }
 }
 
 #endif //FELZENSWALB_GRAPH_H
