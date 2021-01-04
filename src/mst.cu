@@ -37,25 +37,27 @@ void find_min_edges_sort(uint4 vertices[], uint2 edges[], min_edge min_edges[], 
     for (uint tid = index; tid < vertices_length; tid += num_threads) {
         uint vertice_comp = vertices[tid].y;
         //vertices[tid].z = 1;
-        min_edge min;
-        min.weight = UINT_MAX;
-        min.dest_comp = UINT_MAX;
-        min.src_comp = 0;
+        uint min_weight = UINT_MAX;
+        uint min_dest_comp = UINT_MAX;
+        uint min_src_comp = 0;
         for (uint j = tid * NUM_NEIGHBOURS; j < tid * NUM_NEIGHBOURS + NUM_NEIGHBOURS; j++) {
-            uint2 edge = edges[j];
+            uint edge_id = edges[j].x;
             // Maybe it would be better to just check if it's not in the same component? We would not need to remove internal edges
-            if (edge.x != 0) {
-                if (edge.y <= min.weight) {
-                    uint dest_comp = vertices[edge.x - 1].y;
-                    if (edge.y != min.weight || min.dest_comp > dest_comp) {
-                        min.src_comp = vertice_comp;
-                        min.dest_comp = dest_comp;
-                        min.weight = edge.y;
+            if (edge_id != 0) {
+                uint edge_weight = edges[j].y;
+                if (edge_weight <= min_weight) {
+                    uint dest_comp = vertices[edge_id - 1].y;
+                    if (edge_weight != min_weight || min_dest_comp > dest_comp) {
+                        min_src_comp = vertice_comp;
+                        min_dest_comp = dest_comp;
+                        min_weight = edge_weight;
                     }
                 }
             }
         }
-        min_edges[tid] = min;
+        min_edges[tid].weight = min_weight;
+        min_edges[tid].dest_comp = min_dest_comp;
+        min_edges[tid].src_comp = min_src_comp;
     }
 }
 
@@ -359,8 +361,8 @@ void segment(uint4 vertices[], uint2 edges[], min_edge min_edges[], min_edge_wra
 
         //printf("Merge\n");
         merge<<<blocks.x, threads.x>>>(vertices, min_edges, n_components, curr_n_comp, k);
-        cudaDeviceSynchronize();
         prev_n_components = curr_n_comp;
+        cudaDeviceSynchronize();
         curr_n_comp = *n_components;
         if (prev_n_components == curr_n_comp) {
             size_threshold<<<blocks.x, threads.x>>>(vertices, min_edges, n_components, curr_n_comp, powf(min_size, counter));
@@ -388,11 +390,11 @@ void remove_deps_cpu(min_edge min_edges[], uint num_components, uint2 sources[],
     uint zero = 0;
     uint should_continue = 1;
     while (should_continue == 1) {
-        cudaMemcpyAsync(did_change, &(zero), sizeof(uint), cudaMemcpyHostToDevice);
+        cudaMemcpy(did_change, &(zero), sizeof(uint), cudaMemcpyHostToDevice);
         construct_sources<<<blocks, threads>>>(min_edges, num_components, sources);
         update_destinations<<<blocks, threads>>>(min_edges, num_components, sources, did_change);
-        cudaMemcpyAsync(&should_continue, did_change, sizeof(uint), cudaMemcpyDeviceToHost);
         cudaDeviceSynchronize();
+        cudaMemcpy(&should_continue, did_change, sizeof(uint), cudaMemcpyDeviceToHost);
     }
 }
 
@@ -431,7 +433,7 @@ void segment_cpu(uint4 vertices[], uint2 edges[], min_edge min_edges[], min_edge
             filter_min_edges_test<<<blocks.y, threads.y>>>(min_edges, wrappers, n_vertices);
 
             //printf("Compact\n");
-            cudaMemcpyAsync(did_change, &(zero), sizeof(uint), cudaMemcpyHostToDevice);
+            cudaMemcpy(did_change, &(zero), sizeof(uint), cudaMemcpyHostToDevice);
             compact_min_edge_wrappers<<<blocks.y, threads.y>>>(min_edges, wrappers, n_vertices, did_change);
         }
 
@@ -499,8 +501,8 @@ char *compute_segments(void *input, uint x, uint y, size_t pitch, bool use_cpu, 
         encode_blocks.x = x / 32 + 1;
         encode_blocks.y = y / 32 + 1;
     }
-
     encode<<<encode_blocks, encode_threads>>>((u_char*)input, vertices, edges, x, y, pitch);
+
     uint2 *sources;
     min_edge *min_edges;
     min_edge_wrapper *wrappers;
@@ -520,21 +522,15 @@ char *compute_segments(void *input, uint x, uint y, size_t pitch, bool use_cpu, 
     checkErrors("Malloc sources");
     cudaMalloc(&did_change, sizeof(uint));
     checkErrors("Malloc did change");
-    char *component_colours_dev;
-    cudaMalloc(&component_colours_dev, num_vertices * CHANNEL_SIZE * sizeof(char));
-
-    cudaDeviceSynchronize();
-    checkErrors("encode()");
 
     // Segment matrix
-    //cudaSetDeviceFlags(cudaDeviceBlockingSync);
     if (!use_cpu) {
         segment<<<1, 1>>>(vertices, edges, min_edges, wrappers, sources, num_components, did_change, k, min_size);
     } else {
         segment_cpu(vertices, edges, min_edges, wrappers, sources, num_components, did_change, num_vertices, k, min_size);
     }
 
-    // Setup random colours for components
+    // Generate image output
     dim3 decode_threads;
     dim3 decode_blocks;
     if (num_vertices <= 1024) {
@@ -546,9 +542,8 @@ char *compute_segments(void *input, uint x, uint y, size_t pitch, bool use_cpu, 
     }
 
     char *output = (char*) malloc(x*y*CHANNEL_SIZE*sizeof(char));
-    cudaDeviceSynchronize();
-    checkErrors("segment()");
-    cudaDeviceSynchronize();
+    char *output_dev;
+    cudaMalloc(&output_dev, num_vertices * CHANNEL_SIZE * sizeof(char));
 
     // Free everything we can
     cudaFree(edges);
@@ -564,21 +559,15 @@ char *compute_segments(void *input, uint x, uint y, size_t pitch, bool use_cpu, 
     cudaFree(sources);
     checkErrors("Free sources");
 
-    char *output_dev;
-    cudaMalloc(&output_dev, num_vertices * CHANNEL_SIZE * sizeof(char));
-
     // Write image back from segmented matrix
     decode<<<decode_blocks, decode_threads>>>(vertices, output_dev, num_vertices);
-    cudaDeviceSynchronize();
-    checkErrors("decode()");
+
+    //Copy image data back from GPU
+    cudaMemcpy(output, output_dev, x*y*CHANNEL_SIZE*sizeof(char), cudaMemcpyDeviceToHost);
 
     // Free rest
     cudaFree(vertices);
     checkErrors("Free vertices");
-
-    //Copy image data back from GPU
-    cudaMemcpy(output, output_dev, x*y*CHANNEL_SIZE*sizeof(char), cudaMemcpyDeviceToHost);
-    checkErrors("Memcpy output");
 
     cudaFree(output_dev);
     checkErrors("Free output_dev");
@@ -605,7 +594,6 @@ char *compute_segments_partial(void *input, uint x, uint y, size_t pitch, bool u
     checkErrors("Malloc edges");
 
     // Write to the matrix from image
-    // cudaOccupancyScheduler?
     dim3 encode_threads;
     dim3 encode_blocks;
     if (num_vertices < 1024) {
@@ -638,13 +626,11 @@ char *compute_segments_partial(void *input, uint x, uint y, size_t pitch, bool u
 
     cudaDeviceSynchronize();
     end = std::chrono::high_resolution_clock::now();
-
     auto time_span_encode = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
     std::cout << time_span_encode.count() << ",";
     checkErrors("encode()");
 
     // Segment matrix
-    //cudaSetDeviceFlags(cudaDeviceBlockingSync);
     start = std::chrono::high_resolution_clock::now();
     if (!use_cpu) {
         segment<<<1, 1>>>(vertices, edges, min_edges, wrappers, sources, num_components, did_change, k, min_size);
@@ -652,6 +638,11 @@ char *compute_segments_partial(void *input, uint x, uint y, size_t pitch, bool u
         segment_cpu(vertices, edges, min_edges, wrappers, sources, num_components, did_change, num_vertices, k, min_size);
     }
     cudaDeviceSynchronize();
+
+    end = std::chrono::high_resolution_clock::now();
+    auto time_span_segment = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    std::cout << time_span_segment.count() << ",";
+
     checkErrors("segment()");
 
     // Free everything we can
@@ -667,11 +658,6 @@ char *compute_segments_partial(void *input, uint x, uint y, size_t pitch, bool u
     checkErrors("Free did_change");
     cudaFree(sources);
     checkErrors("Free sources");
-
-    end = std::chrono::high_resolution_clock::now();
-
-    auto time_span_segment = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-    std::cout << time_span_segment.count() << ",";
 
     start = std::chrono::high_resolution_clock::now();
     // Setup random colours for components
@@ -690,25 +676,23 @@ char *compute_segments_partial(void *input, uint x, uint y, size_t pitch, bool u
 
     // Write image back from segmented matrix
     decode<<<decode_blocks, decode_threads>>>(vertices, output_dev, num_vertices);
+    char *output = (char*) malloc(x*y*CHANNEL_SIZE*sizeof(char));
     cudaDeviceSynchronize();
-    checkErrors("decode()");
+    cudaMemcpy(output, output_dev, x*y*CHANNEL_SIZE*sizeof(char), cudaMemcpyDeviceToHost);
+
+    end = std::chrono::high_resolution_clock::now();
+    auto time_span_decode = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    std::cout << time_span_decode.count() << std::endl;
 
     // Free rest
     cudaFree(vertices);
     checkErrors("Free vertices");
 
     //Copy image data back from GPU
-    char *output = (char*) malloc(x*y*CHANNEL_SIZE*sizeof(char));
-
-    cudaMemcpy(output, output_dev, x*y*CHANNEL_SIZE*sizeof(char), cudaMemcpyDeviceToHost);
     checkErrors("Memcpy output");
 
     cudaFree(output_dev);
     checkErrors("Free output_dev");
-    end = std::chrono::high_resolution_clock::now();
-
-    auto time_span_decode = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-    std::cout << time_span_decode.count() << std::endl;
 
     return output;
 }
