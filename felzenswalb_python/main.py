@@ -37,13 +37,12 @@ def random_rgb():
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', required=True)
-    parser.add_argument('-e', required=True)
-    parser.add_argument('-s', required=True)
+    parser.add_argument('-o', required=True)
     parser.add_argument('-x', action='store_true', help='Orig python algo')
     arg = parser.parse_args()
 
     img_path = arg.i
-    edge_path = arg.e
+    edge_path = os.path.splitext(img_path)[0] + '_edge.jpg'
     img_name = os.path.splitext(os.path.basename(img_path))[0]
     sigma = 1.0
     k = 500
@@ -86,5 +85,5 @@ if __name__ == '__main__':
 
         is_grayscale = len(image.shape) < 3
 
-        imwrite(os.path.join(arg.s, '{name}_{lev}.png'.format(name=img_name, lev=level)), output)
+        imwrite(os.path.splitext(arg.o)[0] + '_{lev}.png'.format(lev=level), output)
 

@@ -12,7 +12,7 @@ int main() {
 
     // Inputs
     String modelFilename = dir + "model.yml.gz";
-    String name = "388016";
+    String name = "oberhofen_7680_4320";
     String inFilename = dir + "data/" + name + ".jpg";
     String outFilename = dir + "data/" + name + "_edge.jpg";
     String outFilename_nms = dir + "data/beach" + name + "_edge_nms.jpg";
