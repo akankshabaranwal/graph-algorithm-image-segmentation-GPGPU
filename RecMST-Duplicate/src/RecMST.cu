@@ -504,7 +504,7 @@ void HPGMST()
 	// Calculate weights
 	CalcWeights<<<grid_edgelen, threads_edgelen, 0>>>(d_avg_color, d_old_uIDs, d_edge, d_edge_strength, d_weight, no_of_edges);
 
-	printUIntArr(d_edge_strength, 1000);
+	printUIntArr(d_edge_strength, 100000);
 
 	// 1. Append weight w and outgoing vertex v per edge into a single array, X.
     // 12 bit for weight, 26 bits for ID.
