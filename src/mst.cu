@@ -115,27 +115,24 @@ void construct_sources(min_edge min_edges[], uint num_components, uint2 sources[
 }
 
 __global__
-void update_destinations(min_edge min_edges[], uint num_components, uint2 sources[], uint *did_change) {
+void update_destinations(min_edge min_edges[], uint num_components, uint2 sources[]) {
     uint component_id = blockDim.x * blockIdx.x + threadIdx.x;
     uint num_threads = gridDim.x * blockDim.x;
     for (uint comp_id = component_id; comp_id < num_components; comp_id += num_threads) {
         min_edge *edge = &min_edges[comp_id];
         uint src = edge->src_comp;
         uint dest = edge->dest_comp;
-        uint weight = edge->weight;
         uint new_dest = sources[dest - 1].x;
-        uint new_weight = sources[dest - 1].y;
-        if (((new_dest == src) || (new_dest != src && new_dest != dest && weight == new_weight)) && src < dest) {
+        if (((new_dest == src)) && src < dest) {
             edge->dest_comp = new_dest;
-            *did_change = 1;
         }
     }
 }
 
 __device__ __forceinline__
-void remove_deps(min_edge min_edges[], uint num_components, uint2 sources[], uint blocks, uint threads, uint* did_change) {
+void remove_deps(min_edge min_edges[], uint num_components, uint2 sources[], uint blocks, uint threads) {
     construct_sources<<<blocks, threads>>>(min_edges, num_components, sources);
-    update_destinations<<<blocks, threads>>>(min_edges, num_components, sources, did_change);
+    update_destinations<<<blocks, threads>>>(min_edges, num_components, sources);
 }
 
 // Kernel to update the whole matrix
@@ -182,8 +179,8 @@ void path_compression(uint4 vertices[], uint num_vertices) {
             } while(parent_id + 1 != parent_comp);
 
             vertice->y = parent_comp;
-            atomicAdd_system(&(parent->z), vertice->z);
-            //atomicAdd_system(&(parent->z), 1);
+            //atomicAdd_system(&(parent->z), vertice->z);
+            atomicAdd_system(&(parent->z), 1);
             atomicMax_system(&(parent->w), vertice->w);
         }
     }
@@ -195,18 +192,10 @@ void update_new_size(uint4 vertices[], uint num_vertices, uint2 edges[]) {
     uint comp_threads = gridDim.x * blockDim.x;
 
     for (int v_id = vertice_id; v_id < num_vertices; v_id += comp_threads) {
-        uint4 *vertice = &vertices[v_id];
-
-        if (vertice->x != vertice->y) {
-            uint4 *parent = &vertices[vertice->y - 1];
-            vertice->z = parent->z;
-            vertice->w = parent->w;
-        }
-
         for (int j = v_id * NUM_NEIGHBOURS; j < v_id * NUM_NEIGHBOURS + NUM_NEIGHBOURS; j++) {
             uint2 *neighbour_edge = &edges[j];
             if (neighbour_edge->x != 0) {
-                if (vertices[neighbour_edge->x - 1].y == vertice->y) {
+                if (vertices[neighbour_edge->x - 1].y == vertices[v_id].y) {
                     neighbour_edge->x = 0; // Remove internal edges
                 }
             }
@@ -216,7 +205,7 @@ void update_new_size(uint4 vertices[], uint num_vertices, uint2 edges[]) {
 
 // Kernel to merge components
 __global__
-void merge(uint4 vertices[], min_edge min_edges[], uint *num_components, uint comp_count, uint k) {
+void merge(uint4 vertices[], min_edge min_edges[], uint *num_components, uint comp_count, uint k, uint iteration) {
     uint component_id = blockDim.x * blockIdx.x + threadIdx.x;
     uint num_threads = gridDim.x * blockDim.x;
     for (uint comp_id = component_id; comp_id < comp_count; comp_id += num_threads) {
@@ -225,8 +214,8 @@ void merge(uint4 vertices[], min_edge min_edges[], uint *num_components, uint co
         if (min_edge.src_comp == min_edge.dest_comp || min_edge.src_comp == 0) continue;
         uint4 src = vertices[min_edge.src_comp - 1];
         uint4 dest = vertices[min_edge.dest_comp - 1];
-        uint src_diff = src.w + (k / src.z);
-        uint dest_diff = dest.w + (k / dest.z);
+        uint src_diff = src.w + (10*k / powf(src.z, iteration));
+        uint dest_diff = dest.w + (10*k / powf(dest.z, iteration));
 
         if (min_edge.weight <= min(src_diff, dest_diff)) {
             atomicSub_system(num_components, 1);
@@ -343,10 +332,10 @@ void segment(uint4 vertices[], uint2 edges[], min_edge min_edges[], min_edge_wra
         }
 
         //printf("Remove cycles\n");
-        remove_deps(min_edges, curr_n_comp, sources ,blocks.x, threads.x, did_change);
+        remove_deps(min_edges, curr_n_comp, sources ,blocks.x, threads.x);
 
         //printf("Merge\n");
-        merge<<<blocks.x, threads.x>>>(vertices, min_edges, n_components, curr_n_comp, k);
+        merge<<<blocks.x, threads.x>>>(vertices, min_edges, n_components, curr_n_comp, k, counter);
         prev_n_components = curr_n_comp;
         cudaDeviceSynchronize();
         curr_n_comp = *n_components;
@@ -372,9 +361,9 @@ void segment(uint4 vertices[], uint2 edges[], min_edge min_edges[], min_edge_wra
     //printf("Iterations: %d\n", counter);
 }
 
-void remove_deps_cpu(min_edge min_edges[], uint num_components, uint2 sources[], uint blocks, uint threads, uint* did_change) {
+void remove_deps_cpu(min_edge min_edges[], uint num_components, uint2 sources[], uint blocks, uint threads) {
     construct_sources<<<blocks, threads>>>(min_edges, num_components, sources);
-    update_destinations<<<blocks, threads>>>(min_edges, num_components, sources, did_change);
+    update_destinations<<<blocks, threads>>>(min_edges, num_components, sources);
 }
 
 void segment_cpu(uint4 vertices[], uint2 edges[], min_edge min_edges[], min_edge_wrapper wrappers[], uint2 sources[], uint *n_components, uint *did_change, uint n_vertices, uint k, uint min_size) {
@@ -417,10 +406,10 @@ void segment_cpu(uint4 vertices[], uint2 edges[], min_edge min_edges[], min_edge
         }
 
         //printf("Remove cycles\n");
-        remove_deps_cpu(min_edges, curr_n_comp, sources ,blocks.x, threads.x, did_change);
+        remove_deps_cpu(min_edges, curr_n_comp, sources ,blocks.x, threads.x);
 
         //printf("Merge\n");
-        merge<<<blocks.x, threads.x>>>(vertices, min_edges, n_components, curr_n_comp, k);
+        merge<<<blocks.x, threads.x>>>(vertices, min_edges, n_components, curr_n_comp, k, counter);
         cudaDeviceSynchronize();
         prev_n_components = curr_n_comp;
         cudaMemcpy(&curr_n_comp, n_components, sizeof(uint), cudaMemcpyDeviceToHost);
