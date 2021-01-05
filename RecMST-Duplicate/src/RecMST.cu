@@ -210,7 +210,7 @@ void printULongArr(long* d_data, int n_elements) {
 }
 
 void printColorArr(unsigned char* d_data, int n_elements) {
-	unsigned long* h_data = (unsigned char *)malloc(sizeof(unsigned char)*n_elements);
+	unsigned char* h_data = (unsigned char *)malloc(sizeof(unsigned char)*n_elements);
 	cudaMemcpy(h_data, d_data, sizeof(unsigned char) * n_elements, cudaMemcpyDeviceToHost);
 	for (int i = 0; i < n_elements; i++) {
 		printf("(%u, %u, %u) ",h_data[i], h_data[i+1], h_data[i+1]);
