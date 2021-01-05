@@ -408,15 +408,15 @@ __global__ void CalcWeights(unsigned char* d_avg_color, unsigned int* d_old_uIDs
     if(tid<no_of_edges) {
         unsigned int u_id = d_old_uIDs[tid];
         unsigned int this_img_idx = u_id * CHANNEL_SIZE;
-        unsigned int this_r = d_avg_color[this_img_idx];
-        unsigned int this_g = d_avg_color[this_img_idx + 1];
-        unsigned int this_b = d_avg_color[this_img_idx + 2];
+        unsigned int this_r = (unsigned int) d_avg_color[this_img_idx];
+        unsigned int this_g = (unsigned int) d_avg_color[this_img_idx + 1];
+        unsigned int this_b = (unsigned int) d_avg_color[this_img_idx + 2];
 
         unsigned int v_id = d_edge[tid];
         unsigned int other_img_idx = v_id * CHANNEL_SIZE;
-        unsigned int other_r = d_avg_color[other_img_idx];
-        unsigned int other_g = d_avg_color[other_img_idx + 1];
-        unsigned int other_b = d_avg_color[other_img_idx + 2];
+        unsigned int other_r = (unsigned int) d_avg_color[other_img_idx];
+        unsigned int other_g = (unsigned int) d_avg_color[other_img_idx + 1];
+        unsigned int other_b = (unsigned int) d_avg_color[other_img_idx + 2];
 
         unsigned int val = abs(this_r - other_r) + abs(this_g - other_g) + abs(this_b - other_b);
 
