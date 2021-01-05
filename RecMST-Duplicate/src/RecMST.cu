@@ -607,9 +607,6 @@ void HPGMST()
 	ExtractComponentSizes<<< grid_vertexlen, threads_vertexlen, 0>>>(d_component_size_copy, d_component_size, d_vertex_flag_thrust, no_of_vertices);
 
 
-	// Perform segment min scan to find new edge strength
-	thrust::inclusive_scan(thrust::device, d_edge_flag, d_edge_flag + no_of_edges, d_edge_flag_thrust);
-
 	// Min inclusive segmented scan on ints from start to end.
 	thrust::equal_to<unsigned int> binaryPred4;
 	thrust::minimum<unsigned int> binaryOp4;
