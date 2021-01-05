@@ -600,7 +600,7 @@ void HPGMST()
 
 	// Perform segmented add scan on component_size with F2 indicating segments to find new component size
 	thrust::equal_to<unsigned int> binaryPred2;
-	thrust::add<unsigned int> binaryOp2;
+	thrust::plus<unsigned int> binaryOp2;
 	thrust::inclusive_scan_by_key(thrust::device, d_vertex_flag_thrust, d_vertex_flag_thrust + no_of_vertices, d_component_size, d_component_size_copy, binaryPred2, binaryOp2);
 	
 	// Extract new component sizes
@@ -624,7 +624,7 @@ void HPGMST()
 
 	// Reweigh colors joining components so their sum when adding them up is the average
 	ReweighAndOrganizeColors<<< grid_vertexlen, threads_vertexlen, 0>>>(d_avg_color, d_avg_color_r, d_avg_color_g, d_avg_color_b, d_component_size, d_old_component_size, d_new_supervertexIDs, d_vertex_flag_thrust, no_of_vertices);
-	thrust::add<float> binaryOp3;
+	thrust::plus<float> binaryOp3;
 	thrust::inclusive_scan_by_key(thrust::device, d_vertex_flag_thrust, d_vertex_flag_thrust + no_of_vertices, d_avg_color_r, d_avg_color_r_copy, binaryPred2, binaryOp3);
 	thrust::inclusive_scan_by_key(thrust::device, d_vertex_flag_thrust, d_vertex_flag_thrust + no_of_vertices, d_avg_color_g, d_avg_color_g_copy, binaryPred2, binaryOp3);
 	thrust::inclusive_scan_by_key(thrust::device, d_vertex_flag_thrust, d_vertex_flag_thrust + no_of_vertices, d_avg_color_b, d_avg_color_b_copy, binaryPred2, binaryOp3);
