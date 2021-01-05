@@ -376,7 +376,7 @@ __global__ void createInnerGraphKernel(unsigned char *image, unsigned int *d_ver
         strength = 1.0 + ((double) min(this_e, other_e) / 255.0) * 9.0;
         d_edge_strenth[write_offset+1] = (unsigned int) round(strength);
 
-                // Bottom node
+        // Bottom node
         d_edge[write_offset+2] = bottom_node;
 
         other_img_idx = (row+1) * pitch + col;
