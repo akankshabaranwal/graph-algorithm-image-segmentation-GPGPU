@@ -85,28 +85,6 @@ void filter_min_edges_test(min_edge min_edges[], min_edge_wrapper new_min_edges[
         new_edge <<= 32;
         new_edge |= our.dest_comp;
         atomicMin_system((unsigned long long *)&new_min_edges[id].edge, new_edge);
-
-        /*
-        volatile uint2 *their_ptr = &(new_min_edges[id].edge);
-        bool exit = false;
-        while(!exit) {
-            unsigned long long new_edge = our.weight;
-            new_edge <<= 32;
-            new_edge |= our.dest_comp;
-            unsigned long long old = atomicMin_system((unsigned long long *)&new_min_edges[id].edge, new_edge);
-
-            if (compare(our.dest_comp, our.weight, their_ptr->x, their_ptr->y) < 0) {
-                unsigned long long new_edge = our.weight;
-                new_edge <<= 32;
-                new_edge |= our.dest_comp;
-                printf("0x%X, 0x%X, 0x%llX\n", our.weight, our.dest_comp, new_edge);
-                atomicExch_system((unsigned long long *)&new_min_edges[id].edge, new_edge);
-                __threadfence_system();
-            } else {
-                exit = true;
-            }
-        }
-        */
     }
 }
 
@@ -156,13 +134,8 @@ void update_destinations(min_edge min_edges[], uint num_components, uint2 source
 
 __device__ __forceinline__
 void remove_deps(min_edge min_edges[], uint num_components, uint2 sources[], uint blocks, uint threads, uint* did_change) {
-    *did_change = 1;
-    while (*did_change == 1) {
-        *did_change = 0;
-        construct_sources<<<blocks, threads>>>(min_edges, num_components, sources);
-        update_destinations<<<blocks, threads>>>(min_edges, num_components, sources, did_change);
-        cudaDeviceSynchronize();
-    }
+    construct_sources<<<blocks, threads>>>(min_edges, num_components, sources);
+    update_destinations<<<blocks, threads>>>(min_edges, num_components, sources, did_change);
 }
 
 // Kernel to update the whole matrix
@@ -400,15 +373,8 @@ void segment(uint4 vertices[], uint2 edges[], min_edge min_edges[], min_edge_wra
 }
 
 void remove_deps_cpu(min_edge min_edges[], uint num_components, uint2 sources[], uint blocks, uint threads, uint* did_change) {
-    uint zero = 0;
-    uint should_continue = 1;
-    while (should_continue == 1) {
-        cudaMemcpy(did_change, &(zero), sizeof(uint), cudaMemcpyHostToDevice);
-        construct_sources<<<blocks, threads>>>(min_edges, num_components, sources);
-        update_destinations<<<blocks, threads>>>(min_edges, num_components, sources, did_change);
-        cudaDeviceSynchronize();
-        cudaMemcpy(&should_continue, did_change, sizeof(uint), cudaMemcpyDeviceToHost);
-    }
+    construct_sources<<<blocks, threads>>>(min_edges, num_components, sources);
+    update_destinations<<<blocks, threads>>>(min_edges, num_components, sources, did_change);
 }
 
 void segment_cpu(uint4 vertices[], uint2 edges[], min_edge min_edges[], min_edge_wrapper wrappers[], uint2 sources[], uint *n_components, uint *did_change, uint n_vertices, uint k, uint min_size) {
