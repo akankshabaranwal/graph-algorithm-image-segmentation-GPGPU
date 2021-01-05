@@ -511,6 +511,14 @@ void HPGMST()
 	// 10.2 Create vector indicating source vertex u for each edge // DONE: change to thrust
 	thrust::inclusive_scan(thrust::device, d_edge_flag, d_edge_flag + no_of_edges, d_old_uIDs);
 
+	// Make sure uids start from 0 instead of 1.
+	thrust::transform(thrust::device,
+				  d_old_uIDs,
+                  d_old_uIDs + no_of_edges,
+                  thrust::make_constant_iterator(1),
+                  d_old_uIDs,
+                  thrust::minus<unsigned int>());
+
 	// Calculate weights
 	CalcWeights<<<grid_edgelen, threads_edgelen, 0>>>(d_avg_color, d_old_uIDs, d_edge, d_edge_strength, d_weight, no_of_edges);
 
@@ -544,17 +552,6 @@ void HPGMST()
 
 	// 5. Remove cycle making edges using S, and identify representatives vertices.
 	RemoveCycles<<< grid_vertexlen, threads_vertexlen, 0>>>(d_successor,no_of_vertices);
-
-
-	/*
-	 * Can possibly be moved in future once remove pick array stuff
-	 */
-	//Scan the flag to get u at every edge, use the u to index d_vertex to get the last entry in each segment
-	//U at every edge will also be useful later in the algorithm.
-
-	// Set F[0] = 0. F is the same as previous F but first element is 0 instead of 1
-	ClearArray<<< grid_edgelen, threads_edgelen, 0>>>( d_edge_flag, no_of_edges );
-	MakeFlagForUIds<<< grid_vertexlen, threads_vertexlen, 0>>>(d_edge_flag, d_vertex,no_of_vertices); 
 
 
 	/*
