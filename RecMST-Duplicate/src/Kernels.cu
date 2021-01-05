@@ -419,7 +419,7 @@ __global__ void CalcWeights(unsigned char* d_avg_color, unsigned int* d_old_uIDs
         unsigned char other_b = d_avg_color[other_img_idx + 2];
 
         //d_weight[tid] = d_edge_strength[tid] * (abs(this_r - other_r) + abs(this_g - other_g) + abs(this_b - other_b));
-        d_weight[tid] = v_id;
+        d_weight[tid] = d_edge_strength[tid] * (abs(this_r - other_r))
 
     }
 }
