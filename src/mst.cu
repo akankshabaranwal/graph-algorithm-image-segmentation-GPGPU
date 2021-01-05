@@ -35,15 +35,19 @@ void find_min_edges_sort(uint4 vertices[], uint2 edges[], min_edge min_edges[], 
     uint index = blockDim.x * blockIdx.x + threadIdx.x;
     uint num_threads = gridDim.x * blockDim.x;
     for (uint tid = index; tid < vertices_length; tid += num_threads) {
+        if (vertices[tid].x == 1) {
+            min_edges[tid].src_comp = 0;
+            continue;
+        }
+
         uint vertice_comp = vertices[tid].y;
-        //vertices[tid].z = 1;
         uint min_weight = UINT_MAX;
         uint min_dest_comp = UINT_MAX;
         uint min_src_comp = 0;
         for (uint j = tid * NUM_NEIGHBOURS; j < tid * NUM_NEIGHBOURS + NUM_NEIGHBOURS; j++) {
             uint edge_id = edges[j].x;
             // Maybe it would be better to just check if it's not in the same component? We would not need to remove internal edges
-            if (edge_id != 0) {
+            if (edge_id != 0 && vertices[edge_id - 1].y != vertice_comp) {
                 uint edge_weight = edges[j].y;
                 if (edge_weight <= min_weight) {
                     uint dest_comp = vertices[edge_id - 1].y;
@@ -55,6 +59,10 @@ void find_min_edges_sort(uint4 vertices[], uint2 edges[], min_edge min_edges[], 
                 }
             }
         }
+        if (min_src_comp == 0) {
+            vertices[tid].x = 1;
+        }
+
         min_edges[tid].weight = min_weight;
         min_edges[tid].dest_comp = min_dest_comp;
         min_edges[tid].src_comp = min_src_comp;
@@ -175,30 +183,11 @@ void path_compression(uint4 vertices[], uint num_vertices) {
                 parent_id = parent_comp - 1;
                 parent = &vertices[parent_id];
                 parent_comp = parent->y;
-                //printf("%d -> %d\n", parent_id + 1, parent_comp);
             } while(parent_id + 1 != parent_comp);
 
             vertice->y = parent_comp;
-            //atomicAdd_system(&(parent->z), vertice->z);
             atomicAdd_system(&(parent->z), 1);
             atomicMax_system(&(parent->w), vertice->w);
-        }
-    }
-}
-
-__global__
-void update_new_size(uint4 vertices[], uint num_vertices, uint2 edges[]) {
-    uint vertice_id = blockDim.x * blockIdx.x + threadIdx.x;
-    uint comp_threads = gridDim.x * blockDim.x;
-
-    for (int v_id = vertice_id; v_id < num_vertices; v_id += comp_threads) {
-        for (int j = v_id * NUM_NEIGHBOURS; j < v_id * NUM_NEIGHBOURS + NUM_NEIGHBOURS; j++) {
-            uint2 *neighbour_edge = &edges[j];
-            if (neighbour_edge->x != 0) {
-                if (vertices[neighbour_edge->x - 1].y == vertices[v_id].y) {
-                    neighbour_edge->x = 0; // Remove internal edges
-                }
-            }
         }
     }
 }
@@ -341,9 +330,6 @@ void segment(uint4 vertices[], uint2 edges[], min_edge min_edges[], min_edge_wra
         curr_n_comp = *n_components;
         if (prev_n_components == curr_n_comp) {
             size_threshold<<<blocks.x, threads.x>>>(vertices, min_edges, n_components, curr_n_comp, powf(min_size, counter));
-            update_parents<<<blocks.x, threads.x>>>(vertices, min_edges, prev_n_components);
-            path_compression<<<blocks.y, threads.y>>>(vertices, n_vertices);
-            break;
         }
 
         //printf("Update\n");
@@ -351,9 +337,6 @@ void segment(uint4 vertices[], uint2 edges[], min_edge min_edges[], min_edge_wra
 
         //printf("Path compress\n");
         path_compression<<<blocks.y, threads.y>>>(vertices, n_vertices);
-
-        //printf("New size\n");
-        update_new_size<<<blocks.y, threads.y>>>(vertices, n_vertices, edges);
 
         //printf("N components: %d\n", curr_n_comp);
         counter++;
@@ -415,9 +398,6 @@ void segment_cpu(uint4 vertices[], uint2 edges[], min_edge min_edges[], min_edge
         cudaMemcpy(&curr_n_comp, n_components, sizeof(uint), cudaMemcpyDeviceToHost);
         if (prev_n_components == curr_n_comp) {
             size_threshold<<<blocks.x, threads.x>>>(vertices, min_edges, n_components, curr_n_comp, static_cast<int>(powf(min_size, counter)));
-            update_parents<<<blocks.x, threads.x>>>(vertices, min_edges, prev_n_components);
-            path_compression<<<blocks.y, threads.y>>>(vertices, n_vertices);
-            break;
         }
 
         //printf("Update\n");
@@ -425,10 +405,6 @@ void segment_cpu(uint4 vertices[], uint2 edges[], min_edge min_edges[], min_edge
 
         //printf("Path compress\n");
         path_compression<<<blocks.y, threads.y>>>(vertices, n_vertices);
-        //cudaDeviceSynchronize();
-
-        //printf("New size\n");
-        update_new_size<<<blocks.y, threads.y>>>(vertices, n_vertices, edges);
         //cudaDeviceSynchronize();
 
         //printf("N components: %d\n", curr_n_comp);

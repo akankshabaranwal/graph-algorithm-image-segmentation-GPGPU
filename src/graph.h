@@ -22,6 +22,7 @@ void encode(u_char *image, uint4 vertices[], uint2 edges[], uint x_len, uint y_l
 
     uint this_id = (x_pos * y_len + y_pos);
     uint4 *this_vertice = &vertices[this_id];
+    this_vertice->x = 0;
     this_vertice->y = this_id + 1;
     this_vertice->z = 1;
     this_vertice->w = 0;
