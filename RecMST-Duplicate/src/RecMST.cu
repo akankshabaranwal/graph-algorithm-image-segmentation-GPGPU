@@ -219,7 +219,7 @@ void printLongArr(long* d_data, int n_elements) {
 	free(h_data);
 }
 
-void printInt(int *d_val) {
+void printInt(int d*d_val) {
 	int h_val;
 	cudaMemcpy( &h_val, d_val, sizeof(int), cudaMemcpyDeviceToHost);
 	printf("%d", h_val);

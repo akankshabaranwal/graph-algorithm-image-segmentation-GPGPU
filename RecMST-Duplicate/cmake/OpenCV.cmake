@@ -14,7 +14,7 @@ else()
 endif()
 
 set(OpenCV_CUDA ON)
-find_package(OpenCV REQUIRED core imgproc highgui cudev cudafilters
+find_package(OpenCV REQUIRED core imgproc highgui cudev cudafilters cudaimgproc
     PATHS "${FELZ_OPENCV_PATH}" NO_DEFAULT_PATH)
 
 if(NOT OpenCV_FOUND)
