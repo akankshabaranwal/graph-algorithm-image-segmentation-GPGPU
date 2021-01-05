@@ -67,7 +67,7 @@ void reset_wrappers(min_edge_wrapper wrappers[], uint length) {
     uint num_threads = gridDim.x * blockDim.x;
 
     for (uint min_edge_id = tid; min_edge_id < length; min_edge_id += num_threads) {
-        wrappers[min_edge_id].edge.x = 0;
+        wrappers[min_edge_id].edge.y = UINT_MAX;
     }
 }
 
@@ -81,19 +81,32 @@ void filter_min_edges_test(min_edge min_edges[], min_edge_wrapper new_min_edges[
         if (our.src_comp < 1) continue;
         uint id = our.src_comp - 1;
 
+        unsigned long long new_edge = our.weight;
+        new_edge <<= 32;
+        new_edge |= our.dest_comp;
+        atomicMin_system((unsigned long long *)&new_min_edges[id].edge, new_edge);
+
+        /*
         volatile uint2 *their_ptr = &(new_min_edges[id].edge);
         bool exit = false;
         while(!exit) {
+            unsigned long long new_edge = our.weight;
+            new_edge <<= 32;
+            new_edge |= our.dest_comp;
+            unsigned long long old = atomicMin_system((unsigned long long *)&new_min_edges[id].edge, new_edge);
+
             if (compare(our.dest_comp, our.weight, their_ptr->x, their_ptr->y) < 0) {
                 unsigned long long new_edge = our.weight;
                 new_edge <<= 32;
                 new_edge |= our.dest_comp;
+                printf("0x%X, 0x%X, 0x%llX\n", our.weight, our.dest_comp, new_edge);
                 atomicExch_system((unsigned long long *)&new_min_edges[id].edge, new_edge);
                 __threadfence_system();
             } else {
                 exit = true;
             }
         }
+        */
     }
 }
 
@@ -103,7 +116,7 @@ void compact_min_edge_wrappers(min_edge min_edges[], min_edge_wrapper wrappers[]
     uint num_threads = gridDim.x * blockDim.x;
     for (int index = tid; index < n_vertices; index += num_threads) {
         uint2 edge = wrappers[index].edge;
-        if (edge.x != 0) {
+        if (edge.y != UINT_MAX) {
             uint pos = atomicAdd_system(pos_counter, 1);
             min_edges[pos].src_comp = index + 1;
             min_edges[pos].dest_comp = edge.x;
