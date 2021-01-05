@@ -37,7 +37,7 @@ __global__ void createAvgColorArray(unsigned char *image, unsigned char* d_avg_c
     unsigned int row = blockDim.x * blockIdx.x + threadIdx.x;
     unsigned int col = blockDim.y * blockIdx.y + threadIdx.y;
 
-    if (row >= 0 && col >= 0 && row < no_of_rows && col < no_of_cols) {
+    if (row < no_of_rows && col < no_of_cols) {
         unsigned int this_img_idx = row * pitch + col * CHANNEL_SIZE;
         unsigned char this_r = image[this_img_idx];
         unsigned char this_g = image[this_img_idx + 1];
@@ -492,7 +492,7 @@ __global__ void ReweighAndOrganizeColors(unsigned char *d_avg_color, float *d_av
         unsigned int supervertexid = d_new_supervertexIDs[tid];
 
         unsigned int old_size = d_old_component_size[tid];
-        unsigned int new_size = d_new[supervertexid];
+        unsigned int new_size = d_component_size[supervertexid];
 
         unsigned char this_r = d_avg_color[idx];
         unsigned char this_g = d_avg_color[idx + 1];

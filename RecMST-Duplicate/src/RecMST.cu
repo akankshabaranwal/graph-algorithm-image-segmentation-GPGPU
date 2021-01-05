@@ -72,8 +72,12 @@
 
 // Opencv stuff
 #include "opencv2/imgproc.hpp"
+#include "opencv2/core/cuda.hpp"
 #include "opencv2/imgcodecs.hpp"
-#include <opencv2/cudafilters.hpp>
+#include "opencv2/cudaimgproc.hpp"
+#include "opencv2/cudafilters.hpp" // cv::cuda::Filter
+#include "opencv2/cudaarithm.hpp" // cv::cuda::abs or cv::cuda::addWeighted
+
 using namespace cv;
 using namespace cv::cuda;
 
@@ -108,7 +112,7 @@ float* d_avg_color_r_copy;
 float* d_avg_color_g_copy;
 float* d_avg_color_b_copy;
 unsigned int *d_component_size;	
-unsigned int *d_component_size;	
+unsigned int *d_old_component_size;	
 unsigned int *d_component_size_copy;	
 
 unsigned long long int *d_segmented_min_scan_input;			//X, Input to the Segmented Min Scan, appended array of weights and edge IDs
@@ -433,8 +437,6 @@ void createGraph(Mat image) {
 	SetGridThreadLen(no_of_rows * no_of_cols, &num_of_blocks, &num_of_threads_per_block);
 	dim3 grid_cmp(num_of_blocks, 1, 1);
 	dim3 threads_cmp(num_of_threads_per_block, 1, 1);
-
-	RandFloatToRandRGB<<< grid_rgb, threads_rgb, 0>>>(d_component_colours, d_component_colours_float, no_of_vertices_orig * CHANNEL_SIZE)
 
     // Create inner graph
     createInnerGraphKernel<<< encode_blocks, encode_threads, 0>>>((unsigned char*) d_sobel.cudaPtr(), d_vertex, d_edge, d_edge_strength, no_of_rows, no_of_cols, edge_pitch);
