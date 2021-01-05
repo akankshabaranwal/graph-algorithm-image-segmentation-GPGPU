@@ -209,6 +209,16 @@ void printULongArr(long* d_data, int n_elements) {
 	free(h_data);
 }
 
+void printColorArr(unsigned char* d_data, int n_elements) {
+	unsigned long* h_data = (unsigned char *)malloc(sizeof(unsigned char)*n_elements);
+	cudaMemcpy(h_data, d_data, sizeof(unsigned char) * n_elements, cudaMemcpyDeviceToHost);
+	for (int i = 0; i < n_elements; i++) {
+		printf("(%u, %u, %u) ",h_data[i], h_data[i+1], h_data[i+1]);
+	}
+	printf("\n");
+	free(h_data);
+}
+
 void printLongArr(long* d_data, int n_elements) {
 	long* h_data = (long *)malloc(sizeof(long)*n_elements);
 	cudaMemcpy(h_data, d_data, sizeof(long) * n_elements, cudaMemcpyDeviceToHost);
@@ -355,6 +365,8 @@ void FreeMem()
 ////////////////////////////////////////////////
 void createGraph(Mat image) {
 	std::chrono::high_resolution_clock::time_point start, end;
+
+	printColorArr(d_avg_color, 1000);
 
 	// Gaussian init
    	GpuMat dev_image, d_blurred; 	 // Released automatically in destructor
@@ -503,8 +515,6 @@ void HPGMST()
 
 	// Calculate weights
 	CalcWeights<<<grid_edgelen, threads_edgelen, 0>>>(d_avg_color, d_old_uIDs, d_edge, d_edge_strength, d_weight, no_of_edges);
-
-	printUIntArr(d_edge_strength, 100000);
 
 	// 1. Append weight w and outgoing vertex v per edge into a single array, X.
     // 12 bit for weight, 26 bits for ID.
