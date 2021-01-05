@@ -23,18 +23,17 @@
 /***********************************************************************************
   General bit size info
   ---------------------
-  Vertex ID 26 bit -> 67.108.864
-  - 8K image: 7680 × 4320 = 33.177.600 pixels -> supports 2 8K images
+  Vertex ID 25 bit -> 33.554.432 
+  - 8K image: 7680 × 4320 = 33.177.600 pixels -> supports 1 8K images
 
-  Weight 12 bit -> Max weight = 4096
-  - Max L2 distance RGB: 442 -> can use 3 more bits for extra precision (*8) (SCALE)
+  Weight 13 bit -> Max weight = 8192
   - Could reduce weight precision to support higher resolution images
 
   1. Segmented min scan: 10 bit weight, 22 bit ID
-  -> Changed to long long; 12 bit weight, 26 bit ID
+  -> Changed to long long; 13 bit weight, 25 bit ID
   8. List L: 32 bit vertex ID left, 32 bit vertex ID right
   12. UVW: u.id 24 bit, v.id 24 bit, weight 16 bit
-  -> Change to u.id 26 bit, v.id 26 bit, weight 12 bit
+  -> Change to u.id 25 bit, v.id 25 bit, weight 13 bit
 ************************************************************************************/
 
 ////////////////////////////////////////////////
@@ -98,9 +97,23 @@ unsigned int no_of_edges_orig;								//Original number of edges graph (constant
 unsigned int *d_edge;										// Starts as h_edge
 unsigned int *d_vertex;										// starts as h_vertex
 unsigned int *d_weight;										// starts as h_weight
+unsigned int *d_edge_strength;
+unsigned int *d_edge_strength_copy;
+unsigned char *d_avg_color;
+unsigned char *d_avg_color_copy;
+float* d_avg_color_r;
+float* d_avg_color_g;
+float* d_avg_color_b;
+float* d_avg_color_r_copy;
+float* d_avg_color_g_copy;
+float* d_avg_color_b_copy;
+unsigned int *d_component_size;	
+unsigned int *d_component_size;	
+unsigned int *d_component_size_copy;	
 
 unsigned long long int *d_segmented_min_scan_input;			//X, Input to the Segmented Min Scan, appended array of weights and edge IDs
 unsigned long long int *d_segmented_min_scan_output;		//Output of the Segmented Min Scan, minimum weight outgoing edge as (weight|to_vertex_id elements) can be found at end of each segment
+unsigned int *d_vertex_flag_thrust;
 unsigned int *d_edge_flag;									//Flag for the segmented min scan
 unsigned int *d_edge_flag_thrust;							//NEW! Flag for the segmented min scan in thrust Needs to be 000111222 instead of 100100100
 unsigned int *d_vertex_flag;								//F2, Flag for the scan input for supervertex ID generation
@@ -256,6 +269,19 @@ void Init()
 	cudaMalloc( (void**) &d_edge, sizeof(unsigned int)*no_of_edges_orig);
 	cudaMalloc( (void**) &d_vertex, sizeof(unsigned int)*no_of_vertices_orig);
 	cudaMalloc( (void**) &d_weight, sizeof(unsigned int)*no_of_edges_orig);
+	cudaMalloc( (void**) &d_edge_strength, sizeof(unsigned int)*no_of_edges_orig);
+	cudaMalloc( (void**) &d_edge_strength_copy, sizeof(unsigned int)*no_of_edges_orig);
+	cudaMalloc( (void**) &d_component_size, sizeof(unsigned int)*no_of_edges_orig);
+	cudaMalloc( (void**) &d_old_component_size, sizeof(unsigned int)*no_of_edges_orig);
+	cudaMalloc( (void**) &d_component_size_copy, sizeof(unsigned int)*no_of_edges_orig);
+	cudaMalloc( (void**) &d_avg_color, sizeof(unsigned char)*3*no_of_vertices_orig);
+	cudaMalloc( (void**) &d_avg_color_r, sizeof(float)*no_of_vertices_orig);
+	cudaMalloc( (void**) &d_avg_color_g, sizeof(float)*no_of_vertices_orig);
+	cudaMalloc( (void**) &d_avg_color_b, sizeof(float)*no_of_vertices_orig);
+	cudaMalloc( (void**) &d_avg_color_r_copy, sizeof(float)*no_of_vertices_orig);
+	cudaMalloc( (void**) &d_avg_color_g_copy, sizeof(float)*no_of_vertices_orig);
+	cudaMalloc( (void**) &d_avg_color_b_copy, sizeof(float)*no_of_vertices_orig);
+	cudaMalloc( (void**) &d_avg_color_copy, sizeof(unsigned char)*3*no_of_vertices_orig);
 
 	//Allocate memory for other arrays
 	cudaMalloc( (void**) &d_segmented_min_scan_input, sizeof(unsigned long long int)*no_of_edges_orig);
@@ -270,6 +296,7 @@ void Init()
 	cudaMalloc( (void**) &d_succchange, sizeof(bool));
 	cudaMalloc( (void**) &d_vertex_split, sizeof(unsigned long long int)*no_of_vertices_orig);
 	cudaMalloc( (void**) &d_vertex_flag, sizeof(unsigned int)*no_of_vertices_orig);
+	cudaMalloc( (void**) &d_vertex_flag_thrust, sizeof(unsigned int)*no_of_vertices_orig);
 	cudaMalloc( (void**) &d_new_supervertexIDs, sizeof(unsigned int)*no_of_vertices_orig);
 	cudaMalloc( (void**) &d_old_uIDs, sizeof(unsigned int)*no_of_edges_orig);
 	cudaMalloc( (void**) &d_appended_uvw, sizeof(unsigned long long int)*no_of_edges_orig);
@@ -286,6 +313,19 @@ void FreeMem()
 	cudaFree(d_edge);
 	cudaFree(d_vertex);
 	cudaFree(d_weight);
+	cudaFree(d_edge_strength);
+	cudaFree(d_edge_strength_copy);
+	cudaFree(d_component_size);
+	cudaFree(d_old_component_size);
+	cudaFree(d_component_size_copy);
+	cudaFree(d_avg_color);
+	cudaFree(d_avg_color_r);
+	cudaFree(d_avg_color_g);
+	cudaFree(d_avg_color_b);
+	cudaFree(d_avg_color_r_copy);
+	cudaFree(d_avg_color_g_copy);
+	cudaFree(d_avg_color_b_copy);
+	cudaFree(d_avg_color_copy);
 	cudaFree(d_segmented_min_scan_input);
 	cudaFree(d_segmented_min_scan_output);
 	cudaFree(d_edge_flag);
@@ -296,6 +336,7 @@ void FreeMem()
 	cudaFree(d_succchange);
 	cudaFree(d_vertex_split);
 	cudaFree(d_vertex_flag);
+	cudaFree(d_vertex_flag_thrust);
 	cudaFree(d_new_supervertexIDs);
 	cudaFree(d_old_uIDs);
 	cudaFree(d_size);
@@ -311,27 +352,42 @@ void FreeMem()
 void createGraph(Mat image) {
 	std::chrono::high_resolution_clock::time_point start, end;
 
-   	GpuMat dev_image, d_blurred, d_sobel; 	 // Released automatically in destructor
-   	GpuMat d_resultx, d_resulty;
+	// Gaussian init
+   	GpuMat dev_image, d_blurred; 	 // Released automatically in destructor
    	cv::Ptr<cv::cuda::Filter> filter;
+
+   	// Sobel init
+   	GpuMat d_blurred_gray, d_resultx, d_abs_resultx, d_resulty, d_abs_resulty, d_sobel;
    	cv::Ptr<cv::cuda::Filter> filtersobelx;
    	cv::Ptr<cv::cuda::Filter> filtersobely;
+   	int ddepth = CV_16S; // use 16 bits unsigned to avoid overflow
 
 	if (TIMING_MODE == TIME_PARTS) { // Start gaussian filter timer
 		start = std::chrono::high_resolution_clock::now();
 	}
 
-	// Apply gaussian filter
+	// 1. Apply gaussian filter
     dev_image.upload(image);
     filter = cv::cuda::createGaussianFilter(CV_8UC3, CV_8UC3, cv::Size(5, 5), 1.0);
     filter->apply(dev_image, d_blurred);
 
-    // Apply sobel filter (timed along with gaussian!), todo: check effect gaussian
-    filtersobelx = cv::cuda::createSobelFilter(CV_8UC3,CV_8UC1,1,0);
-	filtersobelx->apply(d_blurred, d_resultx);
-	filtersobely = cv::cuda::createSobelFilter(CV_8UC3,CV_8UC1,0,1);
-	filtersobely->apply(d_blurred, d_resulty);
-	cv::cuda::addWeighted(d_resultx, 0.5, d_resulty, 0.5, 0, d_sobel);
+    // 2. Convert the blurred image to grayscale
+    cv::cuda::cvtColor(d_blurred, d_blurred_gray, COLOR_RGB2GRAY);
+
+    // 3.1 Apply sobel in x direction
+   	filtersobelx = cv::cuda::createSobelFilter(d_blurred_gray.type(),ddepth,1,0);
+	filtersobelx->apply(d_blurred_gray, d_resultx);
+	cv::cuda::abs(d_resultx, d_resultx);
+	d_resultx.convertTo(d_abs_resultx, CV_8UC1);
+
+	// 3.2 Apply sobel in y direction
+	filtersobely = cv::cuda::createSobelFilter(d_blurred_gray.type(),ddepth,0,1);
+	filtersobely->apply(d_blurred_gray, d_resulty);
+	cv::cuda::abs(d_resulty, d_resulty);
+	d_resulty.convertTo(d_abs_resulty, CV_8UC1);
+
+	// 4. Combine sobel results
+	cv::cuda::addWeighted(d_abs_resultx, 0.5, d_abs_resulty, 0.5, 0, d_sobel);
 
 	if (TIMING_MODE == TIME_PARTS) { // End gaussian filter timer
 		cudaDeviceSynchronize();
@@ -340,6 +396,12 @@ void createGraph(Mat image) {
 		timings.push_back(time);
 	}
 
+	dev_image.release();
+	d_blurred_gray.release();
+	d_resultx.release();
+	d_abs_resultx.release();
+	d_resulty.release();
+	d_abs_resulty.release();
 
 	if (TIMING_MODE == TIME_PARTS) { // Start graph creation timer
 		start = std::chrono::high_resolution_clock::now();
@@ -347,7 +409,8 @@ void createGraph(Mat image) {
 
 	// Allocate GPU segmentation memory
 	Init();
-
+	size_t pitch = d_blurred.step;
+	size_t edge_pitch = d_sobel.step;
 
 	// Create graphs. Kernels executed in different streams for concurrency
 	dim3 encode_threads;
@@ -367,20 +430,28 @@ void createGraph(Mat image) {
     dim3 grid_corner(1, 1, 1);
 	dim3 threads_corner(4, 1, 1);
 
-    size_t pitch = d_blurred.step;
+	SetGridThreadLen(no_of_rows * no_of_cols, &num_of_blocks, &num_of_threads_per_block);
+	dim3 grid_cmp(num_of_blocks, 1, 1);
+	dim3 threads_cmp(num_of_threads_per_block, 1, 1);
+
+	RandFloatToRandRGB<<< grid_rgb, threads_rgb, 0>>>(d_component_colours, d_component_colours_float, no_of_vertices_orig * CHANNEL_SIZE)
 
     // Create inner graph
-    createInnerGraphKernel<<< encode_blocks, encode_threads, 0>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
+    createInnerGraphKernel<<< encode_blocks, encode_threads, 0>>>((unsigned char*) d_sobel.cudaPtr(), d_vertex, d_edge, d_edge_strength, no_of_rows, no_of_cols, edge_pitch);
 
     // Create outer graph
-   	createFirstRowGraphKernel<<< grid_row, threads_row, 1>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
-   	createLastRowGraphKernel<<< grid_row, threads_row, 2>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
+   	createFirstRowGraphKernel<<< grid_row, threads_row, 1>>>((unsigned char*) d_sobel.cudaPtr(), d_vertex, d_edge, d_edge_strength, no_of_rows, no_of_cols, edge_pitch);
+   	createLastRowGraphKernel<<< grid_row, threads_row, 2>>>((unsigned char*) d_sobel.cudaPtr(), d_vertex, d_edge, d_edge_strength, no_of_rows, no_of_cols, edge_pitch);
 
-   	createFirstColumnGraphKernel<<< grid_col, threads_col, 3>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
-   	createLastColumnGraphKernel<<< grid_col, threads_col, 4>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
+   	createFirstColumnGraphKernel<<< grid_col, threads_col, 3>>>((unsigned char*) d_sobel.cudaPtr(), d_vertex, d_edge, d_edge_strength, no_of_rows, no_of_cols, edge_pitch);
+   	createLastColumnGraphKernel<<< grid_col, threads_col, 4>>>((unsigned char*) d_sobel.cudaPtr(), d_vertex, d_edge, d_edge_strength, no_of_rows, no_of_cols, edge_pitch);
 
     // Create corners
-	createCornerGraphKernel<<< grid_corner, threads_corner, 5>>>((unsigned char*) d_blurred.cudaPtr(), d_vertex, d_edge, d_weight, no_of_rows, no_of_cols, pitch);
+	createCornerGraphKernel<<< grid_corner, threads_corner, 5>>>((unsigned char*) d_sobel.cudaPtr(), d_vertex, d_edge, d_edge_strength, no_of_rows, no_of_cols, edge_pitch);
+
+	createAvgColorArray<<< encode_blocks, encode_threads, 6>>>((unsigned char*) d_blurred.cudaPtr(), d_avg_color, no_of_rows, no_of_cols, pitch);
+
+	InitComponentSizes<<<grid_cmp, threads_cmp ,7>>>(d_component_size, no_of_rows * no_of_cols);
 	
 	cudaDeviceSynchronize(); // Needed to synchronise streams!
 
@@ -416,11 +487,6 @@ void HPGMST()
 	 * A. Find minimum weighted edge
 	 */
 
-	// 1. Append weight w and outgoing vertex v per edge into a single array, X.
-    // 12 bit for weight, 26 bits for ID.
-	//Append in Parallel on the Device itself, call the append kernel
-	AppendKernel_1<<< grid_edgelen, threads_edgelen, 0>>>(d_segmented_min_scan_input, d_weight, d_edge, no_of_edges);
-
 	// d_edge_flag = F
 	//Create the Flag needed for segmented min scan operation, similar operation will also be used at other places
 	ClearArray<<< grid_edgelen, threads_edgelen, 0>>>( d_edge_flag, no_of_edges );
@@ -430,6 +496,16 @@ void HPGMST()
 	// Mark the segments for the segmented min scan
 	MakeFlag_3<<< grid_vertexlen, threads_vertexlen, 0>>>( d_edge_flag, d_vertex, no_of_vertices);
 
+	// 10.2 Create vector indicating source vertex u for each edge // DONE: change to thrust
+	thrust::inclusive_scan(thrust::device, d_edge_flag, d_edge_flag + no_of_edges, d_old_uIDs);
+
+	// Calculate weights
+	CalcWeights<<<grid_edgelen, threads_edgelen, 0>>>(d_avg_color, d_old_uIDs, d_edge, d_edge_strength, d_weight, no_of_edges);
+
+	// 1. Append weight w and outgoing vertex v per edge into a single array, X.
+    // 12 bit for weight, 26 bits for ID.
+	//Append in Parallel on the Device itself, call the append kernel
+	AppendKernel_1<<< grid_edgelen, threads_edgelen, 0>>>(d_segmented_min_scan_input, d_weight, d_edge, no_of_edges);
 
 	// 3. Perform segmented min scan on X with F indicating segments to find minimum outgoing edge-index per vertex. Min can be found at end of each segment after scan // DONE: change to thrust
 	// Prepare key vector for thrust
@@ -463,9 +539,6 @@ void HPGMST()
 	ClearArray<<< grid_edgelen, threads_edgelen, 0>>>( d_edge_flag, no_of_edges );
 	MakeFlagForUIds<<< grid_vertexlen, threads_vertexlen, 0>>>(d_edge_flag, d_vertex,no_of_vertices); 
 
-	// 10.2 Create vector indicating source vertex u for each edge // DONE: change to thrust
-	thrust::inclusive_scan(thrust::device, d_edge_flag, d_edge_flag + no_of_edges, d_old_uIDs);
-
 
 	/*
 	 * C. Merging vertices and assigning IDs to supervertices
@@ -498,15 +571,64 @@ void HPGMST()
     //     split based on supervertex IDs using 64 bit version of split
 	thrust::sort(thrust::device, d_vertex_split, d_vertex_split + no_of_vertices);
 
+	// Sort component sizes
+	SuccToCopy<<< grid_vertexlen, threads_vertexlen, 0>>>(d_component_size, d_old_component_size, no_of_vertices);
+	SortComponentSizesFromSplit<<< grid_vertexlen, threads_vertexlen, 0>>>(d_component_size, d_component_size_copy, d_vertex_split, no_of_vertices);
+	CopyToSucc<<< grid_vertexlen, threads_vertexlen, 0>>>(d_component_size, d_component_size_copy, no_of_vertices);
+
+	// Sort avg colors
+	SortAvgColorsFromSplit<<< grid_vertexlen, threads_vertexlen, 0>>>(d_avg_color, d_avg_color_copy, d_vertex_split, no_of_vertices);
+	CopyToAvgColor<<< grid_vertexlen, threads_vertexlen, 0>>>(d_avg_color, d_avg_color_copy, no_of_vertices); // for conflicts
+
+	// Sort edge strength
+	SortComponentSizesFromSplit<<< grid_vertexlen, threads_vertexlen, 0>>>(d_edge_strength, d_edge_strength_copy, d_vertex_split, no_of_vertices);
+	CopyToSucc<<< grid_vertexlen, threads_vertexlen, 0>>>(d_edge_strength, d_edge_strength_copy, no_of_vertices);
+
 
 	// 9.2 Create flag for assigning new vertex IDs based on difference in supervertex IDs
 	//     first element not flagged so that can use simple sum for scan
 	ClearArray<<< grid_vertexlen, threads_vertexlen, 0>>>( d_vertex_flag, no_of_vertices);
 	MakeFlagForScan<<< grid_vertexlen, threads_vertexlen, 0>>>(d_vertex_flag, d_vertex_split, no_of_vertices);
 
+	// Prepare key vector for thrust
+	change_elem<<<1,1>>>(d_vertex_flag, 0, 1); // Set first element 1 for segmented scan
+	thrust::inclusive_scan(thrust::device, d_vertex_flag, d_vertex_flag + no_of_vertices, d_vertex_flag_thrust);
+	change_elem<<<1,1>>>(d_vertex_flag, 1, 0); // Reset first element to 0 for rest algorithm
+
+
+	// Perform segmented add scan on component_size with F2 indicating segments to find new component size
+	thrust::equal_to<unsigned int> binaryPred2;
+	thrust::add<unsigned int> binaryOp2;
+	thrust::inclusive_scan_by_key(thrust::device, d_vertex_flag_thrust, d_vertex_flag_thrust + no_of_vertices, d_component_size, d_component_size_copy, binaryPred2, binaryOp2);
+	
+	// Extract new component sizes
+	ExtractComponentSizes<<< grid_vertexlen, threads_vertexlen, 0>>>(d_component_size_copy, d_component_size, d_vertex_flag_thrust, no_of_vertices);
+
+
+	// Perform segment min scan to find new edge strength
+	thrust::inclusive_scan(thrust::device, d_edge_flag, d_edge_flag + no_of_edges, d_edge_flag_thrust);
+
+	// Min inclusive segmented scan on ints from start to end.
+	thrust::equal_to<unsigned int> binaryPred4;
+	thrust::minimum<unsigned int> binaryOp4;
+	thrust::inclusive_scan_by_key(thrust::device, d_vertex_flag_thrust, d_vertex_flag_thrust + no_of_vertices, d_edge_strength, d_edge_strength_copy, binaryPred4, binaryOp4);
+
+	// Extract new edge strengths
+	ExtractComponentSizes<<< grid_vertexlen, threads_vertexlen, 0>>>(d_edge_strength_copy, d_edge_strength, d_vertex_flag_thrust, no_of_vertices);
+
 	// 9.3 Scan flag to assign new IDs to supervertices, Using a scan on O(V) elements // DONE: change to thrust
 	thrust::inclusive_scan(thrust::device, d_vertex_flag, d_vertex_flag + no_of_vertices, d_new_supervertexIDs);
 
+
+	// Reweigh colors joining components so their sum when adding them up is the average
+	ReweighAndOrganizeColors<<< grid_vertexlen, threads_vertexlen, 0>>>(d_avg_color, d_avg_color_r, d_avg_color_g, d_avg_color_b, d_component_size, d_old_component_size, d_new_supervertexIDs, d_vertex_flag_thrust, no_of_vertices);
+	thrust::add<float> binaryOp3;
+	thrust::inclusive_scan_by_key(thrust::device, d_vertex_flag_thrust, d_vertex_flag_thrust + no_of_vertices, d_avg_color_r, d_avg_color_r_copy, binaryPred2, binaryOp3);
+	thrust::inclusive_scan_by_key(thrust::device, d_vertex_flag_thrust, d_vertex_flag_thrust + no_of_vertices, d_avg_color_g, d_avg_color_g_copy, binaryPred2, binaryOp3);
+	thrust::inclusive_scan_by_key(thrust::device, d_vertex_flag_thrust, d_vertex_flag_thrust + no_of_vertices, d_avg_color_b, d_avg_color_b_copy, binaryPred2, binaryOp3);
+
+	// Extract new colors
+	ExtractNewColors<<< grid_vertexlen, threads_vertexlen, 0>>>(d_avg_color_r_copy, d_avg_color_g_copy, d_avg_color_b_copy, d_avg_color, d_vertex_flag_thrust, no_of_vertices);
 
 	/*
 	 * D. Removing self edges
