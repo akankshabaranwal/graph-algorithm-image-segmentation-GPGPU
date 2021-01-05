@@ -366,8 +366,6 @@ void FreeMem()
 void createGraph(Mat image) {
 	std::chrono::high_resolution_clock::time_point start, end;
 
-	printColorArr(d_avg_color, 1000);
-
 	// Gaussian init
    	GpuMat dev_image, d_blurred; 	 // Released automatically in destructor
    	cv::Ptr<cv::cuda::Filter> filter;
@@ -484,6 +482,9 @@ void createGraph(Mat image) {
 ////////////////////////////////////////////////
 void HPGMST()
 {
+		printColorArr(d_avg_color, 1000);
+
+	
 	//Make both CUDA grids needed for execution, no_of_vertices and no_of_edges length sizes
 	int num_of_blocks, num_of_threads_per_block;
 
