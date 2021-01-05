@@ -275,9 +275,9 @@ void Init()
 	cudaMalloc( (void**) &d_weight, sizeof(unsigned int)*no_of_edges_orig);
 	cudaMalloc( (void**) &d_edge_strength, sizeof(unsigned int)*no_of_edges_orig);
 	cudaMalloc( (void**) &d_edge_strength_copy, sizeof(unsigned int)*no_of_edges_orig);
-	cudaMalloc( (void**) &d_component_size, sizeof(unsigned int)*no_of_edges_orig);
-	cudaMalloc( (void**) &d_old_component_size, sizeof(unsigned int)*no_of_edges_orig);
-	cudaMalloc( (void**) &d_component_size_copy, sizeof(unsigned int)*no_of_edges_orig);
+	cudaMalloc( (void**) &d_component_size, sizeof(unsigned int)*no_of_vertices_orig);
+	cudaMalloc( (void**) &d_old_component_size, sizeof(unsigned int)*no_of_vertices_orig);
+	cudaMalloc( (void**) &d_component_size_copy, sizeof(unsigned int)*no_of_vertices_orig);
 	cudaMalloc( (void**) &d_avg_color, sizeof(unsigned char)*3*no_of_vertices_orig);
 	cudaMalloc( (void**) &d_avg_color_r, sizeof(float)*no_of_vertices_orig);
 	cudaMalloc( (void**) &d_avg_color_g, sizeof(float)*no_of_vertices_orig);
@@ -503,6 +503,8 @@ void HPGMST()
 
 	// Calculate weights
 	CalcWeights<<<grid_edgelen, threads_edgelen, 0>>>(d_avg_color, d_old_uIDs, d_edge, d_edge_strength, d_weight, no_of_edges);
+
+	void printUIntArr(d_weight, 1000);
 
 	// 1. Append weight w and outgoing vertex v per edge into a single array, X.
     // 12 bit for weight, 26 bits for ID.
