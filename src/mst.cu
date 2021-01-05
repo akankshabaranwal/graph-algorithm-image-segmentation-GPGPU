@@ -195,7 +195,7 @@ void path_compression(uint4 vertices[], uint num_vertices) {
                 //printf("%d -> %d\n", parent_id + 1, parent_comp);
             } while(parent_id + 1 != parent_comp);
 
-            vertice->y = parent->x;
+            vertice->y = parent_comp;
             atomicAdd_system(&(parent->z), vertice->z);
             //atomicAdd_system(&(parent->z), 1);
             atomicMax_system(&(parent->w), vertice->w);
