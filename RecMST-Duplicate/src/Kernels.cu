@@ -406,7 +406,6 @@ __global__ void CalcWeights(unsigned char* d_avg_color, unsigned int* d_old_uIDs
 {
     unsigned int tid = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
     if(tid<no_of_edges) {
-
         unsigned int u_id = d_old_uIDs[tid];
         unsigned int this_img_idx = u_id * CHANNEL_SIZE;
         unsigned char this_r = d_avg_color[this_img_idx];
@@ -419,7 +418,9 @@ __global__ void CalcWeights(unsigned char* d_avg_color, unsigned int* d_old_uIDs
         unsigned char other_g = d_avg_color[other_img_idx + 1];
         unsigned char other_b = d_avg_color[other_img_idx + 2];
 
-        d_weight[tid] = d_edge_strength[tid] * (abs(this_r - other_r) + abs(this_g - other_g) + abs(this_b - other_b));
+        //d_weight[tid] = d_edge_strength[tid] * (abs(this_r - other_r) + abs(this_g - other_g) + abs(this_b - other_b));
+        d_weight[tid] = 1;
+
     }
 }
 
