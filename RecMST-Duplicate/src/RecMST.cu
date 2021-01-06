@@ -530,6 +530,8 @@ void HPGMST()
 
 	// 3. Perform segmented min scan on X with F indicating segments to find minimum outgoing edge-index per vertex. Min can be found at end of each segment after scan // DONE: change to thrust
 	// Prepare key vector for thrust
+			printf("-> here\n");
+
 	thrust::inclusive_scan(thrust::device, d_edge_flag, d_edge_flag + no_of_edges, d_edge_flag_thrust);
 
 	// Min inclusive segmented scan on ints from start to end.
@@ -602,8 +604,6 @@ void HPGMST()
 	// change_elem<<<1,1>>>(d_vertex_flag, 0, 1); // Set first element 1 for segmented scan
 	//thrust::inclusive_scan(thrust::device, d_vertex_flag, d_vertex_flag + no_of_vertices, d_vertex_flag_thrust);
 	// change_elem<<<1,1>>>(d_vertex_flag, 0, 0); // Reset first element to 0 for rest algorithm
-		printf("-> here\n");
-
 
 	// 9.3 Scan flag to assign new IDs to supervertices, Using a scan on O(V) elements // DONE: change to thrust
 	thrust::inclusive_scan(thrust::device, d_vertex_flag, d_vertex_flag + no_of_vertices, d_new_supervertexIDs);
