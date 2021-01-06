@@ -9,7 +9,7 @@
 // Scan
 //https://moderngpu.github.io/faq.html
 
-__global__ void SetBitEdgeListArray( uint32_t *OnlyEdge, uint64_t *W,uint numElements)
+__global__ void SetBitEdgeListArray( uint64_t *W,uint numElements)
 {
     uint32_t tidx = blockIdx.x*blockDim.x+threadIdx.x;
     uint32_t num_threads = gridDim.x * blockDim.x;
@@ -211,7 +211,7 @@ __global__ void CreateUVWArray( uint32_t *OnlyEdge, uint64_t *OnlyWeight, int nu
     }
 }
 
-__global__ void CreateFlag3Array(uint64_t *UVW, int numEdges, uint32_t *flag3, uint32_t *MinMaxScanArray)
+__global__ void CreateFlag3Array(uint64_t *UVW, int numEdges, uint32_t *flag3, int *MinMaxScanArray)
 {
     uint32_t prev_supervertexid_u, prev_supervertexid_v, supervertexid_u, supervertexid_v;
     uint32_t tidx = blockIdx.x*blockDim.x+threadIdx.x;
@@ -236,7 +236,7 @@ __global__ void CreateFlag3Array(uint64_t *UVW, int numEdges, uint32_t *flag3, u
             else
             {
                 flag3[idx] = 0;
-                MinMaxScanArray[idx]=idx+1;
+                MinMaxScanArray[idx]=idx+2;
             }
         }
     }
@@ -255,7 +255,7 @@ __global__ void ResetCompactLocationsArray(uint32_t *compactLocations, uint32_t 
     }
 }
 
-__global__ void CreateNewEdgeList( uint32_t *compactLocations, uint32_t *newOnlyE, uint64_t *newOnlyW, uint64_t *UVW, uint32_t *flag3, uint32_t new_edge_size, uint32_t *new_E_size, uint32_t *new_V_size, uint32_t *expanded_u)
+__global__ void CreateNewEdgeList( uint32_t *compactLocations, uint32_t *newOnlyE, uint64_t *newOnlyW, uint64_t *UVW, uint32_t *flag3, uint32_t new_edge_size, int *new_E_size, int *new_V_size, uint32_t *expanded_u)
 {
     uint32_t supervertexid_u, supervertexid_v;
     uint32_t tidx = blockIdx.x*blockDim.x+threadIdx.x;
