@@ -602,6 +602,8 @@ void HPGMST()
 	// change_elem<<<1,1>>>(d_vertex_flag, 0, 1); // Set first element 1 for segmented scan
 	//thrust::inclusive_scan(thrust::device, d_vertex_flag, d_vertex_flag + no_of_vertices, d_vertex_flag_thrust);
 	// change_elem<<<1,1>>>(d_vertex_flag, 0, 0); // Reset first element to 0 for rest algorithm
+		printf("-> here\n");
+
 
 	// 9.3 Scan flag to assign new IDs to supervertices, Using a scan on O(V) elements // DONE: change to thrust
 	thrust::inclusive_scan(thrust::device, d_vertex_flag, d_vertex_flag + no_of_vertices, d_new_supervertexIDs);
@@ -613,8 +615,6 @@ void HPGMST()
 	
 	// Extract new component sizes
 	ExtractComponentSizes<<< grid_vertexlen, threads_vertexlen, 0>>>(d_component_size_copy, d_component_size, d_new_supervertexIDs, no_of_vertices);
-
-	printf("-> here\n");
 
 	// Reweigh colors joining components so their sum when adding them up is the average
 	ReweighAndOrganizeColors<<< grid_vertexlen, threads_vertexlen, 0>>>(d_avg_color, d_avg_color_r, d_avg_color_g, d_avg_color_b, d_component_size, d_old_component_size, d_new_supervertexIDs, no_of_vertices);
