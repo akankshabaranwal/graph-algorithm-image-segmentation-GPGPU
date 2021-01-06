@@ -485,7 +485,11 @@ char *compute_segments(void *input, uint x, uint y, size_t pitch, bool use_cpu, 
         decode_blocks.x = num_vertices / 1024 + 1;
     }
 
-    char *output = (char*) malloc(x*y*CHANNEL_SIZE*sizeof(char));
+    char *output;
+    //output = (char*) malloc(x*y*CHANNEL_SIZE*sizeof(char));
+    cudaHostAlloc(&output, x*y*CHANNEL_SIZE*sizeof(char), 0);
+    checkErrors("page locked allocation");
+
     char *output_dev;
     cudaMalloc(&output_dev, num_vertices * CHANNEL_SIZE * sizeof(char));
 
@@ -639,4 +643,8 @@ char *compute_segments_partial(void *input, uint x, uint y, size_t pitch, bool u
     checkErrors("Free output_dev");
 
     return output;
+}
+
+void free_img(char *img) {
+    cudaFreeHost(img);
 }

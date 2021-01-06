@@ -126,6 +126,7 @@ int main(int argc, char **argv)
 {
     const Options options = handleParams(argc, argv);
 
+    cv::Mat::setDefaultAllocator(cv::cuda::HostMem::getAllocator (cv::cuda::HostMem::AllocType::PAGE_LOCKED));
     cv::Mat image = imread(options.inFile, cv::IMREAD_COLOR);
     //std::cout << image.rows * image.cols << std::endl;
 
@@ -134,7 +135,7 @@ int main(int argc, char **argv)
     // Warm up
     for (int i = 0; i < options.warmupIterations; ++i) {
         segmented_img = segment_wrapper(image, options, false);
-        free(segmented_img);
+        free_img(segmented_img);
     }
 
     if (options.partial) {
@@ -147,7 +148,7 @@ int main(int argc, char **argv)
     // Benchmark
     for (int i = 0; i < options.benchmarkIterations; ++i) {
         segmented_img = segment_wrapper(image, options, true);
-        if (i < options.benchmarkIterations - 1) free(segmented_img);
+        if (i < options.benchmarkIterations - 1) free_img(segmented_img);
     }
 
     cv::Mat output_img = cv::Mat(image.rows, image.cols, CV_8UC3, segmented_img);
