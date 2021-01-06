@@ -706,6 +706,10 @@ void HPGMST()
 	//      Reusing d_pick_array for storing the u ids
 	CompactEdgeList<<< grid_validsizelen, threads_validsizelen, 0>>>(d_edge, d_edge_strength, d_old_uIDs, d_edge_flag, d_appended_uve, d_pick_array, d_size, d_edge_list_size, d_vertex_list_size);
 
+	cur_hierarchy_size = no_of_vertices;
+	cudaMemcpy( &no_of_edges, d_edge_list_size, sizeof(unsigned int), cudaMemcpyDeviceToHost);
+	cudaMemcpy( &no_of_vertices, d_vertex_list_size, sizeof(unsigned int), cudaMemcpyDeviceToHost);
+
 	// 14. Build the vertex list from the newly formed edge list
 	ClearArray<<< grid_edgelen, threads_edgelen, 0>>>( d_edge_flag, no_of_edges);
 	ClearArray<<< grid_vertexlen, threads_vertexlen, 0>>>((unsigned int*)d_vertex, no_of_vertices);
@@ -720,9 +724,7 @@ void HPGMST()
 	// 14.2 Build the vertex list from the newly formed edge list
 	MakeVertexList<<< grid_edgelen, threads_edgelen, 0>>>(d_vertex, d_pick_array, d_edge_flag, no_of_edges);
 
-	cur_hierarchy_size = no_of_vertices;
-	cudaMemcpy( &no_of_edges, d_edge_list_size, sizeof(unsigned int), cudaMemcpyDeviceToHost);
-	cudaMemcpy( &no_of_vertices, d_vertex_list_size, sizeof(unsigned int), cudaMemcpyDeviceToHost);
+	
 
 	printf("2\n");
 	printUIntArr(d_vertex, no_of_vertices);
