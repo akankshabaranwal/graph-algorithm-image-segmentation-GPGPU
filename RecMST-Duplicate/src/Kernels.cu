@@ -544,9 +544,9 @@ __global__ void ExtractNewColors(float *d_avg_color_r_copy, float *d_avg_color_g
         unsigned int idx = supervertexid * CHANNEL_SIZE;
 
         if (tid == no_of_vertices-1 || supervertexid != d_vertex_flag_thrust[tid+1]) {
-            d_avg_color[idx] = d_avg_color_r_copy[tid];
-            d_avg_color[idx+1] = d_avg_color_g_copy[tid];
-            d_avg_color[idx+2] = d_avg_color_b_copy[tid];
+            d_avg_color[idx] = round(d_avg_color_r_copy[tid]);
+            d_avg_color[idx+1] = round(d_avg_color_g_copy[tid]);
+            d_avg_color[idx+2] = round(d_avg_color_b_copy[tid]);
         }
     }
 }

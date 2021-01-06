@@ -506,11 +506,8 @@ void HPGMST()
 
 	// 2. Divide the edge-list, E, into segments with 1 indicating the start of each segment and 0 otherwise, store this in flag array F.
 	// Mark the segments for the segmented min scan
-	//printUIntArr(d_vertex, no_of_vertices);
 	MakeFlag_3<<< grid_vertexlen, threads_vertexlen, 0>>>( d_edge_flag, d_vertex, no_of_vertices);
 
-	//printUIntArr(d_edge_flag, no_of_edges);
-	printf ("%p\n", (void *)d_edge_flag);;
 
 	// 10.2 Create vector indicating source vertex u for each edge // DONE: change to thrust
 	thrust::inclusive_scan(thrust::device, d_edge_flag, d_edge_flag + no_of_edges, d_old_uIDs);
@@ -526,9 +523,6 @@ void HPGMST()
 	// Calculate weights
 	CalcWeights<<<grid_edgelen, threads_edgelen, 0>>>(d_avg_color, d_old_uIDs, d_edge, d_edge_strength, d_weight, no_of_edges);
 
-	//printUIntArr(d_edge_flag, no_of_edges);
-	printf ("%p\n", (void *)d_edge_flag);;
-
 	// 1. Append weight w and outgoing vertex v per edge into a single array, X.
     // 12 bit for weight, 26 bits for ID.
 	//Append in Parallel on the Device itself, call the append kernel
@@ -537,14 +531,8 @@ void HPGMST()
 	// 3. Perform segmented min scan on X with F indicating segments to find minimum outgoing edge-index per vertex. Min can be found at end of each segment after scan // DONE: change to thrust
 	// Prepare key vector for thrust
 
-	// ERROR
-	printf("-> -> before\n");
-	printf("%u\n", no_of_edges);
-	printf("printed edges\n");
-	//printUIntArr(d_edge_flag, no_of_edges);
-	printf ("%p\n", (void *)d_edge_flag);
 	thrust::inclusive_scan(thrust::device, d_edge_flag, d_edge_flag + no_of_edges, d_edge_flag_thrust);
-	printf("-> -> after\n");
+
 	// Min inclusive segmented scan on ints from start to end.
 	thrust::equal_to<unsigned int> binaryPred;
 	thrust::minimum<unsigned long long int> binaryOp;
@@ -594,8 +582,6 @@ void HPGMST()
     //     split based on supervertex IDs using 64 bit version of split
 	thrust::sort(thrust::device, d_vertex_split, d_vertex_split + no_of_vertices);
 
-	// TODO until here definitely correct.
-
 	// Sort component sizes
 	SuccToCopy<<< grid_vertexlen, threads_vertexlen, 0>>>(d_component_size, d_old_component_size, no_of_vertices);
 	SortComponentSizesFromSplit<<< grid_vertexlen, threads_vertexlen, 0>>>(d_component_size, d_component_size_copy, d_vertex_split, no_of_vertices);
@@ -610,11 +596,6 @@ void HPGMST()
 	//     first element not flagged so that can use simple sum for scan
 	ClearArray<<< grid_vertexlen, threads_vertexlen, 0>>>( d_vertex_flag, no_of_vertices);
 	MakeFlagForScan<<< grid_vertexlen, threads_vertexlen, 0>>>(d_vertex_flag, d_vertex_split, no_of_vertices);
-
-	// Prepare key vector for thrust TODO: change elem probably not needed, also changed extract functions for new ids!
-	// change_elem<<<1,1>>>(d_vertex_flag, 0, 1); // Set first element 1 for segmented scan
-	//thrust::inclusive_scan(thrust::device, d_vertex_flag, d_vertex_flag + no_of_vertices, d_vertex_flag_thrust);
-	// change_elem<<<1,1>>>(d_vertex_flag, 0, 0); // Reset first element to 0 for rest algorithm
 
 	// 9.3 Scan flag to assign new IDs to supervertices, Using a scan on O(V) elements // DONE: change to thrust
 	thrust::inclusive_scan(thrust::device, d_vertex_flag, d_vertex_flag + no_of_vertices, d_new_supervertexIDs);
@@ -685,7 +666,6 @@ void HPGMST()
                   thrust::minus<unsigned int>());
 
 
-	// TODO FROM HERE
 	// Do some cleanup / clearing
 	ClearEdgeStuff<<< grid_edgelen, threads_edgelen, 0>>>((unsigned int*)d_edge, (unsigned int*)d_weight, d_edge_mapping_copy, (unsigned int*)d_pick_array, no_of_edges);
 	unsigned int negative=0;
@@ -695,8 +675,6 @@ void HPGMST()
 	//Compact the edge and weight lists
 	unsigned int validsize=0;
 	cudaMemcpy( &validsize, d_size, sizeof(unsigned int), cudaMemcpyDeviceToHost);
-	// TODO UNTIL HERE
-	printf("valid size: %u\n", validsize);
 
 	//Make a new grid for valid entries in the d_edge_flag array
 	SetGridThreadLen(validsize, &num_of_blocks, &num_of_threads_per_block);
@@ -707,6 +685,10 @@ void HPGMST()
 	//      Reusing d_pick_array for storing the u ids
 	CompactEdgeList<<< grid_validsizelen, threads_validsizelen, 0>>>(d_edge, d_edge_strength, d_old_uIDs, d_edge_flag, d_appended_uve, d_pick_array, d_size, d_edge_list_size, d_vertex_list_size);
 
+	cur_hierarchy_size = no_of_vertices;
+	cudaMemcpy( &no_of_edges, d_edge_list_size, sizeof(unsigned int), cudaMemcpyDeviceToHost);
+	cudaMemcpy( &no_of_vertices, d_vertex_list_size, sizeof(unsigned int), cudaMemcpyDeviceToHost);
+
 	// 14. Build the vertex list from the newly formed edge list
 	ClearArray<<< grid_edgelen, threads_edgelen, 0>>>( d_edge_flag, no_of_edges);
 	ClearArray<<< grid_vertexlen, threads_vertexlen, 0>>>((unsigned int*)d_vertex, no_of_vertices);
@@ -714,21 +696,8 @@ void HPGMST()
 	//14.1 Create flag based on difference in u on the new edge list (based on diffference of u ids)
 	MakeFlagForVertexList<<< grid_edgelen, threads_edgelen, 0>>>(d_pick_array, d_edge_flag, no_of_edges); // d_edge_flag = F4
 
-	printf("pick ");
-	//printUIntArr(d_pick_array, no_of_edges);
-
-	printf("no_edges: %u\n", no_of_edges);
 	// 14.2 Build the vertex list from the newly formed edge list
 	MakeVertexList<<< grid_edgelen, threads_edgelen, 0>>>(d_vertex, d_pick_array, d_edge_flag, no_of_edges);
-
-	cur_hierarchy_size = no_of_vertices;
-	cudaMemcpy( &no_of_edges, d_edge_list_size, sizeof(unsigned int), cudaMemcpyDeviceToHost);
-	cudaMemcpy( &no_of_vertices, d_vertex_list_size, sizeof(unsigned int), cudaMemcpyDeviceToHost);
-	
-
-	printf("2\n");
-	//printUIntArr(d_vertex, no_of_vertices);
-	printf("end\n");
 }
 
 
