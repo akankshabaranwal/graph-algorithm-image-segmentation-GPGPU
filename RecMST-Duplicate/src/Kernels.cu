@@ -402,6 +402,7 @@ __global__ void InitComponentSizes(unsigned int* d_component_size, unsigned int 
     }
 }
 
+
 __global__ void CalcWeights(unsigned char* d_avg_color, unsigned int* d_old_uIDs, unsigned int* d_edge, unsigned int* d_edge_strength, unsigned int *d_weight, unsigned int no_of_edges) 
 {
     unsigned int tid = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
@@ -416,33 +417,11 @@ __global__ void CalcWeights(unsigned char* d_avg_color, unsigned int* d_old_uIDs
         unsigned int other_img_idx = v_id * CHANNEL_SIZE;
         unsigned char other_r = d_avg_color[other_img_idx];
         unsigned char other_g = d_avg_color[other_img_idx + 1];
-        unsigned char other_b = d_avg_color[other_img_idx + 2];
-        d_weight[tid] = round(SCALE * sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2)));
-
-    }
-}
-
-/*
-__global__ void CalcWeights(unsigned char* d_avg_color, unsigned int* d_old_uIDs, unsigned int* d_edge, unsigned int* d_edge_strength, unsigned int *d_weight, unsigned int no_of_edges) 
-{
-    unsigned int tid = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
-    if(tid<no_of_edges) {
-        unsigned int u_id = d_old_uIDs[tid];
-        unsigned int this_img_idx = u_id * CHANNEL_SIZE;
-        unsigned char this_r = d_avg_color[this_img_idx];
-        unsigned char this_g = d_avg_color[this_img_idx + 1];
-        unsigned char this_b = d_avg_color[this_img_idx + 2];
-
-        unsigned int v_id = d_edge[tid];
-        unsigned int other_img_idx = v_id * CHANNEL_SIZE;
-        unsigned char other_r = d_avg_color[other_img_idx];
-        unsigned char other_g = d_avg_color[other_img_idx + 1];
-        unsigned char other_b = d_avg_color[other_img_idx + 2];
+        unsigned char other_b = d_avg_color[other_img_idx + 2]; // TODO: does abs work correct?
         d_weight[tid] = d_edge_strength[tid] * (abs(this_r - other_r) + abs(this_g - other_g) + abs(this_b - other_b));
 
     }
 }
-*/
 
 __global__ void SortComponentSizesFromSplit(unsigned int *d_component_size, unsigned int *d_component_size_copy, unsigned long long int *d_vertex_split, unsigned int no_of_vertices)
 {
@@ -467,8 +446,8 @@ __global__ void SortAvgColorsFromSplit(unsigned char *d_avg_color, unsigned char
         unsigned int to_idx = tid * CHANNEL_SIZE;
 
         d_avg_color_copy[to_idx] = d_avg_color[from_idx];
-        d_avg_color_copy[to_idx+1] = d_avg_color[from_idx+2];
-        d_avg_color_copy[to_idx+2] = d_avg_color[from_idx+3];
+        d_avg_color_copy[to_idx+1] = d_avg_color[from_idx+1];
+        d_avg_color_copy[to_idx+2] = d_avg_color[from_idx+2];
     }
 }
 
@@ -481,6 +460,13 @@ __global__ void CopyToAvgColor(unsigned char *d_avg_color, unsigned char *d_avg_
         d_avg_color[idx+1] = d_avg_color_copy[idx+1];
         d_avg_color[idx+2] = d_avg_color_copy[idx+2];
     }
+}
+
+__global__ void CopyToSucc(unsigned int *d_successor, unsigned int *d_successor_copy, unsigned int no_of_vertices)
+{
+    unsigned int tid = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
+    if(tid<no_of_vertices)
+        d_successor[tid] = d_successor_copy[tid];
 }
 
 __global__ void SuccToCopy(unsigned int *d_successor, unsigned int *d_successor_copy, unsigned int no_of_vertices)
@@ -698,12 +684,7 @@ __global__ void PropagateRepresentativeID(unsigned int *d_successor, unsigned in
     }
 }
 
-__global__ void CopyToSucc(unsigned int *d_successor, unsigned int *d_successor_copy, unsigned int no_of_vertices)
-{
-    unsigned int tid = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
-    if(tid<no_of_vertices)
-        d_successor[tid] = d_successor_copy[tid];
-}
+
 
 
 ////////////////////////////////////////////////////////////////////////////////
