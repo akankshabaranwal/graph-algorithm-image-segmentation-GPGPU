@@ -417,7 +417,7 @@ __global__ void CalcWeights(unsigned char* d_avg_color, unsigned int* d_old_uIDs
         unsigned char other_r = d_avg_color[other_img_idx];
         unsigned char other_g = d_avg_color[other_img_idx + 1];
         unsigned char other_b = d_avg_color[other_img_idx + 2];
-        d_weight[tid] = SCALE * sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
+        d_weight[tid] = round(SCALE * sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2)));
 
     }
 }
