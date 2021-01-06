@@ -514,9 +514,6 @@ void HPGMST()
 	// 10.2 Create vector indicating source vertex u for each edge // DONE: change to thrust
 	thrust::inclusive_scan(thrust::device, d_edge_flag, d_edge_flag + no_of_edges, d_old_uIDs);
 
-		printUIntArr(d_edge_flag, no_of_edges);
-	printf ("%p\n", (void *)d_edge_flag);;
-
 	// Make sure uids start from 0 instead of 1.
 	thrust::transform(thrust::device,
 				  d_old_uIDs,
@@ -524,6 +521,9 @@ void HPGMST()
                   thrust::make_constant_iterator(1),
                   d_old_uIDs,
                   thrust::minus<unsigned int>());
+
+			printUIntArr(d_edge_flag, no_of_edges);
+	printf ("%p\n", (void *)d_edge_flag);;
 
 	// Calculate weights
 	CalcWeights<<<grid_edgelen, threads_edgelen, 0>>>(d_avg_color, d_old_uIDs, d_edge, d_edge_strength, d_weight, no_of_edges);
