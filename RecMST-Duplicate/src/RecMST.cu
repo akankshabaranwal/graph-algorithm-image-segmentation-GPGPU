@@ -696,6 +696,7 @@ void HPGMST()
 	unsigned int validsize=0;
 	cudaMemcpy( &validsize, d_size, sizeof(unsigned int), cudaMemcpyDeviceToHost);
 	// TODO UNTIL HERE
+	printf("valid size: %u\n", validsize);
 
 	//Make a new grid for valid entries in the d_edge_flag array
 	SetGridThreadLen(validsize, &num_of_blocks, &num_of_threads_per_block);
