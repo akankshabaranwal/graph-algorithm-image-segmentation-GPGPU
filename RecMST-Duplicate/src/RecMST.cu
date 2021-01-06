@@ -614,6 +614,7 @@ void HPGMST()
 	// Extract new component sizes
 	ExtractComponentSizes<<< grid_vertexlen, threads_vertexlen, 0>>>(d_component_size_copy, d_component_size, d_new_supervertexIDs, no_of_vertices);
 
+	printf("-> here\n");
 
 	// Reweigh colors joining components so their sum when adding them up is the average
 	ReweighAndOrganizeColors<<< grid_vertexlen, threads_vertexlen, 0>>>(d_avg_color, d_avg_color_r, d_avg_color_g, d_avg_color_b, d_component_size, d_old_component_size, d_new_supervertexIDs, no_of_vertices);
@@ -659,8 +660,6 @@ void HPGMST()
 	unsigned int dsize=no_of_edges; //just make sure
 	cudaMemcpy( d_size, &dsize, sizeof(unsigned int), cudaMemcpyHostToDevice);
 	MarkEdgesUV<<< grid_edgelen, threads_edgelen, 0>>>(d_edge_flag, d_appended_uve, d_size, no_of_edges);
-
-	printf("-> here\n");
 
 	// 13. Compact and create new edge and weight list
 	// 13.1 Scan the flag array to know where to write the value in new edge and weight lists // DONE: change to thrust
