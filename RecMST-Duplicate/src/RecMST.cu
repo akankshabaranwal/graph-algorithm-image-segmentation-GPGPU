@@ -535,6 +535,7 @@ void HPGMST()
 	printf("-> -> before\n");
 	printf("%u\n", no_of_edges);
 	printf("printed edges\n");
+	printUIntArr(d_edge_flag, d_edge_flag + no_of_edges);
 	thrust::inclusive_scan(thrust::device, d_edge_flag, d_edge_flag + no_of_edges, d_edge_flag_thrust);
 	printf("-> -> after\n");
 	// Min inclusive segmented scan on ints from start to end.
