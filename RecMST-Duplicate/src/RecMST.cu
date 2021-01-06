@@ -532,8 +532,9 @@ void HPGMST()
 	// Prepare key vector for thrust
 
 	// ERROR
+	printf("-> -> before\n");
 	thrust::inclusive_scan(thrust::device, d_edge_flag, d_edge_flag + no_of_edges, d_edge_flag_thrust);
-	printf("-> -> here\n");
+	printf("-> -> after\n");
 	// Min inclusive segmented scan on ints from start to end.
 	thrust::equal_to<unsigned int> binaryPred;
 	thrust::minimum<unsigned long long int> binaryOp;
