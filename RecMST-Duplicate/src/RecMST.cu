@@ -530,9 +530,9 @@ void HPGMST()
 
 	// 3. Perform segmented min scan on X with F indicating segments to find minimum outgoing edge-index per vertex. Min can be found at end of each segment after scan // DONE: change to thrust
 	// Prepare key vector for thrust
-			printf("-> here\n");
 
 	thrust::inclusive_scan(thrust::device, d_edge_flag, d_edge_flag + no_of_edges, d_edge_flag_thrust);
+				printf("-> here\n");
 
 	// Min inclusive segmented scan on ints from start to end.
 	thrust::equal_to<unsigned int> binaryPred;
