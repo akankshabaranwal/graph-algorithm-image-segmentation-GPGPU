@@ -511,7 +511,6 @@ void createGraph(Mat image) {
 
 	// Calculate weights
 	CalcWeights<<<grid_edgelen, threads_edgelen, 0>>>(d_avg_color, d_old_uIDs, d_edge, d_edge_strength, d_weight, no_of_edges);
-	printUIntArr(d_weight, no_of_edges_orig);
 	// CREATE W
 
 	fprintf(stderr, "Image read successfully into graph with %d vertices and %d edges\n", no_of_vertices, no_of_edges);
