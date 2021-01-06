@@ -508,6 +508,7 @@ void HPGMST()
 	// Mark the segments for the segmented min scan
 	MakeFlag_3<<< grid_vertexlen, threads_vertexlen, 0>>>( d_edge_flag, d_vertex, no_of_vertices);
 
+	printUIntArr(d_edge_flag, no_of_edges);
 
 	// 10.2 Create vector indicating source vertex u for each edge // DONE: change to thrust
 	thrust::inclusive_scan(thrust::device, d_edge_flag, d_edge_flag + no_of_edges, d_old_uIDs);
