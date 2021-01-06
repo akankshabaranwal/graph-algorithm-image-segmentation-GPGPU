@@ -93,7 +93,7 @@ __global__ void createCornerGraphKernel(unsigned char *image, unsigned int *d_ve
             other_img_idx = row * pitch + (col - 1);
             other_e = image[other_img_idx];
             //strength = 1.0 + ((double) min(this_e, other_e) / 255.0) * 9.0;
-            strength = max(1.0, min(this_e, other_e))
+            strength = max(1.0, min(this_e, other_e));
             d_edge_strenth[write_offset] = (unsigned int) round(strength);
         }
         
@@ -104,7 +104,7 @@ __global__ void createCornerGraphKernel(unsigned char *image, unsigned int *d_ve
             other_img_idx = row * pitch + (col + 1);
             other_e = image[other_img_idx];
             //strength = 1.0 + ((double) min(this_e, other_e) / 255.0) * 9.0;
-            strength = max(1.0, min(this_e, other_e))
+            strength = max(1.0, min(this_e, other_e));
             d_edge_strenth[write_offset] = (unsigned int) round(strength);
         }
        
@@ -116,7 +116,7 @@ __global__ void createCornerGraphKernel(unsigned char *image, unsigned int *d_ve
             other_img_idx = (row+1) * pitch + col;
             other_e = image[other_img_idx];
             //strength = 1.0 + ((double) min(this_e, other_e) / 255.0) * 9.0;
-            strength = max(1.0, min(this_e, other_e))
+            strength = max(1.0, min(this_e, other_e));
             d_edge_strenth[write_offset+1] = (unsigned int) round(strength);
         }
 
@@ -127,7 +127,7 @@ __global__ void createCornerGraphKernel(unsigned char *image, unsigned int *d_ve
             other_img_idx = (row-1) * pitch + col;
             other_e = image[other_img_idx];
             //strength = 1.0 + ((double) min(this_e, other_e) / 255.0) * 9.0;
-            strength = max(1.0, min(this_e, other_e))
+            strength = max(1.0, min(this_e, other_e));
             d_edge_strenth[write_offset+1] = (unsigned int) round(strength);
         }
     }
@@ -162,7 +162,7 @@ __global__ void createFirstRowGraphKernel(unsigned char *image, unsigned int *d_
         other_img_idx = row * pitch + (col - 1);
         other_e = image[other_img_idx];
         //strength = 1.0 + ((double) min(this_e, other_e) / 255.0) * 9.0;
-        strength = max(1.0, min(this_e, other_e))
+        strength = max(1.0, min(this_e, other_e));
         d_edge_strenth[write_offset] = (unsigned int) round(strength);
 
         // Right node
@@ -171,7 +171,7 @@ __global__ void createFirstRowGraphKernel(unsigned char *image, unsigned int *d_
         other_img_idx = row * pitch + (col + 1);
         other_e = image[other_img_idx];
         //strength = 1.0 + ((double) min(this_e, other_e) / 255.0) * 9.0;
-        strength = max(1.0, min(this_e, other_e))
+        strength = max(1.0, min(this_e, other_e));
         d_edge_strenth[write_offset+1] = (unsigned int) round(strength);
 
         // Bottom node
@@ -180,7 +180,7 @@ __global__ void createFirstRowGraphKernel(unsigned char *image, unsigned int *d_
         other_img_idx = (row+1) * pitch + col;
         other_e = image[other_img_idx];
         //strength = 1.0 + ((double) min(this_e, other_e) / 255.0) * 9.0;
-        strength = max(1.0, min(this_e, other_e))
+        strength = max(1.0, min(this_e, other_e));
         d_edge_strenth[write_offset+2] = (unsigned int) round(strength);
     }
 }
@@ -216,7 +216,7 @@ __global__ void createLastRowGraphKernel(unsigned char *image, unsigned int *d_v
         other_img_idx = row * pitch + (col - 1);
         other_e = image[other_img_idx];
         //strength = 1.0 + ((double) min(this_e, other_e) / 255.0) * 9.0;
-        strength = max(1.0, min(this_e, other_e))
+        strength = max(1.0, min(this_e, other_e));
         d_edge_strenth[write_offset] = (unsigned int) round(strength);
 
         // Right node
@@ -225,7 +225,7 @@ __global__ void createLastRowGraphKernel(unsigned char *image, unsigned int *d_v
         other_img_idx = row * pitch + (col + 1);
         other_e = image[other_img_idx];
         //strength = 1.0 + ((double) min(this_e, other_e) / 255.0) * 9.0;
-        strength = max(1.0, min(this_e, other_e))
+        strength = max(1.0, min(this_e, other_e));
         d_edge_strenth[write_offset+1] = (unsigned int) round(strength);
 
         // Top node
@@ -234,7 +234,7 @@ __global__ void createLastRowGraphKernel(unsigned char *image, unsigned int *d_v
         other_img_idx = (row-1) * pitch + col;
         other_e = image[other_img_idx];
         //strength = 1.0 + ((double) min(this_e, other_e) / 255.0) * 9.0;
-        strength = max(1.0, min(this_e, other_e))
+        strength = max(1.0, min(this_e, other_e));
         d_edge_strenth[write_offset+2] = (unsigned int) round(strength);
     }
 }
@@ -269,7 +269,7 @@ __global__ void createFirstColumnGraphKernel(unsigned char *image, unsigned int 
         other_img_idx = row * pitch + (col + 1);
         other_e = image[other_img_idx];
         //strength = 1.0 + ((double) min(this_e, other_e) / 255.0) * 9.0;
-        strength = max(1.0, min(this_e, other_e))
+        strength = max(1.0, min(this_e, other_e));
         d_edge_strenth[write_offset] = (unsigned int) round(strength);
 
         // Bottom node
@@ -278,7 +278,7 @@ __global__ void createFirstColumnGraphKernel(unsigned char *image, unsigned int 
         other_img_idx = (row+1) * pitch + col;
         other_e = image[other_img_idx];
         //strength = 1.0 + ((double) min(this_e, other_e) / 255.0) * 9.0;
-        strength = max(1.0, min(this_e, other_e))
+        strength = max(1.0, min(this_e, other_e));
         d_edge_strenth[write_offset+1] = (unsigned int) round(strength);
 
         // Top node
@@ -287,7 +287,7 @@ __global__ void createFirstColumnGraphKernel(unsigned char *image, unsigned int 
         other_img_idx = (row-1) * pitch + col;
         other_e = image[other_img_idx];
         //strength = 1.0 + ((double) min(this_e, other_e) / 255.0) * 9.0;
-        strength = max(1.0, min(this_e, other_e))
+        strength = max(1.0, min(this_e, other_e));
         d_edge_strenth[write_offset+2] = (unsigned int) round(strength);
 
 
@@ -325,7 +325,7 @@ __global__ void createLastColumnGraphKernel(unsigned char *image, unsigned int *
         other_img_idx = row * pitch + (col - 1);
         other_e = image[other_img_idx];
         //strength = 1.0 + ((double) min(this_e, other_e) / 255.0) * 9.0;
-        strength = max(1.0, min(this_e, other_e))
+        strength = max(1.0, min(this_e, other_e));
         d_edge_strenth[write_offset] = (unsigned int) round(strength);
 
                 // Bottom node
@@ -334,7 +334,7 @@ __global__ void createLastColumnGraphKernel(unsigned char *image, unsigned int *
         other_img_idx = (row+1) * pitch + col;
         other_e = image[other_img_idx];
         //strength = 1.0 + ((double) min(this_e, other_e) / 255.0) * 9.0;
-        strength = max(1.0, min(this_e, other_e))
+        strength = max(1.0, min(this_e, other_e));
         d_edge_strenth[write_offset+1] = (unsigned int) round(strength);
 
         // Top node
@@ -343,7 +343,7 @@ __global__ void createLastColumnGraphKernel(unsigned char *image, unsigned int *
         other_img_idx = (row-1) * pitch + col;
         other_e = image[other_img_idx];
         //strength = 1.0 + ((double) min(this_e, other_e) / 255.0) * 9.0;
-        strength = max(1.0, min(this_e, other_e))
+        strength = max(1.0, min(this_e, other_e));
         d_edge_strenth[write_offset+2] = (unsigned int) round(strength);
 
 
@@ -382,7 +382,7 @@ __global__ void createInnerGraphKernel(unsigned char *image, unsigned int *d_ver
         other_img_idx = row * pitch + (col - 1);
         other_e = image[other_img_idx];
         //strength = 1.0 + ((double) min(this_e, other_e) / 255.0) * 9.0;
-        strength = max(1.0, min(this_e, other_e))
+        strength = max(1.0, min(this_e, other_e));
         d_edge_strenth[write_offset] = (unsigned int) round(strength);
 
         // Right node
@@ -391,7 +391,7 @@ __global__ void createInnerGraphKernel(unsigned char *image, unsigned int *d_ver
         other_img_idx = row * pitch + (col + 1);
         other_e = image[other_img_idx];
         //strength = 1.0 + ((double) min(this_e, other_e) / 255.0) * 9.0;
-        strength = max(1.0, min(this_e, other_e))
+        strength = max(1.0, min(this_e, other_e));
         d_edge_strenth[write_offset+1] = (unsigned int) round(strength);
 
         // Bottom node
@@ -400,7 +400,7 @@ __global__ void createInnerGraphKernel(unsigned char *image, unsigned int *d_ver
         other_img_idx = (row+1) * pitch + col;
         other_e = image[other_img_idx];
         //strength = 1.0 + ((double) min(this_e, other_e) / 255.0) * 9.0;
-        strength = max(1.0, min(this_e, other_e))
+        strength = max(1.0, min(this_e, other_e));
         d_edge_strenth[write_offset+2] = (unsigned int) round(strength);
 
         // Top node
@@ -409,7 +409,7 @@ __global__ void createInnerGraphKernel(unsigned char *image, unsigned int *d_ver
         other_img_idx = (row-1) * pitch + col;
         other_e = image[other_img_idx];
         //strength = 1.0 + ((double) min(this_e, other_e) / 255.0) * 9.0;
-        strength = max(1.0, min(this_e, other_e))
+        strength = max(1.0, min(this_e, other_e));
         d_edge_strenth[write_offset+3] = (unsigned int) round(strength);
     }
 }
