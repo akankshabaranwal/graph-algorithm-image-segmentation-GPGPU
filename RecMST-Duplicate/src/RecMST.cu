@@ -716,6 +716,7 @@ void HPGMST()
 	printf("pick ");
 	printUIntArr(d_pick_array, no_of_edges);
 
+	printf("no_edges: %u\n", no_of_edges);
 	// 14.2 Build the vertex list from the newly formed edge list
 	MakeVertexList<<< grid_edgelen, threads_edgelen, 0>>>(d_vertex, d_pick_array, d_edge_flag, no_of_edges);
 
