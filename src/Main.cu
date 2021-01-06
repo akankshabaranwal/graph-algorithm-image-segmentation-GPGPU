@@ -240,13 +240,13 @@ void segment(Mat image, std::string outFile, bool output)
     std::vector<uint32_t*> d_hierarchy_levels;	// Vector containing pointers to all hierarchy levels (don't dereference on CPU, device pointers)
     std::vector<int> hierarchy_level_sizes;			// Size of each hierarchy level
 
-    cudaDeviceProp prop;
-    cudaGetDeviceProperties(&prop, 0);
-    int num_sms = prop.multiProcessorCount;
+    //cudaDeviceProp prop;
+    //cudaGetDeviceProperties(&prop, 0);
+    //int num_sms = prop.multiProcessorCount;
 
     numthreads = min(32, numVertices);
-    //numBlock = numVertices/numthreads;
-    numBlock = num_sms;
+    numBlock = numVertices/numthreads;
+    //numBlock = num_sms;
     SetBitEdgeListArray<<<numBlock, numthreads>>>( OnlyEdge, OnlyWeight, numEdges);
     cudaDeviceSynchronize();
 
@@ -269,8 +269,8 @@ void segment(Mat image, std::string outFile, bool output)
         else
             numthreads = min(32, numVertices);
 
-        //numBlock = numVertices/numthreads;
-        numBlock = num_sms;
+        numBlock = numVertices/numthreads;
+        //numBlock = num_sms;
         //Create UID array. 10.2
         ClearFlagArray<<<numBlock, numthreads>>>(flagUid, numEdges);
         MarkSegments<<<numBlock, numthreads>>>(flagUid, VertexList, numVertices);
@@ -476,12 +476,14 @@ void printCSVLine() {
 
 int main(int argc, char **argv)
 {
+    cv::Mat::setDefaultAllocator(cv::cuda::HostMem::getAllocator (cv::cuda::HostMem::AllocType::PAGE_LOCKED));
+
     Mat image;
     const Options options = handleParams(argc, argv);
 
     image = imread(options.inFile, IMREAD_COLOR);
     //Scale down image.
-    printf("Size of image obtained is: Rows: %d, Columns: %d, Pixels: %d\n", image.rows, image.cols, image.rows * image.cols);
+    //printf("Size of image obtained is: Rows: %d, Columns: %d, Pixels: %d\n", image.rows, image.cols, image.rows * image.cols);
 
     // Warm up
     for (int i = 0; i < options.warmupIterations; i++) {
