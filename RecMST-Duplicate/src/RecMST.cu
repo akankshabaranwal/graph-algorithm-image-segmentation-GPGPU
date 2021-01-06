@@ -514,6 +514,9 @@ void HPGMST()
 	// 10.2 Create vector indicating source vertex u for each edge // DONE: change to thrust
 	thrust::inclusive_scan(thrust::device, d_edge_flag, d_edge_flag + no_of_edges, d_old_uIDs);
 
+		printUIntArr(d_edge_flag, no_of_edges);
+	printf ("%p", (void *)d_edge_flag);;
+
 	// Make sure uids start from 0 instead of 1.
 	thrust::transform(thrust::device,
 				  d_old_uIDs,
