@@ -523,8 +523,6 @@ void HPGMST()
 	// Calculate weights
 	CalcWeights<<<grid_edgelen, threads_edgelen, 0>>>(d_avg_color, d_old_uIDs, d_edge, d_edge_strength, d_weight, no_of_edges);
 
-	printf("-> here\n");
-
 	// 1. Append weight w and outgoing vertex v per edge into a single array, X.
     // 12 bit for weight, 26 bits for ID.
 	//Append in Parallel on the Device itself, call the append kernel
@@ -662,6 +660,7 @@ void HPGMST()
 	cudaMemcpy( d_size, &dsize, sizeof(unsigned int), cudaMemcpyHostToDevice);
 	MarkEdgesUV<<< grid_edgelen, threads_edgelen, 0>>>(d_edge_flag, d_appended_uve, d_size, no_of_edges);
 
+	printf("-> here\n");
 
 	// 13. Compact and create new edge and weight list
 	// 13.1 Scan the flag array to know where to write the value in new edge and weight lists // DONE: change to thrust
