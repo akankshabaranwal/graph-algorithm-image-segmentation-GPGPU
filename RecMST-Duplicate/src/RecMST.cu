@@ -721,7 +721,7 @@ void HPGMST()
 	// 14.2 Build the vertex list from the newly formed edge list
 	MakeVertexList<<< grid_edgelen, threads_edgelen, 0>>>(d_vertex, d_pick_array, d_edge_flag, no_of_edges);
 
-		cur_hierarchy_size = no_of_vertices;
+	cur_hierarchy_size = no_of_vertices;
 	cudaMemcpy( &no_of_edges, d_edge_list_size, sizeof(unsigned int), cudaMemcpyDeviceToHost);
 	cudaMemcpy( &no_of_vertices, d_vertex_list_size, sizeof(unsigned int), cudaMemcpyDeviceToHost);
 	
