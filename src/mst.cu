@@ -486,7 +486,6 @@ char *compute_segments(void *input, uint x, uint y, size_t pitch, bool use_cpu, 
     }
 
     char *output;
-    //output = (char*) malloc(x*y*CHANNEL_SIZE*sizeof(char));
     cudaHostAlloc(&output, x*y*CHANNEL_SIZE*sizeof(char), 0);
     checkErrors("page locked allocation");
 
@@ -624,7 +623,9 @@ char *compute_segments_partial(void *input, uint x, uint y, size_t pitch, bool u
 
     // Write image back from segmented matrix
     decode<<<decode_blocks, decode_threads>>>(vertices, output_dev, num_vertices);
-    char *output = (char*) malloc(x*y*CHANNEL_SIZE*sizeof(char));
+    char *output;
+    cudaHostAlloc(&output, x*y*CHANNEL_SIZE*sizeof(char), 0);
+    checkErrors("page locked allocation");
     cudaDeviceSynchronize();
     cudaMemcpy(output, output_dev, x*y*CHANNEL_SIZE*sizeof(char), cudaMemcpyDeviceToHost);
 
