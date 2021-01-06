@@ -506,10 +506,10 @@ void HPGMST()
 
 	// 2. Divide the edge-list, E, into segments with 1 indicating the start of each segment and 0 otherwise, store this in flag array F.
 	// Mark the segments for the segmented min scan
-	printUIntArr(d_vertex, no_of_vertices);
+	//printUIntArr(d_vertex, no_of_vertices);
 	MakeFlag_3<<< grid_vertexlen, threads_vertexlen, 0>>>( d_edge_flag, d_vertex, no_of_vertices);
 
-	printUIntArr(d_edge_flag, no_of_edges);
+	//printUIntArr(d_edge_flag, no_of_edges);
 	printf ("%p\n", (void *)d_edge_flag);;
 
 	// 10.2 Create vector indicating source vertex u for each edge // DONE: change to thrust
@@ -526,7 +526,7 @@ void HPGMST()
 	// Calculate weights
 	CalcWeights<<<grid_edgelen, threads_edgelen, 0>>>(d_avg_color, d_old_uIDs, d_edge, d_edge_strength, d_weight, no_of_edges);
 
-	printUIntArr(d_edge_flag, no_of_edges);
+	//printUIntArr(d_edge_flag, no_of_edges);
 	printf ("%p\n", (void *)d_edge_flag);;
 
 	// 1. Append weight w and outgoing vertex v per edge into a single array, X.
@@ -541,7 +541,7 @@ void HPGMST()
 	printf("-> -> before\n");
 	printf("%u\n", no_of_edges);
 	printf("printed edges\n");
-	printUIntArr(d_edge_flag, no_of_edges);
+	//printUIntArr(d_edge_flag, no_of_edges);
 	printf ("%p\n", (void *)d_edge_flag);
 	thrust::inclusive_scan(thrust::device, d_edge_flag, d_edge_flag + no_of_edges, d_edge_flag_thrust);
 	printf("-> -> after\n");
@@ -719,7 +719,7 @@ void HPGMST()
 	MakeFlagForVertexList<<< grid_edgelen, threads_edgelen, 0>>>(d_pick_array, d_edge_flag, no_of_edges); // d_edge_flag = F4
 
 	printf("pick ");
-	printUIntArr(d_pick_array, no_of_edges);
+	//printUIntArr(d_pick_array, no_of_edges);
 
 	printf("no_edges: %u\n", no_of_edges);
 	// 14.2 Build the vertex list from the newly formed edge list
@@ -728,7 +728,7 @@ void HPGMST()
 	
 
 	printf("2\n");
-	printUIntArr(d_vertex, no_of_vertices);
+	//printUIntArr(d_vertex, no_of_vertices);
 	printf("end\n");
 }
 
