@@ -482,15 +482,15 @@ __global__ void ExtractComponentSizes(unsigned int *d_component_size_copy, unsig
     unsigned int tid = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
     if(tid<no_of_vertices)
     {
-        unsigned int supervertexid = d_vertex_flag_thrust[tid] - 1;
+        unsigned int supervertexid = d_vertex_flag_thrust[tid];
 
-        if (tid == no_of_vertices-1 || supervertexid != d_vertex_flag_thrust[tid+1]-1) {
+        if (tid == no_of_vertices-1 || supervertexid != d_vertex_flag_thrust[tid+1]) {
             d_component_size[supervertexid] = d_component_size_copy[tid];
         }
     }
 }
 
-__global__ void ReweighAndOrganizeColors(unsigned char *d_avg_color, float *d_avg_color_r, float *d_avg_color_g, float *d_avg_color_b, unsigned int *d_component_size, unsigned int *d_old_component_size, unsigned int* d_new_supervertexIDs, unsigned int* d_vertex_flag_thrust, unsigned int no_of_vertices)
+__global__ void ReweighAndOrganizeColors(unsigned char *d_avg_color, float *d_avg_color_r, float *d_avg_color_g, float *d_avg_color_b, unsigned int *d_component_size, unsigned int *d_old_component_size, unsigned int* d_new_supervertexIDs, unsigned int no_of_vertices)
 {
     unsigned int tid = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
     if(tid<no_of_vertices)
@@ -505,13 +505,13 @@ __global__ void ReweighAndOrganizeColors(unsigned char *d_avg_color, float *d_av
         unsigned char this_g = d_avg_color[idx + 1];
         unsigned char this_b = d_avg_color[idx + 2];
 
-        float new_r = (this_r * old_size) / new_size;
-        float new_g = (this_g * old_size) / new_size;
-        float new_b = (this_b * old_size) / new_size;
+        float weighted_r = (this_r * old_size) / new_size;
+        float weighted_g = (this_g * old_size) / new_size;
+        float weighted_b = (this_b * old_size) / new_size;
 
-        d_avg_color_r[idx] = new_r;
-        d_avg_color_g[idx+1] = new_g;
-        d_avg_color_b[idx+2] = new_b;
+        d_avg_color_r[tid] = weighted_r;
+        d_avg_color_g[tid] = weighted_g;
+        d_avg_color_b[tid] = weighted_b;
     }
 }
 
@@ -520,10 +520,10 @@ __global__ void ExtractNewColors(float *d_avg_color_r_copy, float *d_avg_color_g
     unsigned int tid = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
     if(tid<no_of_vertices)
     {
-        unsigned int supervertexid = d_vertex_flag_thrust[tid] - 1;
+        unsigned int supervertexid = d_vertex_flag_thrust[tid];
         unsigned int idx = supervertexid * CHANNEL_SIZE;
 
-        if (tid == no_of_vertices-1 || supervertexid != d_vertex_flag_thrust[tid+1]-1) {
+        if (tid == no_of_vertices-1 || supervertexid != d_vertex_flag_thrust[tid+1]) {
             d_avg_color[idx] = d_avg_color_r_copy[tid];
             d_avg_color[idx+1] = d_avg_color_g_copy[tid];
             d_avg_color[idx+2] = d_avg_color_b_copy[tid];
@@ -811,7 +811,7 @@ __global__ void CopyEdgeArrayBack(unsigned int *d_edge, unsigned int *d_edge_map
 ////////////////////////////////////////////////////////////////////////////////
 // Append U,V,W for duplicate edge removal, Runs for Edge Length
 ////////////////////////////////////////////////////////////////////////////////
-__global__ void AppendForDuplicateEdgeRemoval(unsigned long long int *d_appended_uvw, unsigned int *d_edge, unsigned int *d_old_uIDs, unsigned int *d_weight, unsigned int *d_new_supervertexIDs, unsigned int no_of_edges)
+__global__ void AppendForDuplicateEdgeRemoval(unsigned long long int *d_appended_uve, unsigned int *d_edge, unsigned int *d_old_uIDs, unsigned int *d_edge_strength, unsigned int *d_new_supervertexIDs, unsigned int no_of_edges)
 {
     unsigned int tid = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
     if(tid<no_of_edges) {
@@ -832,8 +832,8 @@ __global__ void AppendForDuplicateEdgeRemoval(unsigned long long int *d_appended
         val = val<<NO_OF_BITS_MOVED_FOR_VERTEX_IDS;
         val |= supervid;
         val = val<<(64-(NO_OF_BITS_MOVED_FOR_VERTEX_IDS+NO_OF_BITS_MOVED_FOR_VERTEX_IDS));
-        val |= d_weight[tid];
-        d_appended_uvw[tid]=val;
+        val |= d_edge_strength[tid];
+        d_appended_uve[tid]=val;
     }
 }
 
@@ -869,18 +869,18 @@ __global__ void MarkEdgesUV(unsigned int *d_edge_flag, unsigned long long int *d
 ///////////////////////////////////////////////////////////////////////////////////////////////
 // Compact the edgelist and weight list, keep a mapping for each edge, Runs for d_size Length
 ///////////////////////////////////////////////////////////////////////////////////////////////
-__global__ void CompactEdgeList(unsigned int *d_edge, unsigned int *d_weight, 
-                                unsigned int *d_old_uIDs, unsigned int *d_edge_flag, unsigned long long int *d_appended_uvw,
+__global__ void CompactEdgeList(unsigned int *d_edge, unsigned int *d_edge_strength, 
+                                unsigned int *d_old_uIDs, unsigned int *d_edge_flag, unsigned long long int *d_appended_uve,
                                 unsigned int *d_pick_array, unsigned int *d_size, 
                                 unsigned int *d_edge_list_size, unsigned int *d_vertex_list_size)
 {
     unsigned int tid = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
     if(tid<*d_size) {
         if( d_edge_flag[tid]==1) {
-            unsigned long long int UVW = d_appended_uvw[tid];
+            unsigned long long int UVE = d_appended_uve[tid];
             unsigned int writepos = d_old_uIDs[tid];
             unsigned long long int mask = pow(2.0,64-(NO_OF_BITS_MOVED_FOR_VERTEX_IDS+NO_OF_BITS_MOVED_FOR_VERTEX_IDS))-1;
-            unsigned long long int w  = UVW&mask;
+            unsigned long long int e  = UVW&mask;
             unsigned long long int test = UVW>>(64-(NO_OF_BITS_MOVED_FOR_VERTEX_IDS+NO_OF_BITS_MOVED_FOR_VERTEX_IDS));
             unsigned long long int mask2 = pow(2.0,NO_OF_BITS_MOVED_FOR_VERTEX_IDS)-1;
             unsigned long long int v = test&mask2;
@@ -889,7 +889,7 @@ __global__ void CompactEdgeList(unsigned int *d_edge, unsigned int *d_weight,
                 //Copy the edge_mapping into a temporary array, used to resolve read after write inconsistancies
                 d_pick_array[writepos]=u; // reusing this to store u's
                 d_edge[writepos] = v;
-                d_weight[writepos] = w;
+                d_edge_strength[writepos] = e;
                 //max writepos will give the new edge list size
                 atomicMax(d_edge_list_size,(writepos+1));
                 atomicMax(d_vertex_list_size,(v+1));

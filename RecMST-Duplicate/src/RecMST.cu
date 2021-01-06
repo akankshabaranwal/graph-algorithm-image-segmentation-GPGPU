@@ -30,10 +30,10 @@
   - Could reduce weight precision to support higher resolution images
 
   1. Segmented min scan: 10 bit weight, 22 bit ID
-  -> Changed to long long; 13 bit weight, 25 bit ID
+  -> Changed to long long; 13 bit weight, 25 bit ID TODO: change to 18 bit weight, 26 bit ID
   8. List L: 32 bit vertex ID left, 32 bit vertex ID right
   12. UVW: u.id 24 bit, v.id 24 bit, weight 16 bit
-  -> Change to u.id 25 bit, v.id 25 bit, weight 13 bit
+  -> Change to u.id 25 bit, v.id 25 bit, weight 13 bit TODO: weight here edge strength, change to 26, 26, 12
 ************************************************************************************/
 
 ////////////////////////////////////////////////
@@ -117,7 +117,7 @@ unsigned int *d_component_size_copy;
 
 unsigned long long int *d_segmented_min_scan_input;			//X, Input to the Segmented Min Scan, appended array of weights and edge IDs
 unsigned long long int *d_segmented_min_scan_output;		//Output of the Segmented Min Scan, minimum weight outgoing edge as (weight|to_vertex_id elements) can be found at end of each segment
-unsigned int *d_vertex_flag_thrust;
+//unsigned int *d_vertex_flag_thrust;
 unsigned int *d_edge_flag;									//Flag for the segmented min scan
 unsigned int *d_edge_flag_thrust;							//NEW! Flag for the segmented min scan in thrust Needs to be 000111222 instead of 100100100
 unsigned int *d_vertex_flag;								//F2, Flag for the scan input for supervertex ID generation
@@ -128,7 +128,7 @@ bool *d_succchange;											//Variable to check if can stop pointer doubling
 
 unsigned int *d_new_supervertexIDs;							//mapping from each original vertex ID to its new supervertex ID so we can lookup supervertex IDs directly
 unsigned int *d_old_uIDs;									//expanded old u ids, stored per edge, needed to remove self edges (orig ID of source vertex u for each edge(weight|dest_vertex_id_v))
-unsigned long long int *d_appended_uvw;						//Appended u,v,w array for duplicate edge removal
+unsigned long long int *d_appended_uve;						//Appended u,v,w array for duplicate edge removal
 
 unsigned int *d_size;										//Stores amount of edges
 unsigned int *d_edge_mapping_copy;
@@ -310,10 +310,10 @@ void Init()
 	cudaMalloc( (void**) &d_succchange, sizeof(bool));
 	cudaMalloc( (void**) &d_vertex_split, sizeof(unsigned long long int)*no_of_vertices_orig);
 	cudaMalloc( (void**) &d_vertex_flag, sizeof(unsigned int)*no_of_vertices_orig);
-	cudaMalloc( (void**) &d_vertex_flag_thrust, sizeof(unsigned int)*no_of_vertices_orig);
+	//cudaMalloc( (void**) &d_vertex_flag_thrust, sizeof(unsigned int)*no_of_vertices_orig);
 	cudaMalloc( (void**) &d_new_supervertexIDs, sizeof(unsigned int)*no_of_vertices_orig);
 	cudaMalloc( (void**) &d_old_uIDs, sizeof(unsigned int)*no_of_edges_orig);
-	cudaMalloc( (void**) &d_appended_uvw, sizeof(unsigned long long int)*no_of_edges_orig);
+	cudaMalloc( (void**) &d_appended_uve, sizeof(unsigned long long int)*no_of_edges_orig);
 	cudaMalloc( (void**) &d_size, sizeof(unsigned int));
 	cudaMalloc( (void**) &d_edge_mapping_copy, sizeof(unsigned int)*no_of_edges_orig); 
 
@@ -350,14 +350,14 @@ void FreeMem()
 	cudaFree(d_succchange);
 	cudaFree(d_vertex_split);
 	cudaFree(d_vertex_flag);
-	cudaFree(d_vertex_flag_thrust);
+	//cudaFree(d_vertex_flag_thrust);
 	cudaFree(d_new_supervertexIDs);
 	cudaFree(d_old_uIDs);
 	cudaFree(d_size);
 	cudaFree(d_edge_mapping_copy);
 	cudaFree(d_edge_list_size);
 	cudaFree(d_vertex_list_size);
-	cudaFree(d_appended_uvw);
+	cudaFree(d_appended_uve);
 }
 
 ////////////////////////////////////////////////
@@ -593,52 +593,38 @@ void HPGMST()
 	SortAvgColorsFromSplit<<< grid_vertexlen, threads_vertexlen, 0>>>(d_avg_color, d_avg_color_copy, d_vertex_split, no_of_vertices);
 	CopyToAvgColor<<< grid_vertexlen, threads_vertexlen, 0>>>(d_avg_color, d_avg_color_copy, no_of_vertices); // for conflicts
 
-	// Sort edge strength
-	SortComponentSizesFromSplit<<< grid_edgelen, threads_edgelen, 0>>>(d_edge_strength, d_edge_strength_copy, d_vertex_split, no_of_edges);
-	CopyToSucc<<< grid_vertexlen, threads_vertexlen, 0>>>(d_edge_strength, d_edge_strength_copy, no_of_vertices);
-
 
 	// 9.2 Create flag for assigning new vertex IDs based on difference in supervertex IDs
 	//     first element not flagged so that can use simple sum for scan
 	ClearArray<<< grid_vertexlen, threads_vertexlen, 0>>>( d_vertex_flag, no_of_vertices);
 	MakeFlagForScan<<< grid_vertexlen, threads_vertexlen, 0>>>(d_vertex_flag, d_vertex_split, no_of_vertices);
 
-	// Prepare key vector for thrust
-	change_elem<<<1,1>>>(d_vertex_flag, 0, 1); // Set first element 1 for segmented scan
-	thrust::inclusive_scan(thrust::device, d_vertex_flag, d_vertex_flag + no_of_vertices, d_vertex_flag_thrust);
-	change_elem<<<1,1>>>(d_vertex_flag, 1, 0); // Reset first element to 0 for rest algorithm
-
-
-	// Perform segmented add scan on component_size with F2 indicating segments to find new component size
-	thrust::equal_to<unsigned int> binaryPred2;
-	thrust::plus<unsigned int> binaryOp2;
-	thrust::inclusive_scan_by_key(thrust::device, d_vertex_flag_thrust, d_vertex_flag_thrust + no_of_vertices, d_component_size, d_component_size_copy, binaryPred2, binaryOp2);
-	
-	// Extract new component sizes
-	ExtractComponentSizes<<< grid_vertexlen, threads_vertexlen, 0>>>(d_component_size_copy, d_component_size, d_vertex_flag_thrust, no_of_vertices);
-
-
-	// Min inclusive segmented scan on ints from start to end.
-	thrust::equal_to<unsigned int> binaryPred4;
-	thrust::minimum<unsigned int> binaryOp4;
-	thrust::inclusive_scan_by_key(thrust::device, d_vertex_flag_thrust, d_vertex_flag_thrust + no_of_vertices, d_edge_strength, d_edge_strength_copy, binaryPred4, binaryOp4);
-
-	// Extract new edge strengths
-	ExtractComponentSizes<<< grid_vertexlen, threads_vertexlen, 0>>>(d_edge_strength_copy, d_edge_strength, d_vertex_flag_thrust, no_of_vertices);
+	// Prepare key vector for thrust TODO: change elem probably not needed, also changed extract functions for new ids!
+	// change_elem<<<1,1>>>(d_vertex_flag, 0, 1); // Set first element 1 for segmented scan
+	//thrust::inclusive_scan(thrust::device, d_vertex_flag, d_vertex_flag + no_of_vertices, d_vertex_flag_thrust);
+	// change_elem<<<1,1>>>(d_vertex_flag, 0, 0); // Reset first element to 0 for rest algorithm
 
 	// 9.3 Scan flag to assign new IDs to supervertices, Using a scan on O(V) elements // DONE: change to thrust
 	thrust::inclusive_scan(thrust::device, d_vertex_flag, d_vertex_flag + no_of_vertices, d_new_supervertexIDs);
 
+	// Perform segmented add scan on component_size with F2 indicating segments to find new component size
+	thrust::equal_to<unsigned int> binaryPred2;
+	thrust::plus<unsigned int> binaryOp2;
+	thrust::inclusive_scan_by_key(thrust::device, d_new_supervertexIDs, d_new_supervertexIDs + no_of_vertices, d_component_size, d_component_size_copy, binaryPred2, binaryOp2);
+	
+	// Extract new component sizes
+	ExtractComponentSizes<<< grid_vertexlen, threads_vertexlen, 0>>>(d_component_size_copy, d_component_size, d_new_supervertexIDs, no_of_vertices);
+
 
 	// Reweigh colors joining components so their sum when adding them up is the average
-	ReweighAndOrganizeColors<<< grid_vertexlen, threads_vertexlen, 0>>>(d_avg_color, d_avg_color_r, d_avg_color_g, d_avg_color_b, d_component_size, d_old_component_size, d_new_supervertexIDs, d_vertex_flag_thrust, no_of_vertices);
+	ReweighAndOrganizeColors<<< grid_vertexlen, threads_vertexlen, 0>>>(d_avg_color, d_avg_color_r, d_avg_color_g, d_avg_color_b, d_component_size, d_old_component_size, d_new_supervertexIDs, no_of_vertices);
 	thrust::plus<float> binaryOp3;
-	thrust::inclusive_scan_by_key(thrust::device, d_vertex_flag_thrust, d_vertex_flag_thrust + no_of_vertices, d_avg_color_r, d_avg_color_r_copy, binaryPred2, binaryOp3);
-	thrust::inclusive_scan_by_key(thrust::device, d_vertex_flag_thrust, d_vertex_flag_thrust + no_of_vertices, d_avg_color_g, d_avg_color_g_copy, binaryPred2, binaryOp3);
-	thrust::inclusive_scan_by_key(thrust::device, d_vertex_flag_thrust, d_vertex_flag_thrust + no_of_vertices, d_avg_color_b, d_avg_color_b_copy, binaryPred2, binaryOp3);
+	thrust::inclusive_scan_by_key(thrust::device, d_new_supervertexIDs, d_new_supervertexIDs + no_of_vertices, d_avg_color_r, d_avg_color_r_copy, binaryPred2, binaryOp3);
+	thrust::inclusive_scan_by_key(thrust::device, d_new_supervertexIDs, d_new_supervertexIDs + no_of_vertices, d_avg_color_g, d_avg_color_g_copy, binaryPred2, binaryOp3);
+	thrust::inclusive_scan_by_key(thrust::device, d_new_supervertexIDs, d_new_supervertexIDs + no_of_vertices, d_avg_color_b, d_avg_color_b_copy, binaryPred2, binaryOp3);
 
 	// Extract new colors
-	ExtractNewColors<<< grid_vertexlen, threads_vertexlen, 0>>>(d_avg_color_r_copy, d_avg_color_g_copy, d_avg_color_b_copy, d_avg_color, d_vertex_flag_thrust, no_of_vertices);
+	ExtractNewColors<<< grid_vertexlen, threads_vertexlen, 0>>>(d_avg_color_r_copy, d_avg_color_g_copy, d_avg_color_b_copy, d_avg_color, d_new_supervertexIDs, no_of_vertices);
 
 	/*
 	 * D. Removing self edges
@@ -662,18 +648,18 @@ void HPGMST()
 
 	// 12. Remove the largest duplicate edges using split over new u,v and w.
 	// 12.1 Append supervertex ids of u and v along with weight w into single 64 bit array (u 24 bit, v 24 bit, w 16 bit)
-	AppendForDuplicateEdgeRemoval<<< grid_edgelen, threads_edgelen, 0>>>(d_appended_uvw, d_edge, d_old_uIDs, d_weight,d_new_supervertexIDs, no_of_edges);
+	AppendForDuplicateEdgeRemoval<<< grid_edgelen, threads_edgelen, 0>>>(d_appended_uve, d_edge, d_old_uIDs, d_edge_strength,d_new_supervertexIDs, no_of_edges);
 
 	//12.2 Split the array using {u,v) as the key. Pick First distinct (u,v) entry as the edge, nullify others
 	//     You may also replace the split with sort, but we could not find a 64-bit sort.
-	thrust::sort(thrust::device, d_appended_uvw, d_appended_uvw + no_of_edges);
+	thrust::sort(thrust::device, d_appended_uve, d_appended_uve + no_of_edges);
 	
 	//Pick the first distinct (u,v) combination, mark these edges and compact
 	// 12.3 Create flag indicating smallest edges, 0 for larger duplicates
 	ClearArray<<< grid_edgelen, threads_edgelen, 0>>>( d_edge_flag, no_of_edges ); // d_edge_flag = F3
 	unsigned int dsize=no_of_edges; //just make sure
 	cudaMemcpy( d_size, &dsize, sizeof(unsigned int), cudaMemcpyHostToDevice);
-	MarkEdgesUV<<< grid_edgelen, threads_edgelen, 0>>>(d_edge_flag, d_appended_uvw, d_size, no_of_edges);
+	MarkEdgesUV<<< grid_edgelen, threads_edgelen, 0>>>(d_edge_flag, d_appended_uve, d_size, no_of_edges);
 
 
 	// 13. Compact and create new edge and weight list
@@ -689,6 +675,7 @@ void HPGMST()
                   thrust::minus<unsigned int>());
 
 
+	// TODO FROM HERE
 	// Do some cleanup / clearing
 	ClearEdgeStuff<<< grid_edgelen, threads_edgelen, 0>>>((unsigned int*)d_edge, (unsigned int*)d_weight, d_edge_mapping_copy, (unsigned int*)d_pick_array, no_of_edges);
 	unsigned int negative=0;
@@ -698,6 +685,7 @@ void HPGMST()
 	//Compact the edge and weight lists
 	unsigned int validsize=0;
 	cudaMemcpy( &validsize, d_size, sizeof(unsigned int), cudaMemcpyDeviceToHost);
+	// TODO UNTIL HERE
 
 	//Make a new grid for valid entries in the d_edge_flag array
 	SetGridThreadLen(validsize, &num_of_blocks, &num_of_threads_per_block);
@@ -706,7 +694,7 @@ void HPGMST()
 
 	// 13.2 Compact and create new edge and weight list
 	//      Reusing d_pick_array for storing the u ids
-	CompactEdgeList<<< grid_validsizelen, threads_validsizelen, 0>>>(d_edge, d_weight, d_old_uIDs, d_edge_flag, d_appended_uvw, d_pick_array, d_size, d_edge_list_size, d_vertex_list_size);
+	CompactEdgeList<<< grid_validsizelen, threads_validsizelen, 0>>>(d_edge, d_edge_strength, d_old_uIDs, d_edge_flag, d_appended_uve, d_pick_array, d_size, d_edge_list_size, d_vertex_list_size);
 
 	// 14. Build the vertex list from the newly formed edge list
 	ClearArray<<< grid_edgelen, threads_edgelen, 0>>>( d_edge_flag, no_of_edges);
