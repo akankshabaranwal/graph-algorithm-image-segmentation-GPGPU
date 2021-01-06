@@ -841,7 +841,7 @@ __global__ void AppendForDuplicateEdgeRemoval(unsigned long long int *d_appended
 ////////////////////////////////////////////////////////////////////////////////
 // Mark the starting edge for each uv combination, Runs for Edge Length
 ////////////////////////////////////////////////////////////////////////////////
-__global__ void MarkEdgesUV(unsigned int *d_edge_flag, unsigned long long int *d_appended_uvw, unsigned int *d_size, unsigned int no_of_edges)
+__global__ void MarkEdgesUV(unsigned int *d_edge_flag, unsigned long long int *d_appended_uve, unsigned int *d_size, unsigned int no_of_edges)
 {
     unsigned int tid = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
     if(tid<no_of_edges) {
@@ -849,8 +849,8 @@ __global__ void MarkEdgesUV(unsigned int *d_edge_flag, unsigned long long int *d
             unsigned long long int test = INF;
             test = test << NO_OF_BITS_MOVED_FOR_VERTEX_IDS;
             test |=INF;
-            unsigned long long int test1 = d_appended_uvw[tid]>>(64-(NO_OF_BITS_MOVED_FOR_VERTEX_IDS+NO_OF_BITS_MOVED_FOR_VERTEX_IDS)); // uv[i]
-            unsigned long long int test2 = d_appended_uvw[tid-1]>>(64-(NO_OF_BITS_MOVED_FOR_VERTEX_IDS+NO_OF_BITS_MOVED_FOR_VERTEX_IDS)); // uv[i-1]
+            unsigned long long int test1 = d_appended_uve[tid]>>(64-(NO_OF_BITS_MOVED_FOR_VERTEX_IDS+NO_OF_BITS_MOVED_FOR_VERTEX_IDS)); // uv[i]
+            unsigned long long int test2 = d_appended_uve[tid-1]>>(64-(NO_OF_BITS_MOVED_FOR_VERTEX_IDS+NO_OF_BITS_MOVED_FOR_VERTEX_IDS)); // uv[i-1]
 
             if(test1>test2) {
                 d_edge_flag[tid]=1;
@@ -880,8 +880,8 @@ __global__ void CompactEdgeList(unsigned int *d_edge, unsigned int *d_edge_stren
             unsigned long long int UVE = d_appended_uve[tid];
             unsigned int writepos = d_old_uIDs[tid];
             unsigned long long int mask = pow(2.0,64-(NO_OF_BITS_MOVED_FOR_VERTEX_IDS+NO_OF_BITS_MOVED_FOR_VERTEX_IDS))-1;
-            unsigned long long int e  = UVW&mask;
-            unsigned long long int test = UVW>>(64-(NO_OF_BITS_MOVED_FOR_VERTEX_IDS+NO_OF_BITS_MOVED_FOR_VERTEX_IDS));
+            unsigned long long int e  = UVE&mask;
+            unsigned long long int test = UVE>>(64-(NO_OF_BITS_MOVED_FOR_VERTEX_IDS+NO_OF_BITS_MOVED_FOR_VERTEX_IDS));
             unsigned long long int mask2 = pow(2.0,NO_OF_BITS_MOVED_FOR_VERTEX_IDS)-1;
             unsigned long long int v = test&mask2;
             unsigned long long int u = test>>NO_OF_BITS_MOVED_FOR_VERTEX_IDS;
