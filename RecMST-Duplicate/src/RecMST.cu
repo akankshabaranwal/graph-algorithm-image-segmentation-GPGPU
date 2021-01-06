@@ -713,8 +713,8 @@ void HPGMST()
 	//14.1 Create flag based on difference in u on the new edge list (based on diffference of u ids)
 	MakeFlagForVertexList<<< grid_edgelen, threads_edgelen, 0>>>(d_pick_array, d_edge_flag, no_of_edges); // d_edge_flag = F4
 
-	printf("end\n");
-	printUIntArr(d_vertex, no_of_vertices);
+	printf("pick ");
+	printUIntArr(d_pick_array, no_of_edges);
 
 	// 14.2 Build the vertex list from the newly formed edge list
 	MakeVertexList<<< grid_edgelen, threads_edgelen, 0>>>(d_vertex, d_pick_array, d_edge_flag, no_of_edges);
