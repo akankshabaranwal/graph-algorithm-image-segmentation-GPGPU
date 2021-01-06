@@ -506,6 +506,7 @@ void HPGMST()
 
 	// 2. Divide the edge-list, E, into segments with 1 indicating the start of each segment and 0 otherwise, store this in flag array F.
 	// Mark the segments for the segmented min scan
+	printUIntArr(d_vertex, no_of_vertices);
 	MakeFlag_3<<< grid_vertexlen, threads_vertexlen, 0>>>( d_edge_flag, d_vertex, no_of_vertices);
 
 	printUIntArr(d_edge_flag, no_of_edges);
