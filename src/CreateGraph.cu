@@ -55,15 +55,7 @@ __global__ void createCornerGraphKernel(unsigned char *image, unsigned int *d_ve
             other_r = image[other_img_idx];
             other_g = image[other_img_idx + 1];
             other_b = image[other_img_idx + 2];
-            distance = sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
-            if(distance<256)
-                distance=distance*16.0;
-            else if(distance<512)
-                distance=distance*8.0;
-            else if(distance<1024)
-                distance=distance*4.0;
-            else if(distance<2048)
-                distance=distance*2.0;
+            distance = 8.0*sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
             d_weight[write_offset] = (unsigned int) round(distance);
         }
 
@@ -75,15 +67,7 @@ __global__ void createCornerGraphKernel(unsigned char *image, unsigned int *d_ve
             other_r = image[other_img_idx];
             other_g = image[other_img_idx + 1];
             other_b = image[other_img_idx + 2];
-                        distance = sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
-            if(distance<256)
-                distance=distance*16.0;
-            else if(distance<512)
-                distance=distance*8.0;
-            else if(distance<1024)
-                distance=distance*4.0;
-            else if(distance<2048)
-                distance=distance*2.0;
+            distance = 8.0*sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
             d_weight[write_offset] = (unsigned int) round(distance);
         }
 
@@ -95,15 +79,7 @@ __global__ void createCornerGraphKernel(unsigned char *image, unsigned int *d_ve
             other_r = image[other_img_idx];
             other_g = image[other_img_idx + 1];
             other_b = image[other_img_idx + 2];
-                        distance = sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
-            if(distance<256)
-                distance=distance*16.0;
-            else if(distance<512)
-                distance=distance*8.0;
-            else if(distance<1024)
-                distance=distance*4.0;
-            else if(distance<2048)
-                distance=distance*2.0;
+            distance = 8.0*sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
             d_weight[write_offset+1] = (unsigned int) round(distance);
         }
 
@@ -115,15 +91,7 @@ __global__ void createCornerGraphKernel(unsigned char *image, unsigned int *d_ve
             other_r = image[other_img_idx];
             other_g = image[other_img_idx + 1];
             other_b = image[other_img_idx + 2];
-                        distance = sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
-            if(distance<256)
-                distance=distance*16.0;
-            else if(distance<512)
-                distance=distance*8.0;
-            else if(distance<1024)
-                distance=distance*4.0;
-            else if(distance<2048)
-                distance=distance*2.0;
+            distance = 8.0*sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
             d_weight[write_offset+1] = (unsigned int) round(distance);
         }
     }
@@ -163,15 +131,7 @@ __global__ void createFirstRowGraphKernel(unsigned char *image, unsigned int *d_
         other_r = image[other_img_idx];
         other_g = image[other_img_idx + 1];
         other_b = image[other_img_idx + 2];
-                    distance = sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
-            if(distance<256)
-                distance=distance*16.0;
-            else if(distance<512)
-                distance=distance*8.0;
-            else if(distance<1024)
-                distance=distance*4.0;
-            else if(distance<2048)
-                distance=distance*2.0;
+        distance = 8.0*sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
         d_weight[write_offset] = (unsigned int) round(distance);
 
         // Right node
@@ -181,15 +141,7 @@ __global__ void createFirstRowGraphKernel(unsigned char *image, unsigned int *d_
         other_r = image[other_img_idx];
         other_g = image[other_img_idx + 1];
         other_b = image[other_img_idx + 2];
-                    distance = sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
-            if(distance<256)
-                distance=distance*16.0;
-            else if(distance<512)
-                distance=distance*8.0;
-            else if(distance<1024)
-                distance=distance*4.0;
-            else if(distance<2048)
-                distance=distance*2.0;
+        distance = 8.0*sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
         d_weight[write_offset+1] = (unsigned int) round(distance);
 
         // Bottom node
@@ -199,15 +151,7 @@ __global__ void createFirstRowGraphKernel(unsigned char *image, unsigned int *d_
         other_r = image[other_img_idx];
         other_g = image[other_img_idx + 1];
         other_b = image[other_img_idx + 2];
-                    distance = sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
-            if(distance<256)
-                distance=distance*16.0;
-            else if(distance<512)
-                distance=distance*8.0;
-            else if(distance<1024)
-                distance=distance*4.0;
-            else if(distance<2048)
-                distance=distance*2.0;
+        distance = 8.0*sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
         d_weight[write_offset+2] = (unsigned int) round(distance);
     }
 }
@@ -248,15 +192,7 @@ __global__ void createLastRowGraphKernel(unsigned char *image, unsigned int *d_v
         other_r = image[other_img_idx];
         other_g = image[other_img_idx + 1];
         other_b = image[other_img_idx + 2];
-                    distance = sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
-            if(distance<256)
-                distance=distance*16.0;
-            else if(distance<512)
-                distance=distance*8.0;
-            else if(distance<1024)
-                distance=distance*4.0;
-            else if(distance<2048)
-                distance=distance*2.0;
+        distance = 8.0*sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
         d_weight[write_offset] = (unsigned int) round(distance);
 
         // Right node
@@ -266,15 +202,7 @@ __global__ void createLastRowGraphKernel(unsigned char *image, unsigned int *d_v
         other_r = image[other_img_idx];
         other_g = image[other_img_idx + 1];
         other_b = image[other_img_idx + 2];
-                    distance = sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
-            if(distance<256)
-                distance=distance*16.0;
-            else if(distance<512)
-                distance=distance*8.0;
-            else if(distance<1024)
-                distance=distance*4.0;
-            else if(distance<2048)
-                distance=distance*2.0;
+        distance = 8.0*sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
         d_weight[write_offset+1] = (unsigned int) round(distance);
 
         // Top node
@@ -284,15 +212,7 @@ __global__ void createLastRowGraphKernel(unsigned char *image, unsigned int *d_v
         other_r = image[other_img_idx];
         other_g = image[other_img_idx + 1];
         other_b = image[other_img_idx + 2];
-                    distance = sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
-            if(distance<256)
-                distance=distance*16.0;
-            else if(distance<512)
-                distance=distance*8.0;
-            else if(distance<1024)
-                distance=distance*4.0;
-            else if(distance<2048)
-                distance=distance*2.0;
+        distance = 8.0*sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
         d_weight[write_offset+2] = (unsigned int) round(distance);
     }
 }
@@ -332,15 +252,7 @@ __global__ void createFirstColumnGraphKernel(unsigned char *image, unsigned int 
         other_r = image[other_img_idx];
         other_g = image[other_img_idx + 1];
         other_b = image[other_img_idx + 2];
-                    distance = sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
-            if(distance<256)
-                distance=distance*16.0;
-            else if(distance<512)
-                distance=distance*8.0;
-            else if(distance<1024)
-                distance=distance*4.0;
-            else if(distance<2048)
-                distance=distance*2.0;
+        distance = 8.0*sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
         d_weight[write_offset] = (unsigned int) round(distance);
 
         // Bottom node
@@ -350,15 +262,7 @@ __global__ void createFirstColumnGraphKernel(unsigned char *image, unsigned int 
         other_r = image[other_img_idx];
         other_g = image[other_img_idx + 1];
         other_b = image[other_img_idx + 2];
-                    distance = sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
-            if(distance<256)
-                distance=distance*16.0;
-            else if(distance<512)
-                distance=distance*8.0;
-            else if(distance<1024)
-                distance=distance*4.0;
-            else if(distance<2048)
-                distance=distance*2.0;
+        distance = 8.0*sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
         d_weight[write_offset+1] = (unsigned int) round(distance);
 
         // Top node
@@ -368,15 +272,7 @@ __global__ void createFirstColumnGraphKernel(unsigned char *image, unsigned int 
         other_r = image[other_img_idx];
         other_g = image[other_img_idx + 1];
         other_b = image[other_img_idx + 2];
-                    distance = sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
-            if(distance<256)
-                distance=distance*16.0;
-            else if(distance<512)
-                distance=distance*8.0;
-            else if(distance<1024)
-                distance=distance*4.0;
-            else if(distance<2048)
-                distance=distance*2.0;
+        distance = 8.0*sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
         d_weight[write_offset+2] = (unsigned int) round(distance);
     }
 }
@@ -417,15 +313,7 @@ __global__ void createLastColumnGraphKernel(unsigned char *image, unsigned int *
         other_r = image[other_img_idx];
         other_g = image[other_img_idx + 1];
         other_b = image[other_img_idx + 2];
-                    distance = sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
-            if(distance<256)
-                distance=distance*16.0;
-            else if(distance<512)
-                distance=distance*8.0;
-            else if(distance<1024)
-                distance=distance*4.0;
-            else if(distance<2048)
-                distance=distance*2.0;
+        distance = 8.0*sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
         d_weight[write_offset] = (unsigned int) round(distance);
 
         // Bottom node
@@ -435,15 +323,7 @@ __global__ void createLastColumnGraphKernel(unsigned char *image, unsigned int *
         other_r = image[other_img_idx];
         other_g = image[other_img_idx + 1];
         other_b = image[other_img_idx + 2];
-                    distance = sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
-            if(distance<256)
-                distance=distance*16.0;
-            else if(distance<512)
-                distance=distance*8.0;
-            else if(distance<1024)
-                distance=distance*4.0;
-            else if(distance<2048)
-                distance=distance*2.0;
+        distance = 8.0*sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
         d_weight[write_offset+1] = (unsigned int) round(distance);
 
         // Top node
@@ -453,15 +333,7 @@ __global__ void createLastColumnGraphKernel(unsigned char *image, unsigned int *
         other_r = image[other_img_idx];
         other_g = image[other_img_idx + 1];
         other_b = image[other_img_idx + 2];
-                    distance = sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
-            if(distance<256)
-                distance=distance*16.0;
-            else if(distance<512)
-                distance=distance*8.0;
-            else if(distance<1024)
-                distance=distance*4.0;
-            else if(distance<2048)
-                distance=distance*2.0;
+        distance = 8.0*sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
         d_weight[write_offset+2] = (unsigned int) round(distance);
     }
 }
@@ -503,15 +375,7 @@ __global__ void createInnerGraphKernel(unsigned char *image, unsigned int *d_ver
         other_r = image[other_img_idx];
         other_g = image[other_img_idx + 1];
         other_b = image[other_img_idx + 2];
-                    distance = sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
-            if(distance<256)
-                distance=distance*16.0;
-            else if(distance<512)
-                distance=distance*8.0;
-            else if(distance<1024)
-                distance=distance*4.0;
-            else if(distance<2048)
-                distance=distance*2.0;
+        distance = 8.0*sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
         d_weight[write_offset] = (unsigned int) round(distance);
 
         // Right node
@@ -521,15 +385,7 @@ __global__ void createInnerGraphKernel(unsigned char *image, unsigned int *d_ver
         other_r = image[other_img_idx];
         other_g = image[other_img_idx + 1];
         other_b = image[other_img_idx + 2];
-                    distance = sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
-            if(distance<256)
-                distance=distance*16.0;
-            else if(distance<512)
-                distance=distance*8.0;
-            else if(distance<1024)
-                distance=distance*4.0;
-            else if(distance<2048)
-                distance=distance*2.0;
+        distance = 8.0*sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
         d_weight[write_offset+1] = (unsigned int) round(distance);
 
         // Bottom node
@@ -539,15 +395,7 @@ __global__ void createInnerGraphKernel(unsigned char *image, unsigned int *d_ver
         other_r = image[other_img_idx];
         other_g = image[other_img_idx + 1];
         other_b = image[other_img_idx + 2];
-                    distance = sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
-            if(distance<256)
-                distance=distance*16.0;
-            else if(distance<512)
-                distance=distance*8.0;
-            else if(distance<1024)
-                distance=distance*4.0;
-            else if(distance<2048)
-                distance=distance*2.0;
+        distance = 8.0*sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
         d_weight[write_offset+2] = (unsigned int) round(distance);
 
         // Top node
@@ -557,15 +405,7 @@ __global__ void createInnerGraphKernel(unsigned char *image, unsigned int *d_ver
         other_r = image[other_img_idx];
         other_g = image[other_img_idx + 1];
         other_b = image[other_img_idx + 2];
-                    distance = sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
-            if(distance<256)
-                distance=distance*16.0;
-            else if(distance<512)
-                distance=distance*8.0;
-            else if(distance<1024)
-                distance=distance*4.0;
-            else if(distance<2048)
-                distance=distance*2.0;
+        distance = 8.0*sqrt(pow((this_r - other_r), 2) + pow((this_g - other_g), 2) + pow((this_b - other_b), 2));
         d_weight[write_offset+3] = (unsigned int) round(distance);
     }
 }
