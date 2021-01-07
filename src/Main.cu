@@ -307,40 +307,20 @@ void segment(Mat image, std::string outFile, bool output)
         //E 12.
         CreateUVWArray<<<numBlock,numthreads>>>( OnlyEdge, OnlyWeight, numEdges, flagUid, SuperVertexId, UVW);
         //12.2 Sort the UVW Array
-
         thrust::sort(thrust::device, UVW, UVW + numEdges);
         CreateFlag3Array<<<numBlock,numthreads>>>(UVW, numEdges, flagUid, MinMaxScanArray);
         int *new_edge_size = thrust::max_element(thrust::device, MinMaxScanArray, MinMaxScanArray + numEdges);
-        //cudaDeviceSynchronize();
-        //*new_edge_size = *new_edge_size+1;
         thrust::inclusive_scan(thrust::device, flagUid, flagUid + *new_edge_size, compactLocations, thrust::plus<int>());
         ResetCompactLocationsArray<<<numBlock,numthreads>>>(compactLocations, *new_edge_size);
         CreateNewEdgeList<<<numBlock,numthreads>>>(  compactLocations, OnlyEdge, OnlyWeight, UVW, flagUid, *new_edge_size, new_E_size, new_V_size, expanded_u);
         int *new_E_sizeptr = thrust::max_element(thrust::device, new_E_size, new_E_size + *new_edge_size);
         int *new_V_sizeptr = thrust::max_element(thrust::device, new_V_size, new_V_size + *new_edge_size);
-/*
-        cudaDeviceSynchronize();
-        err = cudaGetLastError();        // Get error code
-        if ( err != cudaSuccess )
-        {
-            printf("CUDA Error CreateNewEdgeList: %s\n", cudaGetErrorString(err));
-            exit(-1);
-        }
-*/
 
         numVertices = *new_V_sizeptr;
         numEdges = *new_E_sizeptr;
 
         CreateFlag4Array<<<numBlock,numthreads>>>(expanded_u, flagUid, numEdges);
         CreateNewVertexList<<<numBlock,numthreads>>>(VertexList, flagUid, numEdges, expanded_u);
-/*        cudaDeviceSynchronize();
-        err = cudaGetLastError();        // Get error code
-        if ( err != cudaSuccess )
-        {
-            printf("CUDA Error: CreateNewVertexList%s\n", cudaGetErrorString(err));
-            exit(-1);
-        }*/
-
         d_hierarchy_levels.push_back(SuperVertexId);
         hierarchy_level_sizes.push_back(numVertices);
         cudaMallocManaged(&SuperVertexId, numVertices * sizeof(uint32_t));
