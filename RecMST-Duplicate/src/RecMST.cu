@@ -840,7 +840,7 @@ const Options handleParams(int argc, char **argv) {
 int main(int argc, char **argv)
 {
     const Options options = handleParams(argc, argv);
-
+    cv::Mat::setDefaultAllocator(cv::cuda::HostMem::getAllocator (cv::cuda::HostMem::AllocType::PAGE_LOCKED));
     // Read image
     Mat image = imread(options.inFile, IMREAD_COLOR);
     fprintf(stderr, "Size of image obtained is: Rows: %d, Columns: %d, Pixels: %d\n", image.rows, image.cols, image.rows * image.cols);
