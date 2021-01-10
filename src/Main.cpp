@@ -14,7 +14,7 @@ void printUsage() {
     puts("\t-i: Path to input file (default: data/beach.png)");
     puts("\t-o: Path to output file (default: segmented.png)");
     puts("\t-k: K from Felzenszwalb algorithm (default: 200)");
-    puts("\t-m: Min size for post-processing");
+    puts("\t-m: Min size for post-processing (default: 200)");
     puts("\t-E: sigma for Gaussian filter (default: 1.0)");
     puts("\t-w: Number of iterations to perform during warmup (default: 1)");
     puts("\t-b: Number of iterations to perform during benchmarking (default: 10)");

@@ -203,8 +203,8 @@ void merge(uint4 vertices[], min_edge min_edges[], uint *num_components, uint co
         if (min_edge.src_comp == min_edge.dest_comp || min_edge.src_comp == 0) continue;
         uint4 src = vertices[min_edge.src_comp - 1];
         uint4 dest = vertices[min_edge.dest_comp - 1];
-        uint src_diff = src.w + (10*k / powf(src.z, iteration));
-        uint dest_diff = dest.w + (10*k / powf(dest.z, iteration));
+        uint src_diff = (double) src.w + (k / powf((float)src.z / 2, iteration * 1.2));
+        uint dest_diff = (double) dest.w + (k / powf((float)dest.z / 2, iteration * 1.2));
 
         if (min_edge.weight <= min(src_diff, dest_diff)) {
             atomicSub_system(num_components, 1);
@@ -329,7 +329,7 @@ void segment(uint4 vertices[], uint2 edges[], min_edge min_edges[], min_edge_wra
         cudaDeviceSynchronize();
         curr_n_comp = *n_components;
         if (prev_n_components == curr_n_comp) {
-            size_threshold<<<blocks.x, threads.x>>>(vertices, min_edges, n_components, curr_n_comp, powf(min_size, counter));
+            size_threshold<<<blocks.x, threads.x>>>(vertices, min_edges, n_components, curr_n_comp, min_size * 2);
         }
 
         //printf("Update\n");
@@ -397,7 +397,7 @@ void segment_cpu(uint4 vertices[], uint2 edges[], min_edge min_edges[], min_edge
         prev_n_components = curr_n_comp;
         cudaMemcpy(&curr_n_comp, n_components, sizeof(uint), cudaMemcpyDeviceToHost);
         if (prev_n_components == curr_n_comp) {
-            size_threshold<<<blocks.x, threads.x>>>(vertices, min_edges, n_components, curr_n_comp, static_cast<int>(powf(min_size, counter)));
+            size_threshold<<<blocks.x, threads.x>>>(vertices, min_edges, n_components, curr_n_comp, min_size * 2);
         }
 
         //printf("Update\n");
