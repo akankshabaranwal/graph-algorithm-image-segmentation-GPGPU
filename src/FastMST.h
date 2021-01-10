@@ -10,7 +10,7 @@
 using namespace cv::cuda;
 using namespace cv;
 
-__global__ void SetBitEdgeListArray( uint64_t *W,uint numElements);
+__global__ void SetBitEdgeListArray( uint64_t *W,int numElements);
 
 
 __global__ void ClearFlagArray(uint32_t *flag, int numElements);

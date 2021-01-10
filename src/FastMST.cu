@@ -9,7 +9,7 @@
 // Scan
 //https://moderngpu.github.io/faq.html
 
-__global__ void SetBitEdgeListArray( uint64_t *W,uint numElements)
+__global__ void SetBitEdgeListArray( uint64_t *W,int numElements)
 {
     uint32_t tidx = blockIdx.x*blockDim.x+threadIdx.x;
     uint32_t num_threads = gridDim.x * blockDim.x;
@@ -17,7 +17,8 @@ __global__ void SetBitEdgeListArray( uint64_t *W,uint numElements)
     for (uint32_t idx = tidx; idx < numElements; idx += num_threads)
     {
         tmp_Wt = static_cast<uint64_t> (W[idx]);
-        W[idx] = (tmp_Wt << 32) | idx;
+
+        W[idx] = (tmp_Wt << 32) | static_cast<uint64_t>(idx);
     }
 }
 
@@ -74,7 +75,8 @@ __global__ void FindSuccessorArray(uint32_t *Successor,  uint32_t *OnlyEdge, uin
     uint32_t num_threads = gridDim.x * blockDim.x;
 
     for (uint32_t idx = tidx; idx < numVertices; idx += num_threads)
-    {   min_edge_index = NWE[idx];
+    {
+        min_edge_index = NWE[idx];
         Successor[idx] = OnlyEdge[min_edge_index];
     }
 }
@@ -109,7 +111,7 @@ void PropagateRepresentativeVertices(uint32_t *Successor, int numVertices)
     while(change)
     {
         change = false;
-        for(uint vertex=0; vertex<numVertices;vertex++)
+        for(uint32_t vertex=0; vertex<numVertices;vertex++)
         {
             successor = Successor[vertex];
             successor_2 = Successor[successor];
@@ -135,7 +137,7 @@ __global__ void appendSuccessorArray(uint32_t *Representative, uint32_t *VertexI
 
 __global__ void CreateFlag2Array(uint32_t *Representative, uint32_t *Flag2, int numSegments)
 {
-    Flag2[0]=0;
+
     uint32_t L0, L1;
     uint32_t tidx = blockIdx.x*blockDim.x+threadIdx.x;
     uint32_t num_threads = gridDim.x * blockDim.x;
@@ -148,6 +150,10 @@ __global__ void CreateFlag2Array(uint32_t *Representative, uint32_t *Flag2, int 
             Flag2[idx]=1;
         else
             Flag2[idx]=0;
+    }
+    if(tidx==0)
+    {
+        Flag2[tidx]=0;
     }
 }
 
@@ -216,14 +222,14 @@ __global__ void CreateFlag3Array(uint64_t *UVW, int numEdges, uint32_t *flag3, i
     uint32_t prev_supervertexid_u, prev_supervertexid_v, supervertexid_u, supervertexid_v;
     uint32_t tidx = blockIdx.x*blockDim.x+threadIdx.x;
     uint32_t num_threads = gridDim.x * blockDim.x;
-    MinMaxScanArray[tidx]=1;
+    if(tidx==0) MinMaxScanArray[tidx]=1;
     for (uint32_t idx = tidx+1; idx < numEdges; idx += num_threads)
     {
         prev_supervertexid_u = UVW[idx-1]>>38;
-        prev_supervertexid_v = (UVW[idx-1]>>12) &0x000003FFFFFF;
+        prev_supervertexid_v = (UVW[idx-1]>>12) &0x0000000003FFFFFF;
 
         supervertexid_u = UVW[idx]>>38;
-        supervertexid_v = (UVW[idx]>>12) &0x000003FFFFFF;
+        supervertexid_v = (UVW[idx]>>12) &0x0000000003FFFFFF;
 
         flag3[idx] = 0;
         MinMaxScanArray[idx]=1;
@@ -236,12 +242,11 @@ __global__ void CreateFlag3Array(uint64_t *UVW, int numEdges, uint32_t *flag3, i
             else
             {
                 flag3[idx] = 0;
-                MinMaxScanArray[idx]=idx+2;
             }
-        }
+                MinMaxScanArray[idx]=idx+1;
+            }
     }
     if(tidx==0)flag3[tidx]=1;
-
 }
 
 __global__ void ResetCompactLocationsArray(uint32_t *compactLocations, uint32_t numEdges)
@@ -270,10 +275,10 @@ __global__ void CreateNewEdgeList( uint32_t *compactLocations, uint32_t *newOnly
         if(flag3[idx])
         {
             supervertexid_u =UVW[idx]>>38;
-            supervertexid_v =((UVW[idx]>>12)&0x000003FFFFFF);
-            edgeWeight = (UVW[idx]&0x00000000FFF);
+            supervertexid_v =((UVW[idx]>>12)&0x0000000003FFFFFF);
+            edgeWeight = (UVW[idx]&0x0000000000000FFF);
             newLocation = compactLocations[idx];
-            if((supervertexid_u!=67108863) and (supervertexid_v!=4095) and (supervertexid_u!=-1) and (supervertexid_v!=-1) and (supervertexid_u!=4095) and (supervertexid_v!=67108863)and (UVW[idx]!=UINT64_MAX))
+            if((supervertexid_u!=67108863) and (supervertexid_u!=4095) and (supervertexid_u!=-1) and (supervertexid_v!=-1) and (supervertexid_v!=4095) and (supervertexid_v!=67108863)and (UVW[idx]!=UINT64_MAX))
             {
                 newOnlyE[newLocation] = supervertexid_v;
                 newOnlyW[newLocation] = (edgeWeight<<32) | newLocation;

@@ -186,7 +186,7 @@ void writeComponents(std::vector<uint32_t *>& d_hierarchy_levels, int no_of_vert
 void segment(Mat image, std::string outFile, bool output)
 {
     int numVertices = image.rows * image.cols;
-    uint numEdges = (image.rows) * (image.cols) * 4;
+    int numEdges = (image.rows) * (image.cols) * 4;
     std::chrono::high_resolution_clock::time_point start, end;
 
     if (TIMING_MODE == TIME_COMPLETE) { // Start whole execution timer
@@ -248,11 +248,13 @@ void segment(Mat image, std::string outFile, bool output)
     }
 
     SetBitEdgeListArray<<<numBlock, numthreads>>>(  OnlyWeight, numEdges);
-/*    cudaDeviceSynchronize();
-
-    numthreads=1024;
-    numBlock =num_sms;*/
-
+   /* cudaDeviceSynchronize();
+    err = cudaGetLastError();        // Get error code
+    if ( err != cudaSuccess )
+    {
+        printf("CUDA Error SetBitEdgeList Array: %s\n", cudaGetErrorString(err));
+        exit(-1);
+    }*/
     while(numVertices>1)
     {
         if(numEdges>1024)
@@ -267,17 +269,16 @@ void segment(Mat image, std::string outFile, bool output)
             numthreads = 64;
         else
             numthreads = min(32, numVertices);
-
-        numBlock = numEdges/numthreads;
+        //printf("%d\n", numVertices);
+        //numBlock = numEdges/numthreads;
         //numthreads=1024;
         numBlock = num_sms;
         //Create UID array. 10.2
         ClearFlagArray<<<numBlock, numthreads>>>(flagUid, numEdges);
         MarkSegments<<<numBlock, numthreads>>>(flagUid, VertexList, numVertices);
-
         thrust::inclusive_scan(thrust::device, flagUid, flagUid + numEdges, flagUid, thrust::plus<uint32_t>());
         //3. Segmented min scan
-        thrust::inclusive_scan_by_key(thrust::device, flagUid, flagUid + numEdges, OnlyWeight, tempArray2, thrust::equal_to<uint64_t>() , thrust::minimum<uint64_t>());
+        thrust::inclusive_scan_by_key(thrust::device, flagUid, flagUid + numEdges, OnlyWeight, tempArray2, thrust::equal_to<uint32_t>() , thrust::minimum<uint64_t>());
         MakeIndexArray<<<numBlock, numthreads>>>( VertexList, tempArray2, tempArray, numVertices, numEdges);
         // Create NWE array
         CreateNWEArray<<<numBlock, numthreads>>>(NWE, tempArray, numVertices);
@@ -294,7 +295,6 @@ void segment(Mat image, std::string outFile, bool output)
         }
         //C. Merging vertices and assigning IDs to supervertices
         //7. Propagate representative vertex IDs using pointer doubling
-        //PropagateRepresentativeVertices(Successor, numVertices, numBlock, numthreads);
         PropagateRepresentativeVertices(Successor, numVertices);
         //8, 9 Append appendSuccessorArray
         appendSuccessorArray<<<numBlock, numthreads>>>(Representative, VertexIds, Successor, numVertices);
@@ -310,7 +310,7 @@ void segment(Mat image, std::string outFile, bool output)
         thrust::sort(thrust::device, UVW, UVW + numEdges);
         CreateFlag3Array<<<numBlock,numthreads>>>(UVW, numEdges, flagUid, MinMaxScanArray);
         int *new_edge_size = thrust::max_element(thrust::device, MinMaxScanArray, MinMaxScanArray + numEdges);
-        thrust::inclusive_scan(thrust::device, flagUid, flagUid + *new_edge_size, compactLocations, thrust::plus<int>());
+        thrust::inclusive_scan(thrust::device, flagUid, flagUid + *new_edge_size, compactLocations, thrust::plus<uint32_t>());
         ResetCompactLocationsArray<<<numBlock,numthreads>>>(compactLocations, *new_edge_size);
         CreateNewEdgeList<<<numBlock,numthreads>>>(  compactLocations, OnlyEdge, OnlyWeight, UVW, flagUid, *new_edge_size, new_E_size, new_V_size, expanded_u);
         int *new_E_sizeptr = thrust::max_element(thrust::device, new_E_size, new_E_size + *new_edge_size);
