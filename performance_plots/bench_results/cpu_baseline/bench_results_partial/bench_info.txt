@@ -1,0 +1,2 @@
+* Executable: ./executables/cpu_baseline/segment* Input directory: ./data/size_benchmark/ppm/* Segments directory: ./results/cpu_baseline/segment_results_partial/* Benchmark output directory: ./results/cpu_baseline/bench_results_partial/* Special arguments used: -s 1.0 -k 500 -m 100
+* Warmup iterations: 1* Benchmark iterations: 20* Type: partial* Retries: 3* Timeout: 7200

@@ -1,0 +1,2 @@
+* Executable: ./executables/boruvka_fastmst/build/felz* Input directory: ./data/size_benchmark/jpg/* Segments directory: ./results/boruvka_fastmst/segment_results_partial/* Benchmark output directory: ./results/boruvka_fastmst/bench_results_partial/* Special arguments used: -n
+* Warmup iterations: 3* Benchmark iterations: 20* Type: partial* Retries: 3* Timeout: 3600

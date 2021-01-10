@@ -1,0 +1,2 @@
+* Executable: ./executables/superpixel/felz* Input directory: ./data/size_benchmark/jpg/* Segments directory: ./results/superpixel/segment_results_partial/* Benchmark output directory: ./results/superpixel/bench_results_partial/* Special arguments used: -n
+* Warmup iterations: 3* Benchmark iterations: 20* Type: partial* Retries: 3* Timeout: 3600

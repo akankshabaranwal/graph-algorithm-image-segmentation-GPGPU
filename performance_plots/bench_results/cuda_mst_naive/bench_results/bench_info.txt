@@ -1,0 +1,2 @@
+* Executable: ./executables/cuda_mst_naive/build/felz* Input directory: ./data/size_benchmark/jpg/* Segments directory: ./results/cuda_mst_naive/segment_results/* Benchmark output directory: ./results/cuda_mst_naive/bench_results/* Special arguments used: -k 500 -E 1.0 -c
+* Warmup iterations: 3* Benchmark iterations: 20* Type: complete* Retries: 3* Timeout: 120

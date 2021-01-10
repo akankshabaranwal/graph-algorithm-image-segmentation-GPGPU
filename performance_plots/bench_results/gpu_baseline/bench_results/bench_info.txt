@@ -1,0 +1,2 @@
+* Executable: ./executables/gpu_baseline/6_Advanced/segmentationTreeThrust/segmentationTreeThrust* Input directory: ./data/size_benchmark/ppm/* Segments directory: ./results/gpu_baseline/segment_results/* Benchmark output directory: ./results/gpu_baseline/bench_results/* Special arguments used: -n
+* Warmup iterations: 1* Benchmark iterations: 20* Type: complete* Retries: 3* Timeout: 3600

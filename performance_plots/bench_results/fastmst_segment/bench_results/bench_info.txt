@@ -1,0 +1,2 @@
+* Executable: ./executables/fastmst_segment/felz* Input directory: ./data/size_benchmark/jpg/* Segments directory: ./results/fastmst_segment/segment_results/* Benchmark output directory: ./results/fastmst_segment/bench_results/* Special arguments used: -n
+* Warmup iterations: 3* Benchmark iterations: 20* Type: complete* Retries: 3* Timeout: 3600
