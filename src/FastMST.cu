@@ -135,7 +135,6 @@ __global__ void appendSuccessorArray(uint32_t *Representative, uint32_t *VertexI
 
 __global__ void CreateFlag2Array(uint32_t *Representative, uint32_t *Flag2, int numSegments)
 {
-    Flag2[0]=0;
     uint32_t L0, L1;
     uint32_t tidx = blockIdx.x*blockDim.x+threadIdx.x;
     uint32_t num_threads = gridDim.x * blockDim.x;
@@ -148,6 +147,10 @@ __global__ void CreateFlag2Array(uint32_t *Representative, uint32_t *Flag2, int 
             Flag2[idx]=1;
         else
             Flag2[idx]=0;
+    }
+    if(tidx==0)
+    {
+        Flag2[tidx]=0;
     }
 }
 
@@ -220,10 +223,10 @@ __global__ void CreateFlag3Array(uint64_t *UVW, int numEdges, uint32_t *flag3, i
     for (uint32_t idx = tidx+1; idx < numEdges; idx += num_threads)
     {
         prev_supervertexid_u = UVW[idx-1]>>38;
-        prev_supervertexid_v = (UVW[idx-1]>>12) &0x000003FFFFFF;
+        prev_supervertexid_v = (UVW[idx-1]>>12) &0x0000000003FFFFFF;
 
         supervertexid_u = UVW[idx]>>38;
-        supervertexid_v = (UVW[idx]>>12) &0x000003FFFFFF;
+        supervertexid_v = (UVW[idx]>>12) &0x0000000003FFFFFF;
 
         flag3[idx] = 0;
         MinMaxScanArray[idx]=1;
@@ -236,9 +239,9 @@ __global__ void CreateFlag3Array(uint64_t *UVW, int numEdges, uint32_t *flag3, i
             else
             {
                 flag3[idx] = 0;
-                MinMaxScanArray[idx]=idx+2;
             }
-        }
+                MinMaxScanArray[idx]=idx+1;
+            }
     }
     if(tidx==0)flag3[tidx]=1;
 
