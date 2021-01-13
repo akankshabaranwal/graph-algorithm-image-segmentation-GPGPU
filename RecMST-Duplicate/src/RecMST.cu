@@ -207,12 +207,19 @@ void printULongArr(long* d_data, int n_elements) {
 	free(h_data);
 }
 
-void printColorArr(unsigned char* d_data, int n_elements) {
-	unsigned char* h_data = (unsigned char *)malloc(sizeof(unsigned char)*n_elements);
-	cudaMemcpy(h_data, d_data, sizeof(unsigned char) * n_elements, cudaMemcpyDeviceToHost);
-	for (int i = 0; i < n_elements; i+=3) {
-		printf("(%u, %u, %u) ",h_data[i], h_data[i+1], h_data[i+2]);
+void printColorArr(float* d_avg_color_r, float* d_avg_color_g, float* d_avg_color_b, int n_elements) {
+	float* h_avg_color_r = (float*) malloc(sizeof(float)*n_elements);
+	float* h_avg_color_g = (float*) malloc(sizeof(float)*n_elements);
+	float* h_avg_color_b = (float*) malloc(sizeof(float)*n_elements);
+
+	cudaMemcpy(h_avg_color_r, d_avg_color_r, sizeof(float) * n_elements, cudaMemcpyDeviceToHost);
+	cudaMemcpy(h_avg_color_g, d_avg_color_g, sizeof(float) * n_elements, cudaMemcpyDeviceToHost);
+	cudaMemcpy(h_avg_color_b, d_avg_color_b, sizeof(float) * n_elements, cudaMemcpyDeviceToHost);
+
+	for (int i = 0; i < n_elements; i++) {
+		printf("(%u, %u, %u) ",d_avg_color_r[i], d_avg_color_g[i], d_avg_color_b[i]);
 	}
+
 	printf("\n");
 	free(h_data);
 }
@@ -468,6 +475,8 @@ void createGraph(Mat image) {
 	}
 
 	fprintf(stderr, "Image read successfully into graph with %d vertices and %d edges\n", no_of_vertices, no_of_edges);
+
+	printColorArr(d_avg_color_r, d_avg_color_g, d_avg_color_b, no_of_vertices * no_of_edges);
 }
 
 
