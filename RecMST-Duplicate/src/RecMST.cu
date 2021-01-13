@@ -103,12 +103,12 @@ unsigned int *d_vertex;										// starts as h_vertex
 unsigned int *d_weight;										// starts as h_weight
 unsigned int *d_edge_strength;
 unsigned int *d_edge_strength_copy;
-float* d_avg_color_r;
-float* d_avg_color_g;
-float* d_avg_color_b;
-float* d_avg_color_r_copy;
-float* d_avg_color_g_copy;
-float* d_avg_color_b_copy;
+double* d_avg_color_r;
+double* d_avg_color_g;
+double* d_avg_color_b;
+double* d_avg_color_r_copy;
+double* d_avg_color_g_copy;
+double* d_avg_color_b_copy;
 unsigned int *d_component_size;	
 unsigned int *d_old_component_size;	
 unsigned int *d_component_size_copy;	
@@ -286,12 +286,12 @@ void Init()
 	cudaMalloc( (void**) &d_component_size, sizeof(unsigned int)*no_of_vertices_orig);
 	cudaMalloc( (void**) &d_old_component_size, sizeof(unsigned int)*no_of_vertices_orig);
 	cudaMalloc( (void**) &d_component_size_copy, sizeof(unsigned int)*no_of_vertices_orig);
-	cudaMalloc( (void**) &d_avg_color_r, sizeof(float)*no_of_vertices_orig);
-	cudaMalloc( (void**) &d_avg_color_g, sizeof(float)*no_of_vertices_orig);
-	cudaMalloc( (void**) &d_avg_color_b, sizeof(float)*no_of_vertices_orig);
-	cudaMalloc( (void**) &d_avg_color_r_copy, sizeof(float)*no_of_vertices_orig);
-	cudaMalloc( (void**) &d_avg_color_g_copy, sizeof(float)*no_of_vertices_orig);
-	cudaMalloc( (void**) &d_avg_color_b_copy, sizeof(float)*no_of_vertices_orig);
+	cudaMalloc( (void**) &d_avg_color_r, sizeof(double)*no_of_vertices_orig);
+	cudaMalloc( (void**) &d_avg_color_g, sizeof(double)*no_of_vertices_orig);
+	cudaMalloc( (void**) &d_avg_color_b, sizeof(double)*no_of_vertices_orig);
+	cudaMalloc( (void**) &d_avg_color_r_copy, sizeof(double)*no_of_vertices_orig);
+	cudaMalloc( (void**) &d_avg_color_g_copy, sizeof(double)*no_of_vertices_orig);
+	cudaMalloc( (void**) &d_avg_color_b_copy, sizeof(double)*no_of_vertices_orig);
 
 	//Allocate memory for other arrays
 	cudaMalloc( (void**) &d_segmented_min_scan_input, sizeof(unsigned long long int)*no_of_edges_orig);
@@ -604,7 +604,7 @@ void HPGMST()
 
 	// Reweigh colors joining components so their sum when adding them up is the average
 	ReweighAndOrganizeColors<<< grid_vertexlen, threads_vertexlen, 0>>>(d_avg_color_r, d_avg_color_g, d_avg_color_b, d_component_size, d_old_component_size, d_new_supervertexIDs, no_of_vertices);
-	thrust::plus<float> binaryOp3;
+	thrust::plus<double> binaryOp3;
 	thrust::inclusive_scan_by_key(thrust::device, d_new_supervertexIDs, d_new_supervertexIDs + no_of_vertices, d_avg_color_r, d_avg_color_r_copy, binaryPred2, binaryOp3);
 	thrust::inclusive_scan_by_key(thrust::device, d_new_supervertexIDs, d_new_supervertexIDs + no_of_vertices, d_avg_color_g, d_avg_color_g_copy, binaryPred2, binaryOp3);
 	thrust::inclusive_scan_by_key(thrust::device, d_new_supervertexIDs, d_new_supervertexIDs + no_of_vertices, d_avg_color_b, d_avg_color_b_copy, binaryPred2, binaryOp3);
@@ -709,27 +709,27 @@ void writeComponents(std::vector<unsigned int*>& d_hierarchy_levels, std::vector
 	char *component_colours = (char *) malloc(no_of_vertices_orig * CHANNEL_SIZE * sizeof(char));
 
 
-	// Generate uniform [0, 1] float
+	// Generate uniform [0, 1] double
 	curandGenerator_t gen;
 	char* d_component_colours;
-	float *d_component_colours_float;
-	cudaMalloc( (void**) &d_component_colours_float, no_of_vertices_orig * CHANNEL_SIZE * sizeof(float));
+	double *d_component_colours_double;
+	cudaMalloc( (void**) &d_component_colours_double, no_of_vertices_orig * CHANNEL_SIZE * sizeof(double));
 	cudaMalloc( (void**) &d_component_colours, no_of_vertices_orig * CHANNEL_SIZE * sizeof(char));
 
-	// Generate random floats
+	// Generate random doubles
 	curandCreateGenerator(&gen , CURAND_RNG_PSEUDO_MTGP32); // Create a Mersenne Twister pseudorandom number generator
 	curandSetPseudoRandomGeneratorSeed(gen, 1234ULL); // Set seed
-	curandGenerateUniform(gen, d_component_colours_float, no_of_vertices_orig * CHANNEL_SIZE); // Generate n floats on device
+	curandGenerateUniform(gen, d_component_colours_double, no_of_vertices_orig * CHANNEL_SIZE); // Generate n doubles on device
 
-	// Convert floats to RGB char
+	// Convert doubles to RGB char
 	int num_of_blocks, num_of_threads_per_block;
 
 	SetGridThreadLen(no_of_vertices_orig * CHANNEL_SIZE, &num_of_blocks, &num_of_threads_per_block);
 	dim3 grid_rgb(num_of_blocks, 1, 1);
 	dim3 threads_rgb(num_of_threads_per_block, 1, 1);
 
-	RandFloatToRandRGB<<< grid_rgb, threads_rgb, 0>>>(d_component_colours, d_component_colours_float, no_of_vertices_orig * CHANNEL_SIZE);
-	cudaFree(d_component_colours_float);
+	RanddoubleToRandRGB<<< grid_rgb, threads_rgb, 0>>>(d_component_colours, d_component_colours_double, no_of_vertices_orig * CHANNEL_SIZE);
+	cudaFree(d_component_colours_double);
 
 
 	// Create hierarchy

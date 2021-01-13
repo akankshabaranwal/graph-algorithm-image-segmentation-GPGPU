@@ -33,7 +33,7 @@
 ////////////////////////////////////////////////////////////////////////////////////////////
 // Graph creation kernels
 ////////////////////////////////////////////////////////////////////////////////////////////
-__global__ void createAvgColorArray(unsigned char *image, float *d_avg_color_r, float *d_avg_color_g, float *d_avg_color_b, unsigned int no_of_rows, unsigned int no_of_cols, size_t pitch) {
+__global__ void createAvgColorArray(unsigned char *image, double *d_avg_color_r, double *d_avg_color_g, double *d_avg_color_b, unsigned int no_of_rows, unsigned int no_of_cols, size_t pitch) {
     unsigned int row = blockDim.x * blockIdx.x + threadIdx.x;
     unsigned int col = blockDim.y * blockIdx.y + threadIdx.y;
 
@@ -43,9 +43,9 @@ __global__ void createAvgColorArray(unsigned char *image, float *d_avg_color_r, 
         unsigned char this_g = image[this_img_idx + 1];
         unsigned char this_b = image[this_img_idx + 2];
         unsigned int write_idx = row * no_of_cols + col;
-        d_avg_color_r[write_idx] = (float) this_r;
-        d_avg_color_g[write_idx] = (float) this_g;
-        d_avg_color_b[write_idx] = (float) this_b;
+        d_avg_color_r[write_idx] = (double) this_r;
+        d_avg_color_g[write_idx] = (double) this_g;
+        d_avg_color_b[write_idx] = (double) this_b;
     }
 }
 
@@ -423,23 +423,23 @@ __global__ void InitComponentSizes(unsigned int* d_component_size, unsigned int 
 }
 
 
-__global__ void CalcWeights(float* d_avg_color_r, float* d_avg_color_g, float* d_avg_color_b, unsigned int* d_old_uIDs, unsigned int* d_edge, unsigned int* d_edge_strength, unsigned int *d_weight, unsigned int no_of_edges) 
+__global__ void CalcWeights(double* d_avg_color_r, double* d_avg_color_g, double* d_avg_color_b, unsigned int* d_old_uIDs, unsigned int* d_edge, unsigned int* d_edge_strength, unsigned int *d_weight, unsigned int no_of_edges) 
 {
     unsigned int tid = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
     if(tid<no_of_edges) {
         unsigned int u_id = d_old_uIDs[tid];
         unsigned int this_img_idx = u_id;
-        float this_r = d_avg_color_r[this_img_idx];
-        float this_g = d_avg_color_g[this_img_idx];
-        float this_b = d_avg_color_b[this_img_idx];
+        double this_r = d_avg_color_r[this_img_idx];
+        double this_g = d_avg_color_g[this_img_idx];
+        double this_b = d_avg_color_b[this_img_idx];
 
         unsigned int v_id = d_edge[tid];
         unsigned int other_img_idx = v_id;
-        float other_r = d_avg_color_r[other_img_idx];
-        float other_g = d_avg_color_g[other_img_idx];
-        float other_b = d_avg_color_b[other_img_idx]; // TODO: does abs work correct?
+        double other_r = d_avg_color_r[other_img_idx];
+        double other_g = d_avg_color_g[other_img_idx];
+        double other_b = d_avg_color_b[other_img_idx]; // TODO: does abs work correct?
 
-        float image_weight = (abs(this_r - other_r) + abs(this_g - other_g) + abs(this_b - other_b));
+        double image_weight = (abs(this_r - other_r) + abs(this_g - other_g) + abs(this_b - other_b));
         d_weight[tid] = d_edge_strength[tid] * ((unsigned int) (SCALE * image_weight));
         //d_weight[tid] = 1 * ((unsigned int) (SCALE * image_weight));
 
@@ -457,7 +457,7 @@ __global__ void SortComponentSizesFromSplit(unsigned int *d_component_size, unsi
     }
 }
 
-__global__ void SortAvgColorsFromSplit(float *d_avg_color_r, float *d_avg_color_g, float *d_avg_color_b, float *d_avg_color_copy_r, float *d_avg_color_copy_g, float *d_avg_color_copy_b, unsigned long long int *d_vertex_split, unsigned int no_of_vertices)
+__global__ void SortAvgColorsFromSplit(double *d_avg_color_r, double *d_avg_color_g, double *d_avg_color_b, double *d_avg_color_copy_r, double *d_avg_color_copy_g, double *d_avg_color_copy_b, unsigned long long int *d_vertex_split, unsigned int no_of_vertices)
 {
     unsigned int tid = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
     if(tid<no_of_vertices)
@@ -474,7 +474,7 @@ __global__ void SortAvgColorsFromSplit(float *d_avg_color_r, float *d_avg_color_
     }
 }
 
-__global__ void CopyToAvgColor(float *d_avg_color_r, float *d_avg_color_g, float *d_avg_color_b, float *d_avg_color_copy_r, float *d_avg_color_copy_g, float *d_avg_color_copy_b, unsigned int no_of_vertices)
+__global__ void CopyToAvgColor(double *d_avg_color_r, double *d_avg_color_g, double *d_avg_color_b, double *d_avg_color_copy_r, double *d_avg_color_copy_g, double *d_avg_color_copy_b, unsigned int no_of_vertices)
 {
     unsigned int tid = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
     if(tid<no_of_vertices) {
@@ -513,7 +513,7 @@ __global__ void ExtractComponentSizes(unsigned int *d_component_size_copy, unsig
     }
 }
 
-__global__ void ReweighAndOrganizeColors(float *d_avg_color_r, float *d_avg_color_g, float *d_avg_color_b, unsigned int *d_component_size, unsigned int *d_old_component_size, unsigned int* d_new_supervertexIDs, unsigned int no_of_vertices)
+__global__ void ReweighAndOrganizeColors(double *d_avg_color_r, double *d_avg_color_g, double *d_avg_color_b, unsigned int *d_component_size, unsigned int *d_old_component_size, unsigned int* d_new_supervertexIDs, unsigned int no_of_vertices)
 {
     unsigned int tid = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
     if(tid<no_of_vertices)
@@ -523,13 +523,13 @@ __global__ void ReweighAndOrganizeColors(float *d_avg_color_r, float *d_avg_colo
         unsigned int old_size = d_old_component_size[tid];
         unsigned int new_size = d_component_size[supervertexid];
 
-        float this_r = d_avg_color_r[tid];
-        float this_g = d_avg_color_g[tid];
-        float this_b = d_avg_color_b[tid];
+        double this_r = d_avg_color_r[tid];
+        double this_g = d_avg_color_g[tid];
+        double this_b = d_avg_color_b[tid];
 
-        float weighted_r = (this_r * old_size) / new_size;
-        float weighted_g = (this_g * old_size) / new_size;
-        float weighted_b = (this_b * old_size) / new_size;
+        double weighted_r = (this_r * old_size) / new_size;
+        double weighted_g = (this_g * old_size) / new_size;
+        double weighted_b = (this_b * old_size) / new_size;
 
         d_avg_color_r[tid] = weighted_r;
         d_avg_color_g[tid] = weighted_g;
@@ -537,7 +537,7 @@ __global__ void ReweighAndOrganizeColors(float *d_avg_color_r, float *d_avg_colo
     }
 }
 
-__global__ void ExtractNewColors(float *d_avg_color_r_copy, float *d_avg_color_g_copy, float *d_avg_color_b_copy, float *d_avg_color_r, float *d_avg_color_g, float *d_avg_color_b, unsigned int* d_vertex_flag_thrust, unsigned int no_of_vertices)
+__global__ void ExtractNewColors(double *d_avg_color_r_copy, double *d_avg_color_g_copy, double *d_avg_color_b_copy, double *d_avg_color_r, double *d_avg_color_g, double *d_avg_color_b, unsigned int* d_vertex_flag_thrust, unsigned int no_of_vertices)
 {
     unsigned int tid = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
     if(tid<no_of_vertices)
@@ -557,11 +557,11 @@ __global__ void ExtractNewColors(float *d_avg_color_r_copy, float *d_avg_color_g
 ////////////////////////////////////////////////////////////////////////////////////////////
 // Segment extraction kernels
 ////////////////////////////////////////////////////////////////////////////////////////////
-__global__ void RandFloatToRandRGB(char* d_component_colours, float *d_component_colours_float, unsigned int n_numbers) 
+__global__ void RanddoubleToRandRGB(char* d_component_colours, double *d_component_colours_double, unsigned int n_numbers) 
 {
     unsigned int tid = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
     if (tid < n_numbers) {
-        float color = 255 *d_component_colours_float[tid];
+        double color = 255 *d_component_colours_double[tid];
         d_component_colours[tid] = (char) color;
     }
 }
