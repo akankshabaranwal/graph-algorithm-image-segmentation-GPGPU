@@ -477,6 +477,8 @@ void createGraph(Mat image) {
 	}
 
 	fprintf(stderr, "Image read successfully into graph with %d vertices and %d edges\n", no_of_vertices, no_of_edges);
+	printColorArr(d_avg_color_r, d_avg_color_g, d_avg_color_b, no_of_vertices * no_of_edges);
+
 }
 
 
@@ -485,7 +487,6 @@ void createGraph(Mat image) {
 ////////////////////////////////////////////////
 void HPGMST()
 {
-	printColorArr(d_avg_color_r, d_avg_color_g, d_avg_color_b, no_of_vertices * no_of_edges);
 	//Make both CUDA grids needed for execution, no_of_vertices and no_of_edges length sizes
 	int num_of_blocks, num_of_threads_per_block;
 
