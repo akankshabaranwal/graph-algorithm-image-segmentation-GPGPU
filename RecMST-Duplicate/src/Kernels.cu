@@ -39,13 +39,13 @@ __global__ void createAvgColorArray(unsigned char *image, float *d_avg_color_r, 
 
     if (row < no_of_rows && col < no_of_cols) {
         unsigned int this_img_idx = row * pitch + col * CHANNEL_SIZE;
-        unsigned char this_r = image[this_img_idx];
-        unsigned char this_g = image[this_img_idx + 1];
-        unsigned char this_b = image[this_img_idx + 2];
+        unsigned int this_r = (unsigned int) image[this_img_idx];
+        unsigned int this_g = (unsigned int) image[this_img_idx + 1];
+        unsigned int this_b = (unsigned int) image[this_img_idx + 2];
         unsigned int write_idx = row * no_of_cols + col;
-        d_avg_color_r[write_idx] = float(this_r);
-        d_avg_color_g[write_idx] = float(this_g);
-        d_avg_color_b[write_idx] = float(this_b);
+        d_avg_color_r[write_idx] = __uint_as_float(this_r);
+        d_avg_color_g[write_idx] = __uint_as_float(this_g);
+        d_avg_color_b[write_idx] = __uint_as_float(this_b);
     }
 }
 
