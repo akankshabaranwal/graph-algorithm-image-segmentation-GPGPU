@@ -28,7 +28,7 @@
 #define MAX_THREADS_PER_BLOCK 1024          // IMPORTANT TO SET CORRECTLY
 #define INF 67108863                        // Make sure larger than amount of edges, maybe best equal to max possible vertex ID // TODO: set to 2^MOVEBITS - 1
 #define CHANNEL_SIZE 3                      // Amount of color channels, 3 for RGB
-#define SCALE 1024                             // Make sure to set scale so weight less than assigned amount of bits TODO: remove
+#define SCALE 256                             // Make sure to set scale so weight less than assigned amount of bits TODO: remove
 
 ////////////////////////////////////////////////////////////////////////////////////////////
 // Graph creation kernels
@@ -440,8 +440,8 @@ __global__ void CalcWeights(float* d_avg_color_r, float* d_avg_color_g, float* d
         float other_b = d_avg_color_b[other_img_idx]; // TODO: does abs work correct?
 
         float image_weight = (abs(this_r - other_r) + abs(this_g - other_g) + abs(this_b - other_b));
-        // d_weight[tid] = d_edge_strength[tid] * ((unsigned int) (SCALE * image_weight));
-        d_weight[tid] = 1 * ((unsigned int) (SCALE * image_weight));
+        d_weight[tid] = d_edge_strength[tid] * ((unsigned int) (SCALE * image_weight));
+        //d_weight[tid] = 1 * ((unsigned int) (SCALE * image_weight));
 
     }
 }
