@@ -103,8 +103,6 @@ unsigned int *d_vertex;										// starts as h_vertex
 unsigned int *d_weight;										// starts as h_weight
 unsigned int *d_edge_strength;
 unsigned int *d_edge_strength_copy;
-unsigned char *d_avg_color;
-unsigned char *d_avg_color_copy;
 float* d_avg_color_r;
 float* d_avg_color_g;
 float* d_avg_color_b;
@@ -288,14 +286,12 @@ void Init()
 	cudaMalloc( (void**) &d_component_size, sizeof(unsigned int)*no_of_vertices_orig);
 	cudaMalloc( (void**) &d_old_component_size, sizeof(unsigned int)*no_of_vertices_orig);
 	cudaMalloc( (void**) &d_component_size_copy, sizeof(unsigned int)*no_of_vertices_orig);
-	cudaMalloc( (void**) &d_avg_color, sizeof(unsigned char)*3*no_of_vertices_orig);
 	cudaMalloc( (void**) &d_avg_color_r, sizeof(float)*no_of_vertices_orig);
 	cudaMalloc( (void**) &d_avg_color_g, sizeof(float)*no_of_vertices_orig);
 	cudaMalloc( (void**) &d_avg_color_b, sizeof(float)*no_of_vertices_orig);
 	cudaMalloc( (void**) &d_avg_color_r_copy, sizeof(float)*no_of_vertices_orig);
 	cudaMalloc( (void**) &d_avg_color_g_copy, sizeof(float)*no_of_vertices_orig);
 	cudaMalloc( (void**) &d_avg_color_b_copy, sizeof(float)*no_of_vertices_orig);
-	cudaMalloc( (void**) &d_avg_color_copy, sizeof(unsigned char)*3*no_of_vertices_orig);
 
 	//Allocate memory for other arrays
 	cudaMalloc( (void**) &d_segmented_min_scan_input, sizeof(unsigned long long int)*no_of_edges_orig);
@@ -332,14 +328,12 @@ void FreeMem()
 	cudaFree(d_component_size);
 	cudaFree(d_old_component_size);
 	cudaFree(d_component_size_copy);
-	cudaFree(d_avg_color);
 	cudaFree(d_avg_color_r);
 	cudaFree(d_avg_color_g);
 	cudaFree(d_avg_color_b);
 	cudaFree(d_avg_color_r_copy);
 	cudaFree(d_avg_color_g_copy);
 	cudaFree(d_avg_color_b_copy);
-	cudaFree(d_avg_color_copy);
 	cudaFree(d_segmented_min_scan_input);
 	cudaFree(d_segmented_min_scan_output);
 	cudaFree(d_edge_flag);
@@ -461,7 +455,7 @@ void createGraph(Mat image) {
     // Create corners
 	createCornerGraphKernel<<< grid_corner, threads_corner, 5>>>((unsigned char*) d_sobel.cudaPtr(), d_vertex, d_edge, d_edge_strength, no_of_rows, no_of_cols, edge_pitch);
 
-	createAvgColorArray<<< encode_blocks, encode_threads, 6>>>((unsigned char*) d_blurred.cudaPtr(), d_avg_color, no_of_rows, no_of_cols, pitch);
+	createAvgColorArray<<< encode_blocks, encode_threads, 6>>>((unsigned char*) d_blurred.cudaPtr(), d_avg_color_r, d_avg_color_g, d_avg_color_b, no_of_rows, no_of_cols, pitch);
 
 	InitComponentSizes<<<grid_cmp, threads_cmp ,7>>>(d_component_size, no_of_rows * no_of_cols);
 	
@@ -521,7 +515,7 @@ void HPGMST()
                   thrust::minus<unsigned int>());
 
 	// Calculate weights
-	CalcWeights<<<grid_edgelen, threads_edgelen, 0>>>(d_avg_color, d_old_uIDs, d_edge, d_edge_strength, d_weight, no_of_edges);
+	CalcWeights<<<grid_edgelen, threads_edgelen, 0>>>(d_avg_color_r, d_avg_color_g, d_avg_color_b, d_old_uIDs, d_edge, d_edge_strength, d_weight, no_of_edges);
 
 	// 1. Append weight w and outgoing vertex v per edge into a single array, X.
     // 12 bit for weight, 26 bits for ID.
@@ -588,8 +582,8 @@ void HPGMST()
 	CopyToSucc<<< grid_vertexlen, threads_vertexlen, 0>>>(d_component_size, d_component_size_copy, no_of_vertices);
 
 	// Sort avg colors
-	SortAvgColorsFromSplit<<< grid_vertexlen, threads_vertexlen, 0>>>(d_avg_color, d_avg_color_copy, d_vertex_split, no_of_vertices);
-	CopyToAvgColor<<< grid_vertexlen, threads_vertexlen, 0>>>(d_avg_color, d_avg_color_copy, no_of_vertices); // for conflicts
+	SortAvgColorsFromSplit<<< grid_vertexlen, threads_vertexlen, 0>>>(d_avg_color_r, d_avg_color_g, d_avg_color_b, d_avg_color_r_copy, d_avg_color_g_copy, d_avg_color_b_copy, d_vertex_split, no_of_vertices);
+	CopyToAvgColor<<< grid_vertexlen, threads_vertexlen, 0>>>(d_avg_color_r, d_avg_color_g, d_avg_color_b, d_avg_color_r_copy, d_avg_color_g_copy, d_avg_color_b_copy, no_of_vertices); // for conflicts
 
 
 	// 9.2 Create flag for assigning new vertex IDs based on difference in supervertex IDs
@@ -609,14 +603,14 @@ void HPGMST()
 	ExtractComponentSizes<<< grid_vertexlen, threads_vertexlen, 0>>>(d_component_size_copy, d_component_size, d_new_supervertexIDs, no_of_vertices);
 
 	// Reweigh colors joining components so their sum when adding them up is the average
-	ReweighAndOrganizeColors<<< grid_vertexlen, threads_vertexlen, 0>>>(d_avg_color, d_avg_color_r, d_avg_color_g, d_avg_color_b, d_component_size, d_old_component_size, d_new_supervertexIDs, no_of_vertices);
+	ReweighAndOrganizeColors<<< grid_vertexlen, threads_vertexlen, 0>>>(d_avg_color_r, d_avg_color_g, d_avg_color_b, d_component_size, d_old_component_size, d_new_supervertexIDs, no_of_vertices);
 	thrust::plus<float> binaryOp3;
 	thrust::inclusive_scan_by_key(thrust::device, d_new_supervertexIDs, d_new_supervertexIDs + no_of_vertices, d_avg_color_r, d_avg_color_r_copy, binaryPred2, binaryOp3);
 	thrust::inclusive_scan_by_key(thrust::device, d_new_supervertexIDs, d_new_supervertexIDs + no_of_vertices, d_avg_color_g, d_avg_color_g_copy, binaryPred2, binaryOp3);
 	thrust::inclusive_scan_by_key(thrust::device, d_new_supervertexIDs, d_new_supervertexIDs + no_of_vertices, d_avg_color_b, d_avg_color_b_copy, binaryPred2, binaryOp3);
 
 	// Extract new colors
-	ExtractNewColors<<< grid_vertexlen, threads_vertexlen, 0>>>(d_avg_color_r_copy, d_avg_color_g_copy, d_avg_color_b_copy, d_avg_color, d_new_supervertexIDs, no_of_vertices);
+	ExtractNewColors<<< grid_vertexlen, threads_vertexlen, 0>>>(d_avg_color_r_copy, d_avg_color_g_copy, d_avg_color_b_copy, d_avg_color_r, d_avg_color_g, d_avg_color_b, d_new_supervertexIDs, no_of_vertices);
 
 	/*
 	 * D. Removing self edges
