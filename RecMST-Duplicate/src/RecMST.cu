@@ -413,7 +413,7 @@ void createGraph(Mat image) {
 		timings.push_back(time);
 	}
 
-	dev_image.release();
+	//dev_image.release();
 	d_blurred_gray.release();
 	d_resultx.release();
 	d_abs_resultx.release();
@@ -464,7 +464,7 @@ void createGraph(Mat image) {
     // Create corners
 	createCornerGraphKernel<<< grid_corner, threads_corner>>>((unsigned char*) d_sobel.cudaPtr(), d_vertex, d_edge, d_edge_strength, no_of_rows, no_of_cols, edge_pitch);
 
-	createAvgColorArray<<< encode_blocks, encode_threads>>>((unsigned char*) d_blurred.cudaPtr(), d_avg_color_r, d_avg_color_g, d_avg_color_b, no_of_rows, no_of_cols, pitch);
+	createAvgColorArray<<< encode_blocks, encode_threads>>>((unsigned char*) dev_image.cudaPtr(), d_avg_color_r, d_avg_color_g, d_avg_color_b, no_of_rows, no_of_cols, pitch);
 
 	InitComponentSizes<<<grid_cmp, threads_cmp>>>(d_component_size, no_of_rows * no_of_cols);
 	
