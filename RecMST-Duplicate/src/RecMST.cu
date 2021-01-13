@@ -464,6 +464,8 @@ void createGraph(Mat image) {
     // Create corners
 	createCornerGraphKernel<<< grid_corner, threads_corner>>>((unsigned char*) d_sobel.cudaPtr(), d_vertex, d_edge, d_edge_strength, no_of_rows, no_of_cols, edge_pitch);
 
+		dev_image.upload(image);
+
 	createAvgColorArray<<< encode_blocks, encode_threads>>>((unsigned char*) dev_image.cudaPtr(), d_avg_color_r, d_avg_color_g, d_avg_color_b, no_of_rows, no_of_cols, pitch);
 
 	InitComponentSizes<<<grid_cmp, threads_cmp>>>(d_component_size, no_of_rows * no_of_cols);
@@ -477,7 +479,6 @@ void createGraph(Mat image) {
 	}
 
 	fprintf(stderr, "Image read successfully into graph with %d vertices and %d edges\n", no_of_vertices, no_of_edges);
-	dev_image.upload(image);
 	printColorArr(d_avg_color_r, d_avg_color_g, d_avg_color_b, no_of_rows * no_of_cols);
 
 }
