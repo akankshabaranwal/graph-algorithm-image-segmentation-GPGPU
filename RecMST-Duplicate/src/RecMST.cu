@@ -709,27 +709,27 @@ void writeComponents(std::vector<unsigned int*>& d_hierarchy_levels, std::vector
 	char *component_colours = (char *) malloc(no_of_vertices_orig * CHANNEL_SIZE * sizeof(char));
 
 
-	// Generate uniform [0, 1] double
+	// Generate uniform [0, 1] float
 	curandGenerator_t gen;
 	char* d_component_colours;
-	double *d_component_colours_double;
-	cudaMalloc( (void**) &d_component_colours_double, no_of_vertices_orig * CHANNEL_SIZE * sizeof(double));
+	float *d_component_colours_float;
+	cudaMalloc( (void**) &d_component_colours_float, no_of_vertices_orig * CHANNEL_SIZE * sizeof(float));
 	cudaMalloc( (void**) &d_component_colours, no_of_vertices_orig * CHANNEL_SIZE * sizeof(char));
 
-	// Generate random doubles
+	// Generate random floats
 	curandCreateGenerator(&gen , CURAND_RNG_PSEUDO_MTGP32); // Create a Mersenne Twister pseudorandom number generator
 	curandSetPseudoRandomGeneratorSeed(gen, 1234ULL); // Set seed
-	curandGenerateUniform(gen, d_component_colours_double, no_of_vertices_orig * CHANNEL_SIZE); // Generate n doubles on device
+	curandGenerateUniform(gen, d_component_colours_float, no_of_vertices_orig * CHANNEL_SIZE); // Generate n floats on device
 
-	// Convert doubles to RGB char
+	// Convert floats to RGB char
 	int num_of_blocks, num_of_threads_per_block;
 
 	SetGridThreadLen(no_of_vertices_orig * CHANNEL_SIZE, &num_of_blocks, &num_of_threads_per_block);
 	dim3 grid_rgb(num_of_blocks, 1, 1);
 	dim3 threads_rgb(num_of_threads_per_block, 1, 1);
 
-	RanddoubleToRandRGB<<< grid_rgb, threads_rgb, 0>>>(d_component_colours, d_component_colours_double, no_of_vertices_orig * CHANNEL_SIZE);
-	cudaFree(d_component_colours_double);
+	RandFloatToRandRGB<<< grid_rgb, threads_rgb, 0>>>(d_component_colours, d_component_colours_float, no_of_vertices_orig * CHANNEL_SIZE);
+	cudaFree(d_component_colours_float);
 
 
 	// Create hierarchy
