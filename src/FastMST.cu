@@ -221,8 +221,8 @@ __global__ void CreateFlag3Array(uint64_t *UVW, int numEdges, uint32_t *flag3, i
             else
             {
                 flag3[idx] = 0;
-                MinMaxScanArray[idx]=idx+1;
             }
+                MinMaxScanArray[idx]=idx;
             }
     }
     if(tidx==0)flag3[tidx]=1;

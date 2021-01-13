@@ -249,8 +249,9 @@ void segment(Mat image, std::string outFile, bool output)
     SetBitEdgeListArray<<<numBlock, numthreads>>>(  OnlyWeight, numEdges, OnlyEdge);
     numthreads=1024;
 
-    while(numVertices>1)
+    while(numVertices>2)
     {
+        //printf("numVertices: %d \n", numVertices);
 /*        if(numEdges>1024)
             numthreads = 1024;
         else if(numEdges>512)
@@ -337,11 +338,11 @@ void segment(Mat image, std::string outFile, bool output)
         timings.push_back(time);
     }
 
-    int id;
+    /*int id;
     cudaGetDevice( &id );
     size_t free, total;
     cudaMemGetInfo( &free, &total );
-    std::cout << "GPU " << id << " memory: free=" << free << ", total=" << total << std::endl;
+    std::cout << "GPU " << id << " memory: free=" << free << ", total=" << total << std::endl;*/
 
     writeComponents(d_hierarchy_levels, image.rows*image.cols, 3, hierarchy_level_sizes, outFile, image.rows, image.cols);
 
