@@ -33,7 +33,7 @@
   -> Changed to long long; 13 bit weight, 25 bit ID TODO: change to 18 bit weight, 26 bit ID
   8. List L: 32 bit vertex ID left, 32 bit vertex ID right
   12. UVW: u.id 24 bit, v.id 24 bit, weight 16 bit
-  -> Change to u.id 25 bit, v.id 25 bit, weight 13 bit TODO: weight here edge strength, change to 26, 26, 12
+  -> Change to u.id 26 bit, v.id 26 bit, edge_strength 12 bit
 ************************************************************************************/
 
 ////////////////////////////////////////////////
