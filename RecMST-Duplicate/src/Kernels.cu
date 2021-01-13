@@ -440,8 +440,8 @@ __global__ void CalcWeights(float* d_avg_color_r, float* d_avg_color_g, float* d
         float other_b = d_avg_color_b[other_img_idx]; // TODO: does abs work correct?
 
         float image_weight = (abs(this_r - other_r) + abs(this_g - other_g) + abs(this_b - other_b));
-        //d_weight[tid] = d_edge_strength[tid] * ((unsigned int) (SCALE * image_weight));
-        d_weight[tid] = 1 * ((unsigned int) (SCALE * image_weight));
+        d_weight[tid] = d_edge_strength[tid] * ((unsigned int) (SCALE * image_weight));
+        //d_weight[tid] = 1 * ((unsigned int) (SCALE * image_weight));
 
     }
 }
