@@ -46,7 +46,7 @@ __global__ void createAvgColorArray(unsigned char *image, float *d_avg_color_r, 
         d_avg_color_r[write_idx] = 0.0 + this_r;
         d_avg_color_g[write_idx] = 0.0 + this_g;
         d_avg_color_b[write_idx] = 0.0 + this_b;
-        printf("%u\n", this_r);
+        printf("%f\n", d_avg_color_r[write_idx]);
     }
 }
 
