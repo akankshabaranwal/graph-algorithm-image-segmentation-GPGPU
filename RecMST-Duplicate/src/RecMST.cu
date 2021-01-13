@@ -477,7 +477,7 @@ void createGraph(Mat image) {
 	}
 
 	fprintf(stderr, "Image read successfully into graph with %d vertices and %d edges\n", no_of_vertices, no_of_edges);
-	//printColorArr(d_avg_color_r, d_avg_color_g, d_avg_color_b, no_of_vertices * no_of_edges);
+	printColorArr(d_avg_color_r, d_avg_color_g, d_avg_color_b, no_of_vertices * no_of_edges);
 
 }
 
