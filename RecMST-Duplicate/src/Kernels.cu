@@ -557,7 +557,7 @@ __global__ void ExtractNewColors(double *d_avg_color_r_copy, double *d_avg_color
 ////////////////////////////////////////////////////////////////////////////////////////////
 // Segment extraction kernels
 ////////////////////////////////////////////////////////////////////////////////////////////
-__global__ void RandFloatToRandRGB(char* d_component_colours, double *d_component_colours_double, unsigned int n_numbers) 
+__global__ void RandFloatToRandRGB(char* d_component_colours, float *d_component_colours_double, unsigned int n_numbers) 
 {
     unsigned int tid = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
     if (tid < n_numbers) {
