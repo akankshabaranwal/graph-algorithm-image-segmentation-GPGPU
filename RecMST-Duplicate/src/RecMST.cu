@@ -452,21 +452,21 @@ void createGraph(Mat image) {
 	dim3 threads_cmp(num_of_threads_per_block, 1, 1);
 
     // Create inner graph
-    createInnerGraphKernel<<< encode_blocks, encode_threads, 0>>>((unsigned char*) d_sobel.cudaPtr(), d_vertex, d_edge, d_edge_strength, no_of_rows, no_of_cols, edge_pitch);
+    createInnerGraphKernel<<< encode_blocks, encode_threads>>>((unsigned char*) d_sobel.cudaPtr(), d_vertex, d_edge, d_edge_strength, no_of_rows, no_of_cols, edge_pitch);
 
     // Create outer graph
-   	createFirstRowGraphKernel<<< grid_row, threads_row, 1>>>((unsigned char*) d_sobel.cudaPtr(), d_vertex, d_edge, d_edge_strength, no_of_rows, no_of_cols, edge_pitch);
-   	createLastRowGraphKernel<<< grid_row, threads_row, 2>>>((unsigned char*) d_sobel.cudaPtr(), d_vertex, d_edge, d_edge_strength, no_of_rows, no_of_cols, edge_pitch);
+   	createFirstRowGraphKernel<<< grid_row, threads_row>>>((unsigned char*) d_sobel.cudaPtr(), d_vertex, d_edge, d_edge_strength, no_of_rows, no_of_cols, edge_pitch);
+   	createLastRowGraphKernel<<< grid_row, threads_row>>>((unsigned char*) d_sobel.cudaPtr(), d_vertex, d_edge, d_edge_strength, no_of_rows, no_of_cols, edge_pitch);
 
-   	createFirstColumnGraphKernel<<< grid_col, threads_col, 3>>>((unsigned char*) d_sobel.cudaPtr(), d_vertex, d_edge, d_edge_strength, no_of_rows, no_of_cols, edge_pitch);
-   	createLastColumnGraphKernel<<< grid_col, threads_col, 4>>>((unsigned char*) d_sobel.cudaPtr(), d_vertex, d_edge, d_edge_strength, no_of_rows, no_of_cols, edge_pitch);
+   	createFirstColumnGraphKernel<<< grid_col, threads_col>>>((unsigned char*) d_sobel.cudaPtr(), d_vertex, d_edge, d_edge_strength, no_of_rows, no_of_cols, edge_pitch);
+   	createLastColumnGraphKernel<<< grid_col, threads_col>>>((unsigned char*) d_sobel.cudaPtr(), d_vertex, d_edge, d_edge_strength, no_of_rows, no_of_cols, edge_pitch);
 
     // Create corners
-	createCornerGraphKernel<<< grid_corner, threads_corner, 5>>>((unsigned char*) d_sobel.cudaPtr(), d_vertex, d_edge, d_edge_strength, no_of_rows, no_of_cols, edge_pitch);
+	createCornerGraphKernel<<< grid_corner, threads_corner>>>((unsigned char*) d_sobel.cudaPtr(), d_vertex, d_edge, d_edge_strength, no_of_rows, no_of_cols, edge_pitch);
 
-	createAvgColorArray<<< encode_blocks, encode_threads, 6>>>((unsigned char*) d_blurred.cudaPtr(), d_avg_color_r, d_avg_color_g, d_avg_color_b, no_of_rows, no_of_cols, pitch);
+	createAvgColorArray<<< encode_blocks, encode_threads>>>((unsigned char*) d_blurred.cudaPtr(), d_avg_color_r, d_avg_color_g, d_avg_color_b, no_of_rows, no_of_cols, pitch);
 
-	InitComponentSizes<<<grid_cmp, threads_cmp ,7>>>(d_component_size, no_of_rows * no_of_cols);
+	InitComponentSizes<<<grid_cmp, threads_cmp>>>(d_component_size, no_of_rows * no_of_cols);
 	
 	cudaDeviceSynchronize(); // Needed to synchronise streams!
 
