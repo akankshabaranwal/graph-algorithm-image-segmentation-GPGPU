@@ -208,19 +208,16 @@ void printULongArr(long* d_data, int n_elements) {
 }
 
 void printColorArr(float* d_avg_color_r, float* d_avg_color_g, float* d_avg_color_b, int n_elements) {
-	printf("avg color start\n");
 	float* h_avg_color_r = (float*) malloc(sizeof(float)*n_elements);
 	float* h_avg_color_g = (float*) malloc(sizeof(float)*n_elements);
 	float* h_avg_color_b = (float*) malloc(sizeof(float)*n_elements);
 
-	printf("memcpy start\n");
 	cudaMemcpy(h_avg_color_r, d_avg_color_r, sizeof(float) * n_elements, cudaMemcpyDeviceToHost);
 	cudaMemcpy(h_avg_color_g, d_avg_color_g, sizeof(float) * n_elements, cudaMemcpyDeviceToHost);
 	cudaMemcpy(h_avg_color_b, d_avg_color_b, sizeof(float) * n_elements, cudaMemcpyDeviceToHost);
 
-	printf("print start\n");
 	for (int i = 0; i < n_elements; i++) {
-		printf("(%u, %u, %u) ", (unsigned int) d_avg_color_r[i], (unsigned int) d_avg_color_g[i], (unsigned int) d_avg_color_b[i]);
+		printf("(%u, %u, %u) ", (unsigned int) h_avg_color_r[i], (unsigned int) h_avg_color_g[i], (unsigned int) h_avg_color_b[i]);
 	}
 
 	printf("\n");
