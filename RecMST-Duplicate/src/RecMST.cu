@@ -217,7 +217,7 @@ void printColorArr(float* d_avg_color_r, float* d_avg_color_g, float* d_avg_colo
 	cudaMemcpy(h_avg_color_b, d_avg_color_b, sizeof(float) * n_elements, cudaMemcpyDeviceToHost);
 
 	for (int i = 0; i < n_elements; i++) {
-		printf("(%f, %f, %f) ", h_avg_color_r[i], h_avg_color_g[i], 1.0);
+		printf("(%f, %f, %f) ", h_avg_color_r[i], h_avg_color_g[i], h_avg_color_b[i]);
 	}
 
 	printf("\n");

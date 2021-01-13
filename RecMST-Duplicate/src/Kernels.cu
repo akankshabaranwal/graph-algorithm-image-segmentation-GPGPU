@@ -43,9 +43,9 @@ __global__ void createAvgColorArray(unsigned char *image, float *d_avg_color_r, 
         unsigned char this_g = image[this_img_idx + 1];
         unsigned char this_b = image[this_img_idx + 2];
         unsigned int write_idx = row * no_of_cols + col;
-        d_avg_color_r[write_idx] = (float) this_r;
-        d_avg_color_g[write_idx] = (float) this_g;
-        d_avg_color_b[write_idx] = (float) this_b;
+        d_avg_color_r[write_idx] = float(this_r);
+        d_avg_color_g[write_idx] = float(this_g);
+        d_avg_color_b[write_idx] = float(this_b);
     }
 }
 
