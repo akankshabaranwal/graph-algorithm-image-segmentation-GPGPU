@@ -221,7 +221,9 @@ void printColorArr(float* d_avg_color_r, float* d_avg_color_g, float* d_avg_colo
 	}
 
 	printf("\n");
-	free(h_data);
+	free(h_avg_color_r);
+	free(h_avg_color_g);
+	free(h_avg_color_b);
 }
 
 void printLongArr(long* d_data, int n_elements) {
