@@ -21,7 +21,7 @@ Akanksha Baranwal, Amory Hoste, Gyorgy Rethy, Kouroche Bouchiat
   - [Dataset](https://gitlab.ethz.ch/ahoste/graph-algorithm-image-segmentation/-/tree/benchmarking/dataset)
   - [ASA & UE score calculator](https://gitlab.ethz.ch/ahoste/graph-algorithm-image-segmentation/-/tree/comparetool)
   - [Benchmark scripts](https://gitlab.ethz.ch/ahoste/graph-algorithm-image-segmentation/-/tree/benchmarking)
-  - [Data and plots](https://gitlab.ethz.ch/ahoste/graph-algorithm-image-segmentation/-/tree/correct-benchmark-plots)
+  - [Benchmark data and plots](https://gitlab.ethz.ch/ahoste/graph-algorithm-image-segmentation/-/tree/correct-benchmark-plots)
 - Performance benchmark
   - [Dataset](https://gitlab.ethz.ch/ahoste/graph-algorithm-image-segmentation/-/tree/performance_benchmark/dataset/jpg)
   - [Benchmark scripts](https://gitlab.ethz.ch/ahoste/graph-algorithm-image-segmentation/-/tree/performance_benchmark/performance_benchmark)
