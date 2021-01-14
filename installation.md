@@ -2,7 +2,7 @@
 
 This branch will serve as a template for sub-projects using OpenCV (with CUDA support).
 
-## Building and instal# Template for OpenCV CUDA-Enabled Project
+## Building and instal
 
 This branch will serve as a template for sub-projects using OpenCV (with CUDA support).
 
